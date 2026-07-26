@@ -14,7 +14,7 @@
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "development",
-      "tags": ["dotnet", "csharp", "development", "skills"],
+      "keywords": ["dotnet", "csharp", "development", "skills"],
       "strict": true
     },
     {
@@ -25,7 +25,7 @@
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "workflow",
-      "tags": ["workflow", "loop", "ralph", "coding"],
+      "keywords": ["workflow", "loop", "ralph", "coding"],
       "strict": true
     }
   ]
