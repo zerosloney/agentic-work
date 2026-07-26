@@ -4,7 +4,7 @@ This repo contains plugins for opencode / CodeBuddy / ZCode. Follow these rules 
 
 ## Layout invariants
 
-- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have three platform subdirs: `opencode/`, `codebuddy/`, `zcode/`.
+- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs (opencode has none — content is discovered from the plugin root).
 - **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs (`opencode/`, `codebuddy/`, `zcode/`) contain ONLY platform-specific manifests.
 - Platform manifests live only in their respective platform subdirs:
   - `zcode/.zcode-plugin/plugin.json`

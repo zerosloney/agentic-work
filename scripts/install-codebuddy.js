@@ -88,8 +88,8 @@ function ensureMarketplaceManifest(plugins, dryRun) {
       version: PLUGIN_VERSION,
       source: `./${pluginName}-codebuddy`,
       category: pluginName === 'dotnet-work' ? 'development' : 'workflow',
-      author: { name: 'master0071', url: 'https://github.com/master0071' },
-      homepage: 'https://github.com/master0071/agentic-work',
+      author: { name: 'master0071', url: 'https://github.com/zerosloney' },
+      homepage: 'https://github.com/zerosloney/agentic-work',
       license: 'MIT'
     };
     const idx = data.plugins.findIndex(p => p.name === entry.name);

@@ -63,7 +63,7 @@ function deleteDirRecursive(dir) {
 
 function installPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
-  const pluginRootDest = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, `${installName}\\${PLUGIN_VERSION}`);
+  const pluginRootDest = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
   const manifestSrc = path.join(src, 'zcode', '.zcode-plugin', 'plugin.json');
 
@@ -105,7 +105,7 @@ function installPlugin(pluginName, args) {
     const entry = {
       name: installName,
       source: 'filesystem',
-      cachePath: pluginRoot.split(path.sep).join('/'),
+      cachePath: pluginRootDest.split(path.sep).join('/'),
       version: PLUGIN_VERSION,
       description: `${pluginName} plugin for ZCode`,
       category: pluginName === 'dotnet-work' ? 'development' : 'workflow'
@@ -133,7 +133,7 @@ function installPlugin(pluginName, args) {
 
 function uninstallPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
-  const pluginRoot = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, `${installName}\\${PLUGIN_VERSION}`);
+  const pluginRoot = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);
 
   if (fs.existsSync(pluginRoot)) {

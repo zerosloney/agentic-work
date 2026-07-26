@@ -1,7 +1,7 @@
 {
   "name": "loop-workflow-codebuddy",
   "version": "0.1.0",
-  "description": "Orchestrated execute-review loops for CodeBuddy. 12 agents + 5 commands covering coding/testing/writing/Ralph workflows.",
+  "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph).",
   "category": "Workflow",
   "commands": "commands",
   "agents": "agents"
