@@ -51,12 +51,10 @@ All three must exit 0 without writing any files.
 
 `plugins/loop-workflow/hooks/` contains lifecycle hooks for the loop-workflow plugin:
 
-| File             | Trigger时机                |
-|------------------|----------------------------|
-| `install.js`     | After plugin is installed  |
-| `uninstall.js`   | Before plugin is removed   |
-| `pre-execute.js` | Before agent/command runs  |
-| `post-execute.js`| After agent/command runs   |
+| File               | Trigger时机              |
+|--------------------|----------------------------|
+| `pre-execute.js`  | Before agent/command runs  |
+| `post-execute.js` | After agent/command runs   |
 
 Each hook file exports `{ onInstall(context) }`, `{ onUninstall(context) }`, etc. The `context` object contains `logger`, `platform`, `command`, and `result` (post-execute only). Hooks are registered via `hooks/index.js` `register(context)` which maps events to handlers.
 
