@@ -26,8 +26,15 @@ const SUBDIRS = ['skills', 'agents', 'commands'];
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
   for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === '--plugin') args.plugin = argv[++i];
-    else if (argv[i] === '--uninstall') args.uninstall = true;
+    if (argv[i] === '--plugin') {
+      const next = argv[i + 1];
+      if (!next || next.startsWith('--')) {
+        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        process.exit(2);
+      }
+      args.plugin = next;
+      i++;
+    } else if (argv[i] === '--uninstall') args.uninstall = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
   }
   return args;
@@ -54,14 +61,36 @@ function install(args) {
       const dest = path.join(HOME, sub);
       // opencode skills/<name>/ nested; agents/commands/ flat
       if (sub === 'skills') {
-        for (const skill of fs.readdirSync(src)) {
+        const sourceSkills = fs.readdirSync(src);
+        // Remove stale skills that no longer exist in source
+        if (fs.existsSync(dest)) {
+          for (const existing of fs.readdirSync(dest)) {
+            if (!sourceSkills.includes(existing)) {
+              const stalePath = path.join(dest, existing);
+              if (!args.dryRun) fs.rmSync(stalePath, { recursive: true, force: true });
+              console.log(`  ${args.dryRun ? 'would remove stale' : 'removed stale'}: ${sub}/${existing}/`);
+            }
+          }
+        }
+        for (const skill of sourceSkills) {
           const skillSrc = path.join(src, skill);
           const skillDest = path.join(dest, skill);
           if (!args.dryRun) copyDirRecursive(skillSrc, skillDest);
           console.log(`  ${args.dryRun ? 'would copy' : 'copied'}: ${sub}/${skill}/`);
         }
       } else {
-        for (const file of fs.readdirSync(src)) {
+        const sourceFiles = fs.readdirSync(src);
+        // Remove stale files that no longer exist in source
+        if (fs.existsSync(dest)) {
+          for (const existing of fs.readdirSync(dest)) {
+            if (!sourceFiles.includes(existing)) {
+              const stalePath = path.join(dest, existing);
+              if (!args.dryRun) fs.rmSync(stalePath, { force: true });
+              console.log(`  ${args.dryRun ? 'would remove stale' : 'removed stale'}: ${sub}/${existing}`);
+            }
+          }
+        }
+        for (const file of sourceFiles) {
           const fSrc = path.join(src, file);
           const fDest = path.join(dest, file);
           if (!args.dryRun) fs.copyFileSync(fSrc, fDest);
