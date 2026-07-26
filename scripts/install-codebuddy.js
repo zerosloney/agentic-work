@@ -12,6 +12,13 @@
 // the codebuddy/ platform subdir to
 // %USERPROFILE%/.codebuddy/plugins/<name>-codebuddy/
 // and registers via 'codebuddy plugin' CLI.
+//
+// CodeBuddy-specific overrides:
+//   plugins/<name>/codebuddy/agents/*.md → overlays the generic
+//   agents/*.md copied from the plugin root. Use this when an
+//   agent's frontmatter (e.g. nested `permission:` block) uses
+//   fields CodeBuddy does not recognise. The body of each override
+//   must stay in sync with the corresponding root file.
 
 const fs = require('fs');
 const path = require('path');
@@ -134,6 +141,26 @@ function install(args) {
       console.log(`  copied to: ${dest}`);
     } else {
       console.log(`  would copy: ${pluginRoot} → ${dest}`);
+    }
+
+    // Overlay CodeBuddy-specific agent overrides on top of the root copy.
+    // Each file in plugins/<name>/codebuddy/agents/ takes precedence over
+    // plugins/<name>/agents/<same-name>.md for CodeBuddy installs.
+    const overridesDir = path.join(pluginRoot, 'codebuddy', 'agents');
+    if (fs.existsSync(overridesDir)) {
+      const destAgents = path.join(dest, 'agents');
+      for (const entry of fs.readdirSync(overridesDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+        const srcFile = path.join(overridesDir, entry.name);
+        const dstFile = path.join(destAgents, entry.name);
+        if (!args.dryRun) {
+          fs.mkdirSync(destAgents, { recursive: true });
+          fs.copyFileSync(srcFile, dstFile);
+          console.log(`  overlaid: agents/${entry.name}`);
+        } else {
+          console.log(`  would overlay: agents/${entry.name}`);
+        }
+      }
     }
   }
 

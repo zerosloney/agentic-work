@@ -4,12 +4,32 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
 
 ## Layout invariants
 
-- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs.
-- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs (`codebuddy/`, `zcode/`) contain ONLY platform-specific manifests.
+- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs (opencode has none — content is discovered from the plugin root).
+- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs contain ONLY platform-specific manifests and platform-specific agent overrides (see below).
 - Platform manifests live only in their respective platform subdirs:
   - `zcode/.zcode-plugin/plugin.json`
   - `codebuddy/.codebuddy-plugin/plugin.json`
 - Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** — no duplication across platforms.
+
+### CodeBuddy-specific agent overrides
+
+When an agent's frontmatter uses fields CodeBuddy does not recognise (e.g. nested `permission:` blocks, `mode: subagent`, `temperature`, `steps`), put a CodeBuddy-adapted version in:
+
+```
+plugins/<name>/codebuddy/agents/<agent-name>.md
+```
+
+The install script copies agents from the plugin root, then overlays any codebuddy/agents/ files on top. Body content should be the same as the root version; only the frontmatter changes. Each override file starts with an HTML comment noting the sync requirement.
+
+Permission mapping for codebuddy `permissionMode` (single-value enum):
+
+| Source root `permission:` | codebuddy `permissionMode` |
+|---------------------------|----------------------------|
+| `edit: allow` (full)      | `acceptEdits`              |
+| `edit: deny` + bash allow-list (orchestrator) | `default` |
+| `edit: deny` + read-only  | `plan`                     |
+
+Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a known trade-off documented per file.
 
 ## dotnet-work
 
