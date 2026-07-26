@@ -36,11 +36,18 @@ node scripts/install-zcode.js --uninstall
 ### Single-plugin scope
 
 ```sh
-npm install -g @master0071/dotnet-work
-npm install -g @master0071/loop-workflow
+npm install -g @master0071/agentic-work
 ```
 
-(Wrappers `agentic-work-opencode`, `agentic-work-codebuddy`, `agentic-work-zcode` provided via `package.json` bin.)
+Then invoke the per-platform wrappers installed by `@master0071/agentic-work`:
+
+```sh
+agentic-work-opencode      # installs for opencode
+agentic-work-codebuddy     # installs for CodeBuddy
+agentic-work-zcode         # installs for ZCode
+```
+
+(`agentic-work-opencode`, `agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`.)
 
 ## Marketplace
 

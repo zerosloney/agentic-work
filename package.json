@@ -22,7 +22,8 @@
     "install:opencode": "node ./scripts/install-opencode.js",
     "install:codebuddy": "node ./scripts/install-codebuddy.js",
     "install:zcode": "node ./scripts/install-zcode.js",
-    "install:all": "node ./scripts/install-opencode.js && node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js"
+    "install:all": "node ./scripts/install-opencode.js && node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js",
+    "verify": "node ./scripts/install-opencode.js --dry-run && node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run"
   },
   "files": [
     "plugins/",

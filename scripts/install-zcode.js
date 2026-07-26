@@ -8,9 +8,9 @@
 //   node scripts/install-zcode.js --uninstall
 //   node scripts/install-zcode.js --dry-run
 //
-// Copies plugins/<name>/* (skills, agents, commands, etc.) excluding
+// Copies plugins/<name>/* (skills, agents, commands) excluding
 // platform subdirs (codebuddy/, zcode/, opencode/) to
-// %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/0.1.0/
+// %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/<version>/
 // and registers in marketplace.
 
 const fs = require('fs');
@@ -22,8 +22,7 @@ const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
-const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'hooks', 'assets'];
-const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode', 'opencode'];
+const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -51,19 +50,13 @@ function selectPlugins(args) {
   return [args.plugin];
 }
 
-function deleteDirRecursive(dir) {
-  if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) deleteDirRecursive(p);
-    else fs.unlinkSync(p);
-  }
-  fs.rmdirSync(dir);
+function removeDir(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 function installPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
-  const pluginRootDest = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
+  const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
   const manifestSrc = path.join(src, 'zcode', '.zcode-plugin', 'plugin.json');
 
@@ -77,7 +70,7 @@ function installPlugin(pluginName, args) {
     if (sub === '.zcode-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(pluginRootDest, sub);
+    const subDest = path.join(destDir, sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
@@ -87,14 +80,14 @@ function installPlugin(pluginName, args) {
   }
 
   if (!args.dryRun) {
-    fs.mkdirSync(path.join(pluginRootDest, '.zcode-plugin'), { recursive: true });
-    fs.copyFileSync(manifestSrc, path.join(pluginRootDest, '.zcode-plugin', 'plugin.json'));
+    fs.mkdirSync(path.join(destDir, '.zcode-plugin'), { recursive: true });
+    fs.copyFileSync(manifestSrc, path.join(destDir, '.zcode-plugin', 'plugin.json'));
     console.log('  copied: .zcode-plugin/');
   } else {
-    console.log(`  would copy: ${manifestSrc} → ${path.join(pluginRootDest, '.zcode-plugin', 'plugin.json')}`);
+    console.log(`  would copy: ${manifestSrc} → ${path.join(destDir, '.zcode-plugin', 'plugin.json')}`);
   }
 
-  // 注册到 marketplace
+  // Register in marketplace
   const marketplaceFile = path.join(PLUGIN_DIR, 'marketplaces', MARKETPLACE_NAME, 'marketplace.json');
   if (!args.dryRun) {
     fs.mkdirSync(path.dirname(marketplaceFile), { recursive: true });
@@ -105,7 +98,7 @@ function installPlugin(pluginName, args) {
     const entry = {
       name: installName,
       source: 'filesystem',
-      cachePath: pluginRootDest.split(path.sep).join('/'),
+      cachePath: destDir.split(path.sep).join('/'),
       version: PLUGIN_VERSION,
       description: `${pluginName} plugin for ZCode`,
       category: pluginName === 'dotnet-work' ? 'development' : 'workflow'
@@ -119,7 +112,7 @@ function installPlugin(pluginName, args) {
     console.log(`  would register in marketplace`);
   }
 
-  // 启用标记
+  // Enable flag
   const dataDir = path.join(PLUGIN_DIR, 'data', `${installName}@${MARKETPLACE_NAME}`);
   if (!args.dryRun) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -133,12 +126,12 @@ function installPlugin(pluginName, args) {
 
 function uninstallPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
-  const pluginRoot = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
+  const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);
 
-  if (fs.existsSync(pluginRoot)) {
-    if (!args.dryRun) deleteDirRecursive(pluginRoot);
-    console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${pluginRoot}`);
+  if (fs.existsSync(destDir)) {
+    if (!args.dryRun) removeDir(destDir);
+    console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${destDir}`);
   }
 
   const marketplaceFile = path.join(PLUGIN_DIR, 'marketplaces', MARKETPLACE_NAME, 'marketplace.json');
@@ -153,7 +146,7 @@ function uninstallPlugin(pluginName, args) {
 
   const dataDir = path.join(PLUGIN_DIR, 'data', `${installName}@${MARKETPLACE_NAME}`);
   if (fs.existsSync(dataDir)) {
-    if (!args.dryRun) deleteDirRecursive(dataDir);
+    if (!args.dryRun) removeDir(dataDir);
     console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: data dir`);
   }
 }

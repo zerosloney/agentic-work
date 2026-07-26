@@ -9,7 +9,8 @@
 //   node scripts/install-opencode.js --dry-run
 //
 // Copies plugins/<name>/{skills,agents,commands} to
-// %USERPROFILE%/.config/opencode/{skills,agents,commands}/
+// ~/.config/opencode/{skills,agents,commands}/
+// (Windows: %USERPROFILE%\.config\opencode, POSIX: $HOME/.config/opencode)
 
 const fs = require('fs');
 const path = require('path');
@@ -109,18 +110,46 @@ function uninstall(args) {
     const srcBase = path.join(__dirname, '..', plugin.src);
     for (const sub of SUBDIRS) {
       const src = path.join(srcBase, sub);
-      if (!fs.existsSync(src)) continue;
+      const dest = path.join(HOME, sub);
       if (sub === 'skills') {
-        for (const skill of fs.readdirSync(src)) {
-          const dest = path.join(HOME, sub, skill);
-          if (fs.existsSync(dest) && !args.dryRun) fs.rmSync(dest, { recursive: true, force: true });
-          console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${sub}/${skill}/`);
+        // Mirror uninstall: remove skills that exist in source
+        if (fs.existsSync(src)) {
+          for (const skill of fs.readdirSync(src)) {
+            const skillDest = path.join(dest, skill);
+            if (fs.existsSync(skillDest) && !args.dryRun) fs.rmSync(skillDest, { recursive: true, force: true });
+            console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${sub}/${skill}/`);
+          }
+        }
+        // Stale cleanup: remove any skill in destination not present in source
+        if (fs.existsSync(dest)) {
+          const sourceSkills = fs.existsSync(src) ? fs.readdirSync(src) : [];
+          for (const existing of fs.readdirSync(dest)) {
+            if (!sourceSkills.includes(existing)) {
+              const stalePath = path.join(dest, existing);
+              if (!args.dryRun) fs.rmSync(stalePath, { recursive: true, force: true });
+              console.log(`  ${args.dryRun ? 'would remove stale' : 'removed stale'}: ${sub}/${existing}/`);
+            }
+          }
         }
       } else {
-        for (const file of fs.readdirSync(src)) {
-          const dest = path.join(HOME, sub, file);
-          if (fs.existsSync(dest) && !args.dryRun) fs.rmSync(dest, { force: true });
-          console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${sub}/${file}`);
+        // Mirror uninstall: remove files that exist in source
+        if (fs.existsSync(src)) {
+          for (const file of fs.readdirSync(src)) {
+            const fileDest = path.join(dest, file);
+            if (fs.existsSync(fileDest) && !args.dryRun) fs.rmSync(fileDest, { force: true });
+            console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${sub}/${file}`);
+          }
+        }
+        // Stale cleanup: remove any file in destination not present in source
+        if (fs.existsSync(dest)) {
+          const sourceFiles = fs.existsSync(src) ? fs.readdirSync(src) : [];
+          for (const existing of fs.readdirSync(dest)) {
+            if (!sourceFiles.includes(existing)) {
+              const stalePath = path.join(dest, existing);
+              if (!args.dryRun) fs.rmSync(stalePath, { force: true });
+              console.log(`  ${args.dryRun ? 'would remove stale' : 'removed stale'}: ${sub}/${existing}`);
+            }
+          }
         }
       }
     }

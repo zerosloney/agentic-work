@@ -11,6 +11,8 @@
       "source": "./plugins/dotnet-work/zcode",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
       "version": "0.1.0",
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
       "category": "development",
       "tags": ["dotnet", "csharp", "development", "skills"],
       "strict": true
@@ -20,6 +22,8 @@
       "source": "./plugins/loop-workflow/zcode",
       "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph) for ZCode.",
       "version": "0.1.0",
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
       "category": "workflow",
       "tags": ["workflow", "loop", "ralph", "coding"],
       "strict": true

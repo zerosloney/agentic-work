@@ -80,7 +80,7 @@ function ensureMarketplaceManifest(plugins, dryRun) {
     try { data = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')); } catch (_) {}
   }
   data.name = MARKETPLACE_NAME;
-  data.description = 'Custom marketplace for local CodeBuddy plugins';
+  if (!data.description) data.description = 'Custom marketplace for local CodeBuddy plugins';
   data.plugins = data.plugins || [];
   for (const pluginName of plugins) {
     const entry = {
