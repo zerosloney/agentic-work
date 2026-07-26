@@ -11,6 +11,5 @@
   "license": "MIT",
   "keywords": ["workflow", "loop", "ralph", "orchestration"],
   "commands": "commands",
-  "agents": "agents",
-  "hooks": "hooks"
+  "agents": "agents"
 }
