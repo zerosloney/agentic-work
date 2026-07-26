@@ -72,8 +72,7 @@ agentic-work/
 └── scripts/
     ├── install-opencode.js
     ├── install-codebuddy.js
-    ├── install-zcode.js
-    └── instantiate-templates.js   # developer-only generator (requires local templates/)
+    └── install-zcode.js
 ```
 
 ## License
