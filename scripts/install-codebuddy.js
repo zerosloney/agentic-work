@@ -26,8 +26,15 @@ const PLUGINS = ['dotnet-work', 'loop-workflow'];
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
   for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === '--plugin') args.plugin = argv[++i];
-    else if (argv[i] === '--uninstall') args.uninstall = true;
+    if (argv[i] === '--plugin') {
+      const next = argv[i + 1];
+      if (!next || next.startsWith('--')) {
+        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        process.exit(2);
+      }
+      args.plugin = next;
+      i++;
+    } else if (argv[i] === '--uninstall') args.uninstall = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
   }
   return args;
@@ -60,12 +67,7 @@ function runCB(args, dryRun) {
 
 function deleteDirRecursive(dir) {
   if (!fs.existsSync(dir)) return;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) deleteDirRecursive(p);
-    else fs.unlinkSync(p);
-  }
-  fs.rmdirSync(dir);
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 function ensureMarketplaceManifest(plugins, dryRun) {
@@ -100,11 +102,16 @@ function install(args) {
   console.log('Installing agentic-work for CodeBuddy...\n');
   const cbPath = findCodeBuddy();
   if (!cbPath) {
-    console.error('Error: CodeBuddy CLI not found in PATH');
-    console.error('Install CodeBuddy first: npm install -g codebuddy');
-    process.exit(1);
+    if (args.dryRun) {
+      console.log('→ CodeBuddy CLI not found in PATH (dry-run: continuing preview)');
+    } else {
+      console.error('Error: CodeBuddy CLI not found in PATH');
+      console.error('Install CodeBuddy first: npm install -g codebuddy');
+      process.exit(1);
+    }
+  } else {
+    console.log(`→ CodeBuddy at: ${cbPath}`);
   }
-  console.log(`→ CodeBuddy at: ${cbPath}`);
 
   const plugins = selectPlugins(args);
   for (const pluginName of plugins) {
