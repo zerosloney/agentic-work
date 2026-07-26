@@ -1,0 +1,36 @@
+{
+  "name": "@master0071/agentic-work",
+  "version": "0.1.0",
+  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for opencode, codebuddy, and zcode.",
+  "license": "MIT",
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/master0071"
+  },
+  "homepage": "https://github.com/master0071/agentic-work",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/master0071/agentic-work.git"
+  },
+  "engines": { "node": ">=18" },
+  "bin": {
+    "agentic-work-opencode": "scripts/install-opencode.js",
+    "agentic-work-codebuddy": "scripts/install-codebuddy.js",
+    "agentic-work-zcode": "scripts/install-zcode.js"
+  },
+  "scripts": {
+    "install:opencode": "node ./scripts/install-opencode.js",
+    "install:codebuddy": "node ./scripts/install-codebuddy.js",
+    "install:zcode": "node ./scripts/install-zcode.js",
+    "install:all": "node ./scripts/install-opencode.js && node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js"
+  },
+  "files": [
+    "plugins/",
+    "scripts/",
+    "marketplace.json",
+    ".codebuddy-plugin/marketplace.json",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
+  ]
+}

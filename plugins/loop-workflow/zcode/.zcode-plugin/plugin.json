@@ -1,0 +1,15 @@
+{
+  "name": "loop-workflow-zcode",
+  "version": "0.1.0",
+  "description": "Orchestrated execute-review loops for ZCode. 12 agents + 5 commands covering coding/testing/writing/Ralph workflows.",
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/master0071"
+  },
+  "homepage": "https://github.com/master0071/agentic-work",
+  "repository": "https://github.com/master0071/agentic-work",
+  "license": "MIT",
+  "keywords": ["workflow", "loop", "ralph", "orchestration"],
+  "commands": "commands",
+  "agents": "agents"
+}

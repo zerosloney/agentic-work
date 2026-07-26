@@ -1,0 +1,38 @@
+{
+  "name": "master0071",
+  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for CodeBuddy.",
+  "owner": {
+    "name": "master0071",
+    "email": "master0071@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "dotnet-work-codebuddy",
+      "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for CodeBuddy.",
+      "version": "0.1.0",
+      "source": "./plugins/dotnet-work/codebuddy",
+      "category": "development",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/master0071"
+      },
+      "homepage": "https://github.com/master0071/agentic-work",
+      "license": "MIT",
+      "tags": ["dotnet", "csharp", "development"]
+    },
+    {
+      "name": "loop-workflow-codebuddy",
+      "description": "Orchestrated execute-review loops (coding/testing/writing/Ralph) for CodeBuddy.",
+      "version": "0.1.0",
+      "source": "./plugins/loop-workflow/codebuddy",
+      "category": "workflow",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/master0071"
+      },
+      "homepage": "https://github.com/master0071/agentic-work",
+      "license": "MIT",
+      "tags": ["workflow", "loop", "ralph"]
+    }
+  ]
+}

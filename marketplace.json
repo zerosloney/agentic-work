@@ -1,0 +1,28 @@
+{
+  "name": "master0071",
+  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for ZCode.",
+  "owner": {
+    "name": "master0071",
+    "url": "https://github.com/master0071/agentic-work"
+  },
+  "plugins": [
+    {
+      "name": "dotnet-work-zcode",
+      "source": "./plugins/dotnet-work/zcode",
+      "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
+      "version": "0.1.0",
+      "category": "development",
+      "tags": ["dotnet", "csharp", "development", "skills"],
+      "strict": true
+    },
+    {
+      "name": "loop-workflow-zcode",
+      "source": "./plugins/loop-workflow/zcode",
+      "description": "Orchestrated execute-review loops (coding/testing/writing/Ralph) for ZCode.",
+      "version": "0.1.0",
+      "category": "workflow",
+      "tags": ["workflow", "loop", "ralph", "orchestration"],
+      "strict": true
+    }
+  ]
+}
