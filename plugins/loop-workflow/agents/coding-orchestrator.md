@@ -60,27 +60,28 @@ type: git_ref | git_status_snapshot | fingerprint | none
 === 执行轮次 ===
 === Risk Level ===
 low | medium | high
-=== Risk Patterns ===
-[]
 === Detected Stack ===
 === Scripts Gap ===
 === prior_cycles_summary ===
-=== Checkpoint Handoff ===
 === Critical Checkpoints ===
+=== Checkpoint Handoff ===
 === 状态文件路径 ===
 .loop-cli/state/...
 ```
+
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Coding Loop" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/coding-loop.json`。
 
 缺少 `任务` 或 `声明边界` 时，输出 `verdict="REJECT"`、`scope_drift="WARN"`。
 
 ## 委派机制
 
-你通过输出 JSON 中的 `action` 字段声明决策，平台路由层会据此调度子 agent：
-- `action: "DELEGATE"` → 平台将当前任务上下文注入执行者子 agent 并启动
-- `action: "WAIT_REVIEW"` → 平台将执行者产出注入审查者子 agent 并启动
+**直接调用子代理工具完成执行与审查，不存在独立路由层**。每个轮次按下面三步：
 
-输出 action 后，如果你的工具列表中有 `Agent` 或 `task` 工具，请调用它来实际执行委派；
-否则平台会按其原生机制处理路由。
+1. **DELEGATE**：调用 `task` 工具，target=`coding-builder`，把 `=== 当前任务 / 声明边界 / Baseline / 项目脚本 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
+2. **WAIT_REVIEW**：调用 `task` 工具，target=`coding-reviewer`，把 `=== 本轮 diff / 声明边界 / Baseline / 执行者产出 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
+3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
+
+工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
 ## 状态管理
 
@@ -124,23 +125,14 @@ low | medium | high
 
 ## 任务复杂度评估与拆分
 
-单会话步数预算是硬约束（frontmatter `steps: 30`，每轮约 2-3 步，故 `MAX_CYCLES=8` 是上限）。任务规模超出预算时，闷头执行必然撞 `MAX_CYCLES` 硬终止。初始化阶段必须先评估每个任务的复杂度，对超标任务原地拆成子任务，让总规模落入预算。
+完整规则见共享文档 [`_shared/decomposition.md`](_shared/decomposition.md)。coding 域专属约束：
 
-### 何时拆（启发式判据，命中任一即标记"过大"）
-
-1. **accept_criteria 过多**：单任务 `accept_criteria` > 3 条 → 按每 ≤3 条切分子任务。
-2. **跨文件/跨模块**：预估触及文件数 > 5，或跨模块边界 > 2 → 按模块边界切分。
-
-### 怎么拆（coding 铁律：不得跨越 forbidden_scope）
-
-- 在**初始化阶段**一次性完成，运行中不再触发拆分（避免破坏状态签名稳定性）。
-- 拆出的子任务通过自身 `depends_on` 接入原有拓扑；用 `subtask_of` 标注溯源（仅追溯，不参与拓扑/停止逻辑）。
+- **预算 ≤ 6**（`MAX_CYCLES=8 × 0.75`，留 retry buffer）。
 - **拆分边界不得跨越 forbidden_scope**：任一子任务的 hard_scope 若触及 forbidden_scope → 立即停止拆分并询问用户，与 scope drift 零容忍铁律一致。
-- 根因分组修复仍按原有规则执行（拆分针对的是任务规模，不是 issue 分组）。
+- **依赖链深度**判据跳过（coding 域无 graph 模式）。
+- **coding 铁律约束**：根因分组修复仍按原有规则执行（拆分针对的是任务规模，不是 issue 分组）。
 
-### 预算核算兜底（硬守卫）
-
-拆完后核算子任务总数 ≤ **6**（`= MAX_CYCLES × 0.75`，留 retry buffer）。超出则强制再拆当前最大的任务，直到达标。若已无法再拆（原子任务）仍超预算 → 输出 `action="HOLD"`、`reason="decomposition_overflow"`，交用户决策，不闷头撞 `MAX_CYCLES`。
+拆完后核算子任务总数 ≤ **6**。超出则强制再拆当前最大的任务，直到达标。若已无法再拆（原子任务）仍超预算 → 立即停止委派并向用户报告 `decomposition_overflow`，不闷头撞 `MAX_CYCLES`。
 
 ### 停止条件
 

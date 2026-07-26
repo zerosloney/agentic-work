@@ -1,7 +1,7 @@
 {
   "name": "@master0071/agentic-work",
   "version": "0.1.0",
-  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for opencode, codebuddy, and zcode.",
+  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for codebuddy and zcode.",
   "license": "MIT",
   "author": {
     "name": "master0071",
@@ -21,7 +21,8 @@
     "install:codebuddy": "node ./scripts/install-codebuddy.js",
     "install:zcode": "node ./scripts/install-zcode.js",
     "install:all": "node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js",
-    "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run"
+    "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run",
+    "validate-state": "node ./scripts/validate-state.js"
   },
   "files": [
     "plugins/",

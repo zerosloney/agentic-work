@@ -38,7 +38,10 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
   ],
   "round": 0,
   "stop_reason": null,
-  "prior_cycles_summary": ""
+  "prior_cycles_summary": "",
+  "critical_checkpoints": [
+    { "id": "<checkpoint id>", "description": "<人类可读描述>", "passed": false }
+  ]
 }
 ```
 
@@ -75,7 +78,7 @@ DONE 必须同时满足：
 6. 探测项目脚本（lint/typecheck/build/test）。
 7. 风险评估（low / medium / high）。
 8. 技术栈推断（detected_stack）。
-9. 初始化 `consecutive_failures = 0`、`stall_counter = 0`、`round = 0`、`stop_reason = null`、`prior_cycles_summary = ""`。
+9. 初始化 `consecutive_failures = 0`、`stall_counter = 0`、`round = 0`、`stop_reason = null`、`prior_cycles_summary = ""`、`critical_checkpoints = []`（按需在初始化阶段加入硬门禁检查项）。
 10. 设置 `MAX_CYCLES = 8`（超过此轮次仍未 DONE 则强制停止）与 `STALL_MAX = 2`（连续 2 轮任务状态签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step，确保 `steps >= MAX_CYCLES × 3`。
 
 ## 委派机制
@@ -142,8 +145,8 @@ test: {test_cmd}
 === Risk Level ===
 {risk_level}
 
-=== Risk Patterns ===
-{risk_patterns}
+=== Critical Checkpoints ===
+{critical_checkpoints}
 
 === Detected Stack ===
 {detected_stack}
@@ -175,8 +178,8 @@ value: {baseline_value}
 === Risk Level ===
 {risk_level}
 
-=== Risk Patterns ===
-{risk_patterns}
+=== Critical Checkpoints ===
+{critical_checkpoints}
 
 === Detected Stack ===
 {detected_stack}

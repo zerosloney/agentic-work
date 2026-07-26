@@ -48,7 +48,6 @@ forbidden_scope:
 type: git_ref | git_status_snapshot | fingerprint | none
 === 执行者检查结果 ===
 === Risk Level ===
-=== Risk Patterns ===
 === Detected Stack ===
 === Scripts Gap ===
 === prior_cycles_summary ===

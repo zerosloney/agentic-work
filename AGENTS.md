@@ -45,6 +45,25 @@ node scripts/install-zcode.js --dry-run
 
 Both must exit 0 without writing any files.
 
+## State validation
+
+Orchestrators write JSON to `.loop-cli/state/*.json` each round. Validate the file before each write with:
+
+```sh
+node scripts/validate-state.js .loop-cli/state/coding-loop.json
+node scripts/validate-state.js .loop-cli/state/ralph-loop.json
+node scripts/validate-state.js .loop-cli/state/ralph-graph.json
+```
+
+Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, duplicate ids, circular `depends_on`) on failure. Use `--loop <file>` or `--graph <file>` to disambiguate when `version` is missing.
+
+## Shared documents
+
+`agents/_shared/` holds cross-agent reference material (the platforms only scan top-level files in `agents/` and `commands/`, so `_shared/` is safely ignored):
+
+- `agents/_shared/decomposition.md` — task complexity estimation & decomposition rules, referenced by `coding-orchestrator.md`, `ralph-orchestrator.md`, and the three command templates.
+- `agents/_shared/field-map.md` — state JSON field ↔ `=== X ===` injection mapping for each loop variant.
+
 ## Marketplace
 
 The `master0071` marketplace is shared with `caveman4cn`. To avoid conflicts, plugin names include the platform suffix (`dotnet-work-zcode`, `loop-workflow-codebuddy`, etc.) and live under `plugins/<name>/<platform>/` in this repo.

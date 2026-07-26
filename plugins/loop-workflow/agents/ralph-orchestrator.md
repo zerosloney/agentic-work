@@ -48,23 +48,13 @@ permission:
 - 失败计数达到 max_failures → 立即 ESCALATE（默认 max_failures=3）
 ## 任务复杂度评估与拆分
 
-单会话步数预算是硬约束（frontmatter `steps: 30`，每轮约 2-3 步，故 `MAX_CYCLES=10` 是上限）。任务规模超出预算时，闷头执行必然撞 `MAX_CYCLES` 硬终止。初始化阶段必须先评估每个任务的复杂度，对超标任务原地拆成子任务，让总规模落入预算。
+完整规则见共享文档 [`_shared/decomposition.md`](_shared/decomposition.md)。ralph 域专属约束：
 
-### 何时拆（启发式判据，命中任一即标记"过大"）
+- **预算 ≤ 8**（`MAX_CYCLES=10 × 0.8`，留 retry buffer）。
+- **依赖链深度 > 3** 判据仅 graph 模式生效；loop 模式跳过此项。
+- **原任务可被完全替换**（删除原任务，由子任务链替代），也可保留为聚合占位。
 
-1. **accept_criteria 过多**：单任务 `accept_criteria` > 3 条 → 按每 ≤3 条切分子任务。
-2. **跨文件/跨模块**：预估触及文件数 > 5，或跨模块边界 > 2 → 按模块边界切分。
-3. **依赖链过深**（graph 模式）：任务在 DAG 中依赖链深度 > 3 → 在中间节点插入分解。loop 模式跳过此项。
-
-### 怎么拆
-
-- 在**初始化阶段**一次性完成，运行中不再触发拆分（避免破坏状态签名稳定性）。
-- 拆出的子任务通过自身 `depends_on` 接入原有拓扑；用 `subtask_of` 标注溯源（仅追溯，不参与拓扑/停止逻辑）。
-- 原任务可被完全替换（删除原任务，由子任务链替代），也可保留为聚合占位。
-
-### 预算核算兜底（硬守卫）
-
-拆完后核算子任务总数 ≤ **8**（`= MAX_CYCLES × 0.8`，留 retry buffer）。超出则强制再拆当前最大的任务，直到达标。若已无法再拆（原子任务）仍超预算 → 输出 `action="HOLD"`、`reason="decomposition_overflow"`，交用户决策，不闷头撞 `MAX_CYCLES`。
+拆完后核算子任务总数 ≤ **8**。超出则强制再拆当前最大的任务，直到达标。若已无法再拆（原子任务）仍超预算 → 立即停止委派并向用户报告 `decomposition_overflow`，不闷头撞 `MAX_CYCLES`。
 
 ## 输入
 
@@ -85,16 +75,19 @@ consecutive_failures: N
 .loop-cli/state/...
 ```
 
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Ralph Loop / Ralph Graph" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/ralph-loop.json` 或 `node scripts/validate-state.js .loop-cli/state/ralph-graph.json`。
+
 缺少 `目标` 或 `任务拓扑` 时，输出 `action="REJECT"`、`reason="missing_input"`。
 
 ## 委派机制
 
-你通过输出 JSON 中的 `action` 字段声明决策，平台路由层会据此调度子 agent：
-- `action: "DELEGATE"` → 平台将当前任务上下文注入执行者子 agent 并启动
-- `action: "WAIT_REVIEW"` → 平台将执行者产出注入审查者子 agent 并启动
+**直接调用子代理工具完成执行与审查，不存在独立路由层**。每个轮次按下面三步：
 
-输出 action 后，如果你的工具列表中有 `Agent` 或 `task` 工具，请调用它来实际执行委派；
-否则平台会按其原生机制处理路由。
+1. **DELEGATE**：调用 `task` 工具，target=`ralph-worker`，把 `=== 目标 / 当前任务 / 已知上下文 / 验证命令 / 执行轮次 ===` 注入 query 字段。
+2. **WAIT_REVIEW**：调用 `task` 工具，target=`ralph-reviewer`，把 `=== 目标 / 当前任务 / 执行者产出 / 本轮变更 / 审查轮次 ===` 注入 query 字段。
+3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
+
+工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
 ## 状态管理
 
