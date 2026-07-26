@@ -53,17 +53,27 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 - They MUST be idempotent: re-running install replaces existing content.
 - Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode).
 - Scripts copy from `plugins/<name>/` (shared content) and the relevant platform manifest from `plugins/<name>/<platform>/`.
+- `scripts/materialize-codebuddy.js` is a pure-assembly sibling (accepts `--plugin <name>`, `--dry-run`; **no** `--uninstall` — delete `dist/codebuddy/` to revert). It shares the same copy+overlay logic as `install-codebuddy.js` via `scripts/lib/materialize.js`, so the two paths produce identical plugin trees.
+
+## CodeBuddy dist artifacts
+
+`dist/codebuddy/<name>-codebuddy/` is a **generated, committed** artifact — a self-contained CodeBuddy plugin tree (manifest + `skills/`/`commands/`/`agents/` with the codebuddy agent overrides already applied) that `.codebuddy-plugin/marketplace.json` `source` points at verbatim. This is required because CodeBuddy consumes `source` directly: the `plugins/<name>/codebuddy/` subdir (manifest + overrides only) is NOT self-contained, and the plugin root `agents/` carry CodeBuddy-incompatible frontmatter (`mode`/`temperature`/`steps`/nested `permission`).
+
+- Produced by `node scripts/materialize-codebuddy.js`.
+- After editing any shared content (`plugins/<name>/`) or codebuddy agent overrides (`plugins/<name>/codebuddy/agents/`), re-run the script and commit the `dist/` changes alongside the source changes — keep dist in sync with sources.
+- The assembly rules (wipe → copy shared minus platform subdirs → copy codebuddy manifest → overlay codebuddy agents) live in `scripts/lib/materialize.js`.
 
 ## Verification
 
-Before committing, run both dry-runs:
+Before committing, run all three dry-runs:
 
 ```sh
 node scripts/install-codebuddy.js --dry-run
 node scripts/install-zcode.js --dry-run
+node scripts/materialize-codebuddy.js --dry-run
 ```
 
-Both must exit 0 without writing any files.
+All must exit 0 without writing any files. After source edits that affect plugin content, also run `node scripts/materialize-codebuddy.js` (non-dry-run) and commit the regenerated `dist/`.
 
 ## State validation
 
@@ -86,4 +96,7 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 ## Marketplace
 
-The `master0071` marketplace is shared with `caveman4cn`. To avoid conflicts, plugin names include the platform suffix (`dotnet-work-zcode`, `loop-workflow-codebuddy`, etc.) and live under `plugins/<name>/<platform>/` in this repo.
+The `master0071` marketplace is shared with `caveman4cn`. To avoid conflicts, plugin names include the platform suffix (`dotnet-work-zcode`, `loop-workflow-codebuddy`, etc.).
+
+- CodeBuddy `source` paths point at `./dist/codebuddy/<name>-codebuddy/` — the committed, materialized plugin trees (see "CodeBuddy dist artifacts" above). This lets users `codebuddy plugin install <id>@master0071` directly from the repo.
+- ZCode `source` paths point at `./plugins/<name>/zcode/`.

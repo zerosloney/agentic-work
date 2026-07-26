@@ -23,14 +23,13 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
+const { materializePlugin, readCodebuddyDescription, deleteDirRecursive } = require('./lib/materialize');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
-const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -74,11 +73,6 @@ function runCB(args, dryRun) {
   catch (err) { throw new Error(err.stderr || err.message); }
 }
 
-function deleteDirRecursive(dir) {
-  if (!fs.existsSync(dir)) return;
-  fs.rmSync(dir, { recursive: true, force: true });
-}
-
 function ensureMarketplaceManifest(plugins, dryRun) {
   const manifestFile = path.join(PLUGIN_DIR, '.codebuddy-plugin', 'marketplace.json');
   if (dryRun) { console.log(`  would update: ${manifestFile}`); return; }
@@ -93,6 +87,7 @@ function ensureMarketplaceManifest(plugins, dryRun) {
   for (const pluginName of plugins) {
     const entry = {
       name: `${pluginName}-codebuddy`,
+      description: readCodebuddyDescription(pluginName),
       version: PLUGIN_VERSION,
       source: `./${pluginName}-codebuddy`,
       category: pluginName === 'dotnet-work' ? 'development' : 'workflow',
@@ -124,44 +119,10 @@ function install(args) {
 
   const plugins = selectPlugins(args);
   for (const pluginName of plugins) {
-    const installName = `${pluginName}-codebuddy`;
-    const dest = path.join(PLUGIN_DIR, installName);
-    const pluginRoot = path.join(__dirname, '..', 'plugins', pluginName);
-    const manifestSrc = path.join(pluginRoot, 'codebuddy', '.codebuddy-plugin', 'plugin.json');
-    if (!fs.existsSync(pluginRoot)) {
-      console.error(`Error: source not found: ${pluginRoot}`);
-      process.exit(1);
-    }
-    if (!args.dryRun) {
-      if (fs.existsSync(dest)) deleteDirRecursive(dest);
-      copyDirRecursive(pluginRoot, dest, { skip: name => SKIP_PLATFORM_DIRS.includes(name) });
-      const manifestDestDir = path.join(dest, '.codebuddy-plugin');
-      fs.mkdirSync(manifestDestDir, { recursive: true });
-      fs.copyFileSync(manifestSrc, path.join(manifestDestDir, 'plugin.json'));
-      console.log(`  copied to: ${dest}`);
-    } else {
-      console.log(`  would copy: ${pluginRoot} → ${dest}`);
-    }
-
-    // Overlay CodeBuddy-specific agent overrides on top of the root copy.
-    // Each file in plugins/<name>/codebuddy/agents/ takes precedence over
-    // plugins/<name>/agents/<same-name>.md for CodeBuddy installs.
-    const overridesDir = path.join(pluginRoot, 'codebuddy', 'agents');
-    if (fs.existsSync(overridesDir)) {
-      const destAgents = path.join(dest, 'agents');
-      for (const entry of fs.readdirSync(overridesDir, { withFileTypes: true })) {
-        if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-        const srcFile = path.join(overridesDir, entry.name);
-        const dstFile = path.join(destAgents, entry.name);
-        if (!args.dryRun) {
-          fs.mkdirSync(destAgents, { recursive: true });
-          fs.copyFileSync(srcFile, dstFile);
-          console.log(`  overlaid: agents/${entry.name}`);
-        } else {
-          console.log(`  would overlay: agents/${entry.name}`);
-        }
-      }
-    }
+    console.log(`→ ${pluginName}`);
+    // Assembly (shared copy + manifest + agent overlay) lives in lib/materialize.js
+    // so installs and dist/ materialization stay identical.
+    materializePlugin(pluginName, PLUGIN_DIR, { dryRun: args.dryRun });
   }
 
   console.log('\n→ Updating marketplace manifest...');
