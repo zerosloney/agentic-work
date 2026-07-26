@@ -19,12 +19,13 @@ This repo contains plugins for opencode / CodeBuddy / ZCode. Follow these rules 
 
 ## loop-workflow
 
-- Templates at `loop-workflow/templates/{agents,commands}/*.md` use `{{...}}` placeholders.
-- `scripts/instantiate-templates.js` is the only way to materialize instances. To add a new agent/command:
-  1. Add template to `loop-workflow/templates/`
-  2. Update `AGENT_MAP` / `COMMAND_MAP` in `instantiate-templates.js`
-  3. Update `BACKPRESSURE` if it's an orchestrator
-  4. Run `node scripts/instantiate-templates.js`
+- Current published scope: **coding + ralph domains** (6 agents + 3 commands × 3 platforms = 27 files).
+- Source templates live at `loop-workflow/templates/{agents,commands}/*.md` using `{{...}}` placeholders. These are **not committed** — only the materialized outputs in `plugins/loop-workflow/<platform>/` are.
+- `scripts/instantiate-templates.js` materializes templates into the three platform subdirs. To add a new domain (e.g. testing, writing, devops):
+  1. Create the template files locally at `loop-workflow/templates/{agents,commands}/<name>.md` with `{{name}}`, `{{description}}`, `{{agent}}`/`{{executor_name}}`/`{{reviewer_name}}` placeholders. Orchestrators also use `{{backpressure}}`.
+  2. Add entries to `AGENT_MAP` / `COMMAND_MAP` (and `BACKPRESSURE` for orchestrators) in `scripts/instantiate-templates.js`.
+  3. Run `node scripts/instantiate-templates.js` (must have `loop-workflow/templates/` present locally).
+  4. Commit the regenerated outputs in `plugins/loop-workflow/<platform>/`.
 
 ## Install scripts
 

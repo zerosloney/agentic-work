@@ -22,7 +22,7 @@
     },
     {
       "name": "loop-workflow-codebuddy",
-      "description": "Orchestrated execute-review loops (coding/testing/writing/Ralph) for CodeBuddy.",
+      "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph) for CodeBuddy.",
       "version": "0.1.0",
       "source": "./plugins/loop-workflow/codebuddy",
       "category": "workflow",
@@ -32,7 +32,7 @@
       },
       "homepage": "https://github.com/master0071/agentic-work",
       "license": "MIT",
-      "tags": ["workflow", "loop", "ralph"]
+      "tags": ["workflow", "loop", "ralph", "coding"]
     }
   ]
 }

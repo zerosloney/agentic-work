@@ -7,7 +7,7 @@ Agentic-work plugins for **opencode**, **CodeBuddy**, and **ZCode**.
 | Plugin          | Description                                                                                       | Type    |
 |-----------------|---------------------------------------------------------------------------------------------------|---------|
 | `dotnet-work`   | .NET development skills: database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow | skills  |
-| `loop-workflow` | Orchestrated execute-review loops: 12 agents + 5 commands covering coding/testing/writing/Ralph    | agents + commands |
+| `loop-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands |
 
 ## Installation
 
@@ -66,14 +66,14 @@ agentic-work/
 │   │   ├── codebuddy/  # + .codebuddy-plugin/plugin.json
 │   │   └── zcode/      # + .zcode-plugin/plugin.json
 │   └── loop-workflow/
-│       ├── opencode/   # { agents/<12>, commands/<5> }
+│       ├── opencode/   # { agents/<6>, commands/<3> }
 │       ├── codebuddy/  # + .codebuddy-plugin/plugin.json
 │       └── zcode/      # + .zcode-plugin/plugin.json
 └── scripts/
     ├── install-opencode.js
     ├── install-codebuddy.js
     ├── install-zcode.js
-    └── instantiate-templates.js   # one-shot generator for loop-workflow
+    └── instantiate-templates.js   # developer-only generator (requires local templates/)
 ```
 
 ## License

@@ -18,10 +18,10 @@
     {
       "name": "loop-workflow-zcode",
       "source": "./plugins/loop-workflow/zcode",
-      "description": "Orchestrated execute-review loops (coding/testing/writing/Ralph) for ZCode.",
+      "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph) for ZCode.",
       "version": "0.1.0",
       "category": "workflow",
-      "tags": ["workflow", "loop", "ralph", "orchestration"],
+      "tags": ["workflow", "loop", "ralph", "coding"],
       "strict": true
     }
   ]
