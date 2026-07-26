@@ -5,29 +5,35 @@ This repo contains plugins for opencode / CodeBuddy / ZCode. Follow these rules 
 ## Layout invariants
 
 - `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have three platform subdirs: `opencode/`, `codebuddy/`, `zcode/`.
-- Content inside `skills/`, `agents/`, `commands/` MUST be byte-identical across the three platforms.
-- Platform manifests live only in their respective `<platform>/` subdir:
+- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs (`opencode/`, `codebuddy/`, `zcode/`) contain ONLY platform-specific manifests.
+- Platform manifests live only in their respective platform subdirs:
   - `zcode/.zcode-plugin/plugin.json`
   - `codebuddy/.codebuddy-plugin/plugin.json`
-  - opencode has no per-plugin manifest; skills/agents/commands are discovered by name.
+  - opencode has no per-plugin manifest; skills/agents/commands are discovered by name from the plugin root.
+- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** — no duplication across platforms.
 
 ## dotnet-work
 
 - Source: previously `donet-work/` (renamed, typo fixed).
 - 4 skills: `database-explorer`, `dotnet-code-review`, `dotnet-csharp-developer`, `winforms-dev-flow`.
-- When adding a new skill: create `<skill-name>/SKILL.md` + `references/` + `scripts/` once, then copy to all three platform subdirs.
+- Shared skills live at `plugins/dotnet-work/skills/<skill-name>/`.
+- Platform manifests: `codebuddy/.codebuddy-plugin/plugin.json`, `zcode/.zcode-plugin/plugin.json`.
+- When adding a new skill: create `<skill-name>/SKILL.md` + `references/` + `scripts/` under `plugins/dotnet-work/skills/`.
 
 ## loop-workflow
 
-- Current published scope: **coding + ralph domains** (6 agents + 3 commands × 3 platforms = 27 files).
-- Templates source files (`loop-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs in `plugins/loop-workflow/<platform>/` are.
-- To add a new agent or command: create the `.md` file directly under all three of `plugins/loop-workflow/{opencode,codebuddy,zcode}/{agents,commands}/`. The three copies MUST be byte-identical (Layout invariant above). Do not introduce a generator — the cross-platform copy is a manual two-minute operation for new files.
+- Current published scope: **coding + ralph domains** (6 agents + 3 commands).
+- Shared agents live at `plugins/loop-workflow/agents/`.
+- Shared commands live at `plugins/loop-workflow/commands/`.
+- Templates source files (`loop-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
+- To add a new agent or command: create the `.md` file under `plugins/loop-workflow/agents/` or `plugins/loop-workflow/commands/`. No cross-platform copy needed — the install scripts handle it.
 
 ## Install scripts
 
 - Each `scripts/install-<platform>.js` accepts: `--plugin <name>`, `--uninstall`, `--dry-run`.
 - They MUST be idempotent: re-running install replaces existing content.
 - Uninstall MUST remove all files created by install (skills/<name>/, agents/<file>.md, commands/<file>.md for opencode; full install dirs for codebuddy/zcode).
+- Scripts copy from `plugins/<name>/` (shared content) and the relevant platform manifest from `plugins/<name>/<platform>/`.
 
 ## Verification
 

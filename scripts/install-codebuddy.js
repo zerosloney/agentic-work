@@ -22,6 +22,7 @@ const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
+const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode', 'opencode'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -115,19 +116,23 @@ function install(args) {
 
   const plugins = selectPlugins(args);
   for (const pluginName of plugins) {
-    const src = path.join(__dirname, '..', 'plugins', pluginName, 'codebuddy');
     const installName = `${pluginName}-codebuddy`;
     const dest = path.join(PLUGIN_DIR, installName);
-    if (!fs.existsSync(src)) {
-      console.error(`Error: source not found: ${src}`);
+    const pluginRoot = path.join(__dirname, '..', 'plugins', pluginName);
+    const manifestSrc = path.join(pluginRoot, 'codebuddy', '.codebuddy-plugin', 'plugin.json');
+    if (!fs.existsSync(pluginRoot)) {
+      console.error(`Error: source not found: ${pluginRoot}`);
       process.exit(1);
     }
     if (!args.dryRun) {
       if (fs.existsSync(dest)) deleteDirRecursive(dest);
-      copyDirRecursive(src, dest);
+      copyDirRecursive(pluginRoot, dest, { skip: name => SKIP_PLATFORM_DIRS.includes(name) });
+      const manifestDestDir = path.join(dest, '.codebuddy-plugin');
+      fs.mkdirSync(manifestDestDir, { recursive: true });
+      fs.copyFileSync(manifestSrc, path.join(manifestDestDir, 'plugin.json'));
       console.log(`  copied to: ${dest}`);
     } else {
-      console.log(`  would copy: ${src} → ${dest}`);
+      console.log(`  would copy: ${pluginRoot} → ${dest}`);
     }
   }
 

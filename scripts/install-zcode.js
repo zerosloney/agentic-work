@@ -8,7 +8,8 @@
 //   node scripts/install-zcode.js --uninstall
 //   node scripts/install-zcode.js --dry-run
 //
-// Copies plugins/<name>/zcode/* to
+// Copies plugins/<name>/* (skills, agents, commands, etc.) excluding
+// platform subdirs (codebuddy/, zcode/, opencode/) to
 // %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/0.1.0/
 // and registers in marketplace.
 
@@ -22,6 +23,7 @@ const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
 const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'hooks', 'assets'];
+const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode', 'opencode'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -61,8 +63,9 @@ function deleteDirRecursive(dir) {
 
 function installPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
-  const pluginRoot = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, `${installName}\\${PLUGIN_VERSION}`);
-  const src = path.join(__dirname, '..', 'plugins', pluginName, 'zcode');
+  const pluginRootDest = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, `${installName}\\${PLUGIN_VERSION}`);
+  const src = path.join(__dirname, '..', 'plugins', pluginName);
+  const manifestSrc = path.join(src, 'zcode', '.zcode-plugin', 'plugin.json');
 
   console.log(`\n→ Installing ${installName}`);
   if (!fs.existsSync(src)) {
@@ -71,15 +74,24 @@ function installPlugin(pluginName, args) {
   }
 
   for (const sub of SUBDIRS) {
+    if (sub === '.zcode-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(pluginRoot, sub);
+    const subDest = path.join(pluginRootDest, sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
     } else {
       console.log(`  would copy: ${subSrc} → ${subDest}`);
     }
+  }
+
+  if (!args.dryRun) {
+    fs.mkdirSync(path.join(pluginRootDest, '.zcode-plugin'), { recursive: true });
+    fs.copyFileSync(manifestSrc, path.join(pluginRootDest, '.zcode-plugin', 'plugin.json'));
+    console.log('  copied: .zcode-plugin/');
+  } else {
+    console.log(`  would copy: ${manifestSrc} → ${path.join(pluginRootDest, '.zcode-plugin', 'plugin.json')}`);
   }
 
   // 注册到 marketplace

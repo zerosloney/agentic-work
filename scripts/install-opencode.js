@@ -8,7 +8,7 @@
 //   node scripts/install-opencode.js --uninstall
 //   node scripts/install-opencode.js --dry-run
 //
-// Copies plugins/<name>/opencode/{skills,agents,commands} to
+// Copies plugins/<name>/{skills,agents,commands} to
 // %USERPROFILE%/.config/opencode/{skills,agents,commands}/
 
 const fs = require('fs');
@@ -18,8 +18,8 @@ const { joinHome } = require('./lib/resolve-home');
 
 const HOME = joinHome('.config', 'opencode');
 const PLUGINS = [
-  { name: 'dotnet-work',   src: 'plugins/dotnet-work/opencode' },
-  { name: 'loop-workflow', src: 'plugins/loop-workflow/opencode' }
+  { name: 'dotnet-work',   src: 'plugins/dotnet-work' },
+  { name: 'loop-workflow', src: 'plugins/loop-workflow' }
 ];
 const SUBDIRS = ['skills', 'agents', 'commands'];
 

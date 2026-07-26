@@ -51,7 +51,7 @@ Both plugins ship under the `master0071` marketplace for CodeBuddy and ZCode:
 
 ## Cross-platform content equality
 
-Each plugin's `skills/`, `agents/`, `commands/` are byte-identical across the three platform subdirectories. Platform manifests (`<plugin>/<platform>/.codebuddy-plugin/plugin.json` etc.) are the only platform-specific files.
+Each plugin's `skills/`, `agents/`, `commands/` live at the **plugin root** and are the single source of truth. Platform subdirs (`codebuddy/`, `zcode/`) contain only their platform manifest. Install scripts copy from the shared location, so content stays consistent by definition.
 
 ## Repository structure
 
@@ -62,13 +62,22 @@ agentic-work/
 ├── .codebuddy-plugin/marketplace.json    # codebuddy marketplace
 ├── plugins/
 │   ├── dotnet-work/
-│   │   ├── opencode/   # { skills/<4> }
-│   │   ├── codebuddy/  # + .codebuddy-plugin/plugin.json
-│   │   └── zcode/      # + .zcode-plugin/plugin.json
+│   │   ├── codebuddy/
+│   │   │   └── .codebuddy-plugin/plugin.json
+│   │   ├── zcode/
+│   │   │   └── .zcode-plugin/plugin.json
+│   │   └── skills/                       # ← single source of truth
+│   │       ├── database-explorer/
+│   │       ├── dotnet-code-review/
+│   │       ├── dotnet-csharp-developer/
+│   │       └── winforms-dev-flow/
 │   └── loop-workflow/
-│       ├── opencode/   # { agents/<6>, commands/<3> }
-│       ├── codebuddy/  # + .codebuddy-plugin/plugin.json
-│       └── zcode/      # + .zcode-plugin/plugin.json
+│       ├── codebuddy/
+│       │   └── .codebuddy-plugin/plugin.json
+│       ├── zcode/
+│       │   └── .zcode-plugin/plugin.json
+│       ├── agents/                       # ← single source of truth
+│       └── commands/                     # ← single source of truth
 └── scripts/
     ├── install-opencode.js
     ├── install-codebuddy.js
