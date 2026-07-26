@@ -7,7 +7,7 @@ Agentic-work plugins for **opencode**, **CodeBuddy**, and **ZCode**.
 | Plugin          | Description                                                                                       | Type    |
 |-----------------|---------------------------------------------------------------------------------------------------|---------|
 | `dotnet-work`   | .NET development skills: database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow | skills  |
-| `loop-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands |
+| `loop-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands + lifecycle hooks (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands + hooks |
 
 ## Installation
 

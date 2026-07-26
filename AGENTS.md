@@ -47,6 +47,19 @@ node scripts/install-zcode.js --dry-run
 
 All three must exit 0 without writing any files.
 
+## Hooks (loop-workflow)
+
+`plugins/loop-workflow/hooks/` contains lifecycle hooks for the loop-workflow plugin:
+
+| File             | Trigger时机                |
+|------------------|----------------------------|
+| `install.js`     | After plugin is installed  |
+| `uninstall.js`   | Before plugin is removed   |
+| `pre-execute.js` | Before agent/command runs  |
+| `post-execute.js`| After agent/command runs   |
+
+Each hook file exports `{ onInstall(context) }`, `{ onUninstall(context) }`, etc. The `context` object contains `logger`, `platform`, `command`, and `result` (post-execute only). Hooks are registered via `hooks/index.js` `register(context)` which maps events to handlers.
+
 ## Marketplace
 
 The `master0071` marketplace is shared with `caveman4cn`. To avoid conflicts, plugin names include the platform suffix (`dotnet-work-zcode`, `loop-workflow-codebuddy`, etc.) and live under `plugins/<name>/<platform>/` in this repo.
