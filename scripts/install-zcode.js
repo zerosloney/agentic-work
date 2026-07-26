@@ -26,8 +26,15 @@ const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'hooks', 'asse
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
   for (let i = 2; i < argv.length; i++) {
-    if (argv[i] === '--plugin') args.plugin = argv[++i];
-    else if (argv[i] === '--uninstall') args.uninstall = true;
+    if (argv[i] === '--plugin') {
+      const next = argv[i + 1];
+      if (!next || next.startsWith('--')) {
+        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        process.exit(2);
+      }
+      args.plugin = next;
+      i++;
+    } else if (argv[i] === '--uninstall') args.uninstall = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
   }
   return args;
@@ -86,7 +93,7 @@ function installPlugin(pluginName, args) {
     const entry = {
       name: installName,
       source: 'filesystem',
-      cachePath: pluginRoot.replace(/\\/g, '\\\\'),
+      cachePath: pluginRoot.split(path.sep).join('/'),
       version: PLUGIN_VERSION,
       description: `${pluginName} plugin for ZCode`,
       category: pluginName === 'dotnet-work' ? 'development' : 'workflow'
@@ -104,9 +111,11 @@ function installPlugin(pluginName, args) {
   const dataDir = path.join(PLUGIN_DIR, 'data', `${installName}@${MARKETPLACE_NAME}`);
   if (!args.dryRun) {
     fs.mkdirSync(dataDir, { recursive: true });
+    const enabledFile = path.join(dataDir, 'enabled.json');
+    fs.writeFileSync(enabledFile, JSON.stringify({ enabled: true, version: PLUGIN_VERSION }, null, 2) + '\n');
     console.log(`  enabled`);
   } else {
-    console.log(`  would create data dir`);
+    console.log(`  would create data dir with enabled.json`);
   }
 }
 
