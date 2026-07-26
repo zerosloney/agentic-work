@@ -3,7 +3,7 @@
   "description": "Agentic-work plugins (dotnet-work + loop-workflow) for ZCode.",
   "owner": {
     "name": "master0071",
-    "url": "https://github.com/master0071/agentic-work"
+    "url": "https://github.com/zerosloney/agentic-work"
   },
   "plugins": [
     {

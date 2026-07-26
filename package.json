@@ -5,12 +5,12 @@
   "license": "MIT",
   "author": {
     "name": "master0071",
-    "url": "https://github.com/master0071"
+    "url": "https://github.com/zerosloney"
   },
-  "homepage": "https://github.com/master0071/agentic-work",
+  "homepage": "https://github.com/zerosloney/agentic-work",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/master0071/agentic-work.git"
+    "url": "git+https://github.com/zerosloney/agentic-work.git"
   },
   "engines": { "node": ">=18" },
   "bin": {
