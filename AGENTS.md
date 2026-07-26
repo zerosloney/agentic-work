@@ -1,15 +1,14 @@
 # AGENTS.md — agentic-work
 
-This repo contains plugins for opencode / CodeBuddy / ZCode. Follow these rules when making changes.
+This repo contains plugins for CodeBuddy and ZCode. Follow these rules when making changes.
 
 ## Layout invariants
 
-- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs (opencode has none — content is discovered from the plugin root).
-- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs (`opencode/`, `codebuddy/`, `zcode/`) contain ONLY platform-specific manifests.
+- `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs.
+- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs (`codebuddy/`, `zcode/`) contain ONLY platform-specific manifests.
 - Platform manifests live only in their respective platform subdirs:
   - `zcode/.zcode-plugin/plugin.json`
   - `codebuddy/.codebuddy-plugin/plugin.json`
-  - opencode has no per-plugin manifest; skills/agents/commands are discovered by name from the plugin root.
 - Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** — no duplication across platforms.
 
 ## dotnet-work
@@ -32,20 +31,19 @@ This repo contains plugins for opencode / CodeBuddy / ZCode. Follow these rules 
 
 - Each `scripts/install-<platform>.js` accepts: `--plugin <name>`, `--uninstall`, `--dry-run`.
 - They MUST be idempotent: re-running install replaces existing content.
-- Uninstall MUST remove all files created by install (skills/<name>/, agents/<file>.md, commands/<file>.md for opencode; full install dirs for codebuddy/zcode).
+- Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode).
 - Scripts copy from `plugins/<name>/` (shared content) and the relevant platform manifest from `plugins/<name>/<platform>/`.
 
 ## Verification
 
-Before committing, run all three dry-runs:
+Before committing, run both dry-runs:
 
 ```sh
-node scripts/install-opencode.js --dry-run
 node scripts/install-codebuddy.js --dry-run
 node scripts/install-zcode.js --dry-run
 ```
 
-All three must exit 0 without writing any files.
+Both must exit 0 without writing any files.
 
 ## Marketplace
 

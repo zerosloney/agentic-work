@@ -9,7 +9,7 @@
 //   node scripts/install-zcode.js --dry-run
 //
 // Copies plugins/<name>/* (skills, agents, commands) excluding
-// platform subdirs (codebuddy/, zcode/, opencode/) to
+// platform subdirs (codebuddy/, zcode/) to
 // %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/<version>/
 // and registers in marketplace.
 

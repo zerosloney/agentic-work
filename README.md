@@ -1,6 +1,6 @@
 # @master0071/agentic-work
 
-Agentic-work plugins for **opencode**, **CodeBuddy**, and **ZCode**.
+Agentic-work plugins for **CodeBuddy** and **ZCode**.
 
 ## Plugins
 
@@ -18,7 +18,6 @@ Agentic-work plugins for **opencode**, **CodeBuddy**, and **ZCode**.
 npm run install:all
 
 # Or per-platform
-npm run install:opencode     # copies to ~/.config/opencode/
 npm run install:codebuddy    # copies to ~/.codebuddy/plugins/<name>-codebuddy/
 npm run install:zcode        # copies to ~/.zcode/cli/plugins/cache/master0071/<name>-zcode/
 
@@ -42,12 +41,11 @@ npm install -g @master0071/agentic-work
 Then invoke the per-platform wrappers installed by `@master0071/agentic-work`:
 
 ```sh
-agentic-work-opencode      # installs for opencode
 agentic-work-codebuddy     # installs for CodeBuddy
 agentic-work-zcode         # installs for ZCode
 ```
 
-(`agentic-work-opencode`, `agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`.)
+(`agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`.)
 
 ## Marketplace
 
@@ -86,7 +84,6 @@ agentic-work/
 │       ├── agents/                       # ← single source of truth
 │       └── commands/                     # ← single source of truth
 └── scripts/
-    ├── install-opencode.js
     ├── install-codebuddy.js
     └── install-zcode.js
 ```

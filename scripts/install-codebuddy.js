@@ -8,7 +8,8 @@
 //   node scripts/install-codebuddy.js --uninstall
 //   node scripts/install-codebuddy.js --dry-run
 //
-// Copies plugins/<name>/codebuddy/* to
+// Copies plugins/<name>/* (skills, agents, commands) excluding
+// the codebuddy/ platform subdir to
 // %USERPROFILE%/.codebuddy/plugins/<name>-codebuddy/
 // and registers via 'codebuddy plugin' CLI.
 
@@ -22,7 +23,7 @@ const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
-const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode', 'opencode'];
+const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
