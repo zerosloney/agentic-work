@@ -27,7 +27,7 @@ const { joinHome } = require('./lib/resolve-home');
 const { materializePlugin, readCodebuddyDescription, deleteDirRecursive } = require('./lib/materialize');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
-const MARKETPLACE_NAME = 'master0071';
+const MARKETPLACE_NAME = 'agentic-work';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
 

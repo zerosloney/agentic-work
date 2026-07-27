@@ -96,7 +96,7 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 ## Marketplace
 
-The `master0071` marketplace is shared with `caveman4cn`. To avoid conflicts, plugin names include the platform suffix (`dotnet-work-zcode`, `loop-workflow-codebuddy`, etc.).
+The `agentic-work` marketplace is used for CodeBuddy installation. Each repo uses its own marketplace name to avoid conflicts — `caveman4cn` uses `master0071`, agentic-work uses `agentic-work`.
 
-- CodeBuddy `source` paths point at `./dist/codebuddy/<name>-codebuddy/` — the committed, materialized plugin trees (see "CodeBuddy dist artifacts" above). This lets users `codebuddy plugin install <id>@master0071` directly from the repo.
+- CodeBuddy `source` paths point at `./dist/codebuddy/<name>-codebuddy/` — the committed, materialized plugin trees (see "CodeBuddy dist artifacts" above). This lets users `codebuddy plugin install <id>@agentic-work` directly from the repo.
 - ZCode `source` paths point at `./plugins/<name>/zcode/`.

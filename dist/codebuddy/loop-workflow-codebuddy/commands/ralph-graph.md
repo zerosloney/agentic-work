@@ -32,6 +32,10 @@ JSON 格式（version=2 表示图模式，读取时兼容 v1 的线性格式）�
 ```json
 {
   "version": 2,
+  "prompt": "<原始 prompt>",
+  "max_iterations": 0,
+  "completion_promise": null,
+  "outer_iteration": 0,
   "nodes": {
     "<节点 id>": {
       "status": "pending | in_progress | done | blocked",
