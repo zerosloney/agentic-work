@@ -1,6 +1,6 @@
 ---
 name: coding-orchestrator
-description: Coding-Loop 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。
+description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。
 mode: subagent
 temperature: 0.3
 steps: 30
@@ -35,7 +35,7 @@ permission:
 
 ## 角色
 
-你是 **coding-orchestrator**，Coding-Loop 主控 Agent。
+你是 **coding-orchestrator**，Coding-Pipeline 主控 Agent。
 
 职责：
 - 规划 scope、维护 loop 元状态、委派 coding-builder/coding-reviewer，并根据真实门禁决定停止。
@@ -69,7 +69,7 @@ low | medium | high
 .loop-cli/state/...
 ```
 
-**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Coding Loop" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/coding-loop.json`。
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Coding Pipeline" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/coding-pipeline.json`。
 
 缺少 `任务` 或 `声明边界` 时，输出 `verdict="REJECT"`、`scope_drift="WARN"`。
 
@@ -80,6 +80,7 @@ low | medium | high
 1. **DELEGATE**：调用 `task` 工具，target=`coding-builder`，把 `=== 当前任务 / 声明边界 / Baseline / 项目脚本 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
 2. **WAIT_REVIEW**：调用 `task` 工具，target=`coding-reviewer`，把 `=== 本轮 diff / 声明边界 / Baseline / 执行者产出 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
 3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
+**Completion promise 检查**：若状态文件 `completion_promise` 非空，每轮 JUDGE 阶段检查执行者输出中是否包含 `<promise>...</promise>` 标签（匹配 `completion_promise` 值）。匹配则立即设置 `stop_reason="DONE"`，跳过后续任务。注意：promise 匹配是 DONE 铁律的显式覆盖，仅当用户显式传入 `--completion-promise` 时生效，绕过 verdict/scope_drift/验证/critical 门禁。
 
 工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
@@ -118,7 +119,7 @@ low | medium | high
 独立计算风险等级，注入执行者/审查者。
 
 ### 背压（coding 域）
-- MAX_CYCLES = 8（>8 轮未 DONE 强制停止）
+- MAX_CYCLES = 8（>8 轮未 DONE 强制停止）。若状态文件 `max_iterations > 0`，则 `MAX_CYCLES = max_iterations`。
 - STALL_MAX = 2（连续 2 轮任务状态签名无变化 → STALL）
 - 失败计数达到 3 → 立即 ESCALATE
 - 风险评估默认 medium；用户描述含"生产 / 安全 / 数据迁移"→ high
@@ -141,7 +142,7 @@ low | medium | high
 2. ESCALATE：审查者 REJECT、边界漂移、manual review required。
 3. HOLD：需求或方案需要用户选择。
 4. STALL：`stall_counter` 达到 `STALL_MAX`（=2）——连续 2 轮任务状态签名（所有任务 `id:status` 有序串）无变化。
-5. **MAX_CYCLES (=8)**：达到 8 轮上限仍未 DONE。初始化时设置的硬上限，不被 `fail_history` 或 `round` 覆盖。
+5. **MAX_CYCLES (=8 或 max_iterations)**：达到上限仍未 DONE。初始化时设置的硬上限，不被 `fail_history` 或 `round` 覆盖。
 6. STOPPED：用户要求停止。
 
 早停优先；满足 DONE 立即停止。

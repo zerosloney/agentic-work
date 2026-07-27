@@ -5,7 +5,7 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
 ## Layout invariants
 
 - `plugins/<plugin-name>/` is a single plugin. Each plugin MUST have `codebuddy/` and `zcode/` platform subdirs (opencode has none — content is discovered from the plugin root).
-- **Shared content** (`skills/`, `agents/`, `commands/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs contain ONLY platform-specific manifests and platform-specific agent overrides (see below).
+- **Shared content** (`skills/`, `agents/`, `commands/`, `scripts/`) lives at the **plugin root**, not inside platform subdirs. The platform subdirs contain ONLY platform-specific manifests and platform-specific agent overrides (see below).
 - Platform manifests live only in their respective platform subdirs:
   - `zcode/.zcode-plugin/plugin.json`
   - `codebuddy/.codebuddy-plugin/plugin.json`
@@ -41,7 +41,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 
 ## loop-workflow
 
-- Current published scope: **coding + ralph domains** (6 agents + 3 commands).
+- Current published scope: **coding + ralph domains** (6 agents + 5 commands).
 - Shared agents live at `plugins/loop-workflow/agents/`.
 - Shared commands live at `plugins/loop-workflow/commands/`.
 - Templates source files (`loop-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
@@ -80,8 +80,8 @@ All must exit 0 without writing any files. After source edits that affect plugin
 Orchestrators write JSON to `.loop-cli/state/*.json` each round. Validate the file before each write with:
 
 ```sh
-node scripts/validate-state.js .loop-cli/state/coding-loop.json
-node scripts/validate-state.js .loop-cli/state/ralph-loop.json
+node scripts/validate-state.js .loop-cli/state/coding-pipeline.json
+node scripts/validate-state.js .loop-cli/state/ralph-pipeline.json
 node scripts/validate-state.js .loop-cli/state/ralph-graph.json
 ```
 

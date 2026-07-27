@@ -20,7 +20,7 @@
     {
       "name": "loop-workflow-zcode",
       "source": "./plugins/loop-workflow/zcode",
-      "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph) for ZCode.",
+      "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for ZCode.",
       "version": "0.1.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",

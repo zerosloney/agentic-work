@@ -1,6 +1,6 @@
 # 共享：任务复杂度评估与拆分
 
-适用于所有 orchestrator agent 的初始化阶段。命令模板（`coding-loop`、`ralph-loop`、`ralph-graph`）的"初始化"步骤都应引用本文件，而非重复定义。
+适用于所有 orchestrator agent 的初始化阶段。命令模板（`coding-pipeline`、`ralph-pipeline`、`ralph-graph`）的"初始化"步骤都应引用本文件，而非重复定义。
 
 ## 适用条件
 
@@ -28,6 +28,6 @@
 
 - `agents/coding-orchestrator.md` — coding 域（MAX_CYCLES=8，预算 ≤6）
 - `agents/ralph-orchestrator.md` — ralph 域（MAX_CYCLES=10，预算 ≤8，含 graph 模式依赖链深度判据）
-- `commands/coding-loop.md` — 初始化步骤 4
-- `commands/ralph-loop.md` — 初始化步骤 4
+- `commands/coding-pipeline.md` — 初始化步骤 4
+- `commands/ralph-pipeline.md` — 初始化步骤 4
 - `commands/ralph-graph.md` — 初始化步骤 4

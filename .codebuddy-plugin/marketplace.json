@@ -22,7 +22,7 @@
     },
     {
       "name": "loop-workflow-codebuddy",
-      "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph) for CodeBuddy.",
+      "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for CodeBuddy.",
       "version": "0.1.0",
       "source": "./dist/codebuddy/loop-workflow-codebuddy",
       "category": "workflow",

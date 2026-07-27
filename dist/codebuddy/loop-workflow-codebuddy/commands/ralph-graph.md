@@ -80,7 +80,7 @@ DONE 必须同时满足：
 ## 初始化
 1. 读取当前请求；为空则询问用户。
 2. 若状态文件存在，按 `### 读取规则` 处理恢复或新建；新建时删除旧文件。
-	3. 确定路由表：按上述 `### 路由表加载协议` 的优先级（状态文件 $\rightarrow$ SOP 文件 $\rightarrow$ 动态分解）确定执行路径。
+  3. 确定路由表：按上述 `### 路由表加载协议` 的优先级（状态文件 $\rightarrow$ SOP 文件 $\rightarrow$ 动态分解）确定执行路径。
 4. **复杂度评估与再拆分**：按 Ralph Graph Orchestrator agent 模板「## 任务复杂度评估与拆分」的判据（accept_criteria > 3 / 跨文件 > 5 或跨模块 > 2 / **DAG 依赖链深度 > 3**）逐节点评估，对过大节点原地拆成子节点，`subtask_of` 标注溯源，子节点通过新 `depends_on` 接入原节点上下游（替换原节点或在其后插入）。重算 entry_points 和 topological_order。核算子节点总数 ≤ 8（`= MAX_CYCLES × 0.8`），超限且无法再拆时输出 `action="HOLD"`、`reason="decomposition_overflow"` 交用户。
 5. 初始化 `active_set` 为 `entry_points`（所有无依赖节点）。
 6. 初始化每个节点的 `status = "pending"`、`failures = 0`。

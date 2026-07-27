@@ -8,7 +8,7 @@
 //   node scripts/validate-state.js --loop <state-file>
 //   node scripts/validate-state.js --graph <state-file>
 //
-// Detects version (1 = coding-loop/ralph-loop, 2 = ralph-graph) and runs
+// Detects version (1 = coding-pipeline/ralph-pipeline, 2 = ralph-graph) and runs
 // the appropriate schema. Exits 0 on success, non-zero with diagnostics on
 // failure.
 
@@ -27,20 +27,38 @@ function parseArgs(argv) {
 }
 
 // Field-level validators return either null (ok) or a string (error message).
+// opt() makes a validator skip when the field is absent (undefined) — version=1
+// is shared by coding-pipeline and ralph-pipeline, whose schemas differ:
+//   - prior_cycles_summary / critical_checkpoints: coding-only (field-map.md marks 否)
+//   - task.root_cause_group: coding-only ("仅编程领域")
+//   - task.subtask_of: present in both but omitted on top-level tasks
+// Making these required would reject valid ralph-pipeline.json.
+function opt(fn) {
+  return v => v === undefined ? null : fn(v);
+}
+
 const fieldsV1 = {
   version: v => v === 1 ? null : `version must be 1, got ${v}`,
+  prompt: v => typeof v === 'string' ? null : `prompt must be string, got ${typeof v}`,
+  max_iterations: v => Number.isInteger(v) && v >= 0 ? null : `max_iterations must be non-negative integer, got ${v}`,
+  completion_promise: v => v === null || typeof v === 'string' ? null : `completion_promise must be null or string, got ${typeof v}`,
+  outer_iteration: v => Number.isInteger(v) && v >= 0 ? null : `outer_iteration must be non-negative integer, got ${v}`,
   tasks: v => Array.isArray(v) ? null : `tasks must be an array, got ${typeof v}`,
   consecutive_failures: v => Number.isInteger(v) && v >= 0 ? null : `consecutive_failures must be non-negative integer, got ${v}`,
   stall_counter: v => Number.isInteger(v) && v >= 0 ? null : `stall_counter must be non-negative integer, got ${v}`,
   fail_history: v => Array.isArray(v) ? null : `fail_history must be an array, got ${typeof v}`,
   round: v => Number.isInteger(v) && v >= 0 ? null : `round must be non-negative integer, got ${v}`,
   stop_reason: v => v === null || typeof v === 'string' ? null : `stop_reason must be null or string, got ${typeof v}`,
-  prior_cycles_summary: v => typeof v === 'string' ? null : `prior_cycles_summary must be string, got ${typeof v}`,
-  critical_checkpoints: v => Array.isArray(v) ? null : `critical_checkpoints must be array, got ${typeof v}`,
+  prior_cycles_summary: opt(v => typeof v === 'string' ? null : `prior_cycles_summary must be string, got ${typeof v}`),
+  critical_checkpoints: opt(v => Array.isArray(v) ? null : `critical_checkpoints must be array, got ${typeof v}`),
 };
 
 const fieldsV2 = {
   version: v => v === 2 ? null : `version must be 2, got ${v}`,
+  prompt: fieldsV1.prompt,
+  max_iterations: fieldsV1.max_iterations,
+  completion_promise: fieldsV1.completion_promise,
+  outer_iteration: fieldsV1.outer_iteration,
   nodes: v => v && typeof v === 'object' && !Array.isArray(v) ? null : `nodes must be object, got ${typeof v}`,
   active_set: v => Array.isArray(v) ? null : `active_set must be array, got ${typeof v}`,
   consecutive_failures: fieldsV1.consecutive_failures,
@@ -57,6 +75,8 @@ const taskFieldsV1 = {
   depends_on: v => Array.isArray(v) ? null : `task.depends_on must be array, got ${typeof v}`,
   accept_criteria: v => Array.isArray(v) && v.every(x => typeof x === 'string') ? null : `task.accept_criteria must be string array`,
   failures: v => Number.isInteger(v) && v >= 0 ? null : `task.failures must be non-negative integer, got ${v}`,
+  root_cause_group: opt(v => typeof v === 'string' ? null : `task.root_cause_group must be string, got ${typeof v}`),
+  subtask_of: opt(v => v === null || typeof v === 'string' ? null : `task.subtask_of must be null or string, got ${typeof v}`),
 };
 
 const nodeFieldsV2 = {
@@ -101,7 +121,7 @@ function validateTasks(tasks) {
 
 function checkCycles(tasks) {
   const graph = new Map();
-  for (const t of tasks) graph.set(t.id, (t.depends_on || []).filter(d => graph.has(d) || tasks.some(x => x.id === d)));
+  for (const t of tasks) graph.set(t.id, (t.depends_on || []).filter(d => graph.has(d) || tasks.some(x => x.id === d))); // intentional-simple: O(n²) filter, fine for <100 tasks
   const WHITE = 0, GRAY = 1, BLACK = 2;
   const color = new Map();
   for (const id of graph.keys()) color.set(id, WHITE);
@@ -134,6 +154,25 @@ function validateNodes(nodes) {
     for (const [key, validator] of Object.entries(nodeFieldsV2)) {
       const err = validator(n[key]);
       if (err) errors.push(`nodes.${id}.${key}: ${err}`);
+    }
+  }
+  return errors;
+}
+const failHistoryItemFields = {
+  task_id: v => typeof v === 'string' && v.length > 0 ? null : `fail_history[].task_id must be non-empty string, got ${JSON.stringify(v)}`,
+  round: v => Number.isInteger(v) && v >= 0 ? null : `fail_history[].round must be non-negative integer, got ${v}`,
+  reason: v => typeof v === 'string' ? null : `fail_history[].reason must be string, got ${typeof v}`,
+};
+
+function validateFailHistory(history) {
+  const errors = [];
+  if (!Array.isArray(history)) return errors;
+  for (let i = 0; i < history.length; i++) {
+    const item = history[i];
+    if (!item || typeof item !== 'object') { errors.push(`fail_history[${i}] must be object`); continue; }
+    for (const [key, validator] of Object.entries(failHistoryItemFields)) {
+      const err = validator(item[key]);
+      if (err) errors.push(`fail_history[${i}].${key}: ${err}`);
     }
   }
   return errors;
@@ -179,6 +218,7 @@ function main() {
       const cycle = checkCycles(obj.tasks);
       if (cycle) errors.push(`Circular dependency detected: ${cycle.join(' → ')} → ${cycle[0]}`);
     }
+    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history));
   } else if (version === 2) {
     errors = validate(obj, fieldsV2, 'root');
     if (obj.nodes) errors.push(...validateNodes(obj.nodes));

@@ -1,7 +1,7 @@
 {
   "name": "loop-workflow-zcode",
   "version": "0.1.0",
-  "description": "Orchestrated execute-review loops (Coding-Loop + Ralph-Loop/Ralph-Graph).",
+  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"

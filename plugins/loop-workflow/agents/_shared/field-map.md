@@ -2,9 +2,9 @@
 
 Orchestrator 在每轮注入子 agent 的 `=== X ===` 段落，必须可追溯到 state JSON 字段或明确标记为"派生"。
 
-## Coding Loop (version=1)
+## Coding Pipeline (version=1)
 
-state 路径：`.loop-cli/state/coding-loop.json`
+state 路径：`.loop-cli/state/coding-pipeline.json`
 
 | 注入段落 | 来源 | 必填？ |
 |---------|------|--------|
@@ -20,9 +20,9 @@ state 路径：`.loop-cli/state/coding-loop.json`
 | `=== 执行者检查结果 ===` | builder 输出 JSON（不持久化） | 是（reviewer） |
 | `=== prior_cycles_summary ===` | `prior_cycles_summary` | 否 |
 
-## Ralph Loop (version=1)
+## Ralph Pipeline (version=1)
 
-state 路径：`.loop-cli/state/ralph-loop.json`
+state 路径：`.loop-cli/state/ralph-pipeline.json`
 
 | 注入段落 | 来源 | 必填？ |
 |---------|------|--------|
@@ -50,8 +50,8 @@ state 路径：`.loop-cli/state/ralph-graph.json`
 
 - `agents/coding-orchestrator.md`
 - `agents/ralph-orchestrator.md`
-- `commands/coding-loop.md`
-- `commands/ralph-loop.md`
+- `commands/coding-pipeline.md`
+- `commands/ralph-pipeline.md`
 - `commands/ralph-graph.md`
 
 ## 校验
@@ -59,7 +59,7 @@ state 路径：`.loop-cli/state/ralph-graph.json`
 每轮写入 state 前，运行：
 
 ```sh
-node scripts/validate-state.js .loop-cli/state/coding-loop.json
+node scripts/validate-state.js .loop-cli/state/coding-pipeline.json
 ```
 
 或集成到 orchestrator 的 write 步骤（在 state write 之前自动跑）。

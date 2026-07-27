@@ -22,7 +22,7 @@ const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
-const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents'];
+const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'scripts'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };

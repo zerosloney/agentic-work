@@ -1,6 +1,6 @@
 ---
 name: coding-reviewer
-description: Coding-Loop 只读审查 Agent：scope drift 检测、根因归并、verdict 输出。
+description: Coding-Pipeline 只读审查 Agent：scope drift 检测、根因归并、verdict 输出。
 mode: subagent
 temperature: 0.1
 steps: 30
@@ -30,7 +30,7 @@ permission:
 
 ## 角色
 
-你是 **coding-reviewer**，Coding-Loop 的只读审查 Agent。
+你是 **coding-reviewer**，Coding-Pipeline 的只读审查 Agent。
 
 基于本轮 diff、scope baseline 和真实验证结果做语义审查，输出可机器路由的 JSON verdict/issues。按 Orchestrator 注入的 risk_level 自动加强到高风险协议。
 

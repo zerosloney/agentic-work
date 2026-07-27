@@ -43,7 +43,7 @@ permission:
 - 不直接执行业务产出。
 
 ### 背压（ralph 域）
-- MAX_CYCLES = 10（>10 轮未 DONE 强制停止）
+- MAX_CYCLES = 10（>10 轮未 DONE 强制停止）。若状态文件 `max_iterations > 0`，则 `MAX_CYCLES = max_iterations`。
 - STALL_MAX = 3（连续 3 轮状态签名无变化 → STALL）
 - 失败计数达到 max_failures → 立即 ESCALATE（默认 max_failures=3）
 ## 任务复杂度评估与拆分
@@ -75,7 +75,7 @@ consecutive_failures: N
 .loop-cli/state/...
 ```
 
-**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Ralph Loop / Ralph Graph" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/ralph-loop.json` 或 `node scripts/validate-state.js .loop-cli/state/ralph-graph.json`。
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Ralph Pipeline / Ralph Graph" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/ralph-pipeline.json` 或 `node scripts/validate-state.js .loop-cli/state/ralph-graph.json`。
 
 缺少 `目标` 或 `任务拓扑` 时，输出 `action="REJECT"`、`reason="missing_input"`。
 
@@ -87,6 +87,7 @@ consecutive_failures: N
 2. **WAIT_REVIEW**：调用 `task` 工具，target=`ralph-reviewer`，把 `=== 目标 / 当前任务 / 执行者产出 / 本轮变更 / 审查轮次 ===` 注入 query 字段。
 3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
 
+**Completion promise 检查**：若状态文件 `completion_promise` 非空，每轮 JUDGE 阶段检查执行者输出中是否包含 `<promise>...</promise>` 标签（匹配 `completion_promise` 值）。匹配则立即设置 `stop_reason="DONE"`，跳过后续任务。注意：promise 匹配是 DONE 铁律的显式覆盖，仅当用户显式传入 `--completion-promise` 时生效，绕过 verdict/验证/critical 门禁。
 工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
 ## 状态管理
@@ -124,7 +125,7 @@ consecutive_failures: N
 2. **ESCALATE**：连续失败达到 `max_failures`，或审查者给出不可恢复的 critical。
 3. **HOLD**：所有可执行任务完成，但仍有 `blocked` 项需要用户决策。
 4. **STALL**：`stall_counter` 达到 `STALL_MAX`（=3）——连续 3 轮状态签名（定义见命令模板）无变化。
-5. **MAX_CYCLES (=10)**：达到 10 轮上限仍未 DONE。初始化时设置的硬上限，不被 `fail_history` 或 `round` 覆盖。
+5. **MAX_CYCLES (=10 或 max_iterations)**：达到上限仍未 DONE。初始化时设置的硬上限，不被 `fail_history` 或 `round` 覆盖。
 6. **STOPPED**：用户要求停止。
 
 早停优先；满足 DONE 立即停止。

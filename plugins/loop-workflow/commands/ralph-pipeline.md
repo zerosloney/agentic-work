@@ -1,10 +1,10 @@
 ---
-description: Ralph-Loop: 通用编排执行审查闭环（线性）
+description: Ralph-Pipeline: 通用编排执行审查管道（线性）
 agent: ralph-orchestrator
 subtask: false
 ---
 
-# Ralph Loop
+# Ralph Pipeline
 
 当前请求：$ARGUMENTS
 
@@ -12,13 +12,17 @@ subtask: false
 
 ## 状态持久化
 
-状态文件路径：`.loop-cli/state/ralph-loop.json`
+状态文件路径：`.loop-cli/state/ralph-pipeline.json`
 
 JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 
 ```json
 {
   "version": 1,
+  "prompt": "<原始 prompt>",
+  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES
+  "completion_promise": null,
+  "outer_iteration": 0,
   "tasks": [
     {
       "id": "t1",
@@ -41,7 +45,7 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 ```
 
 ### 写入规则
-- 每轮结束时写入，先写 `.loop-cli/state/ralph-loop.json.tmp`，再重命名为 `.loop-cli/state/ralph-loop.json`（防止写入中断导致文件损坏）。
+- 每轮结束时写入，先写 `.loop-cli/state/ralph-pipeline.json.tmp`，再重命名为 `.loop-cli/state/ralph-pipeline.json`（防止写入中断导致文件损坏）。
 - `stop_reason` 枚举值：`null`（运行中）| `"DONE"` | `"ESCALATE"` | `"HOLD"` | `"STALL"` | `"MAX_CYCLES"` | `"STOPPED"`。
 - `fail_history` 保留最近 10 条，超出时丢弃最旧的。
 - 每轮结束时计算"任务状态签名"（所有任务按 id 升序拼成的 `id:status` 有序串）：与上一轮**完全相同** → `stall_counter += 1`；有任一变化 → `stall_counter = 0`。

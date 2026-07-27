@@ -1,10 +1,10 @@
 ---
-description: Coding-Loop: 受控编码/审查闭环
+description: Coding-Pipeline: 受控编码/审查管道
 agent: coding-orchestrator
 subtask: false
 ---
 
-# Coding-Loop
+# Coding-Pipeline
 
 当前请求：$ARGUMENTS
 
@@ -12,13 +12,17 @@ subtask: false
 
 ## 状态持久化
 
-状态文件路径：`.loop-cli/state/coding-loop.json`
+状态文件路径：`.loop-cli/state/coding-pipeline.json`
 
 JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 
 ```json
 {
   "version": 1,
+  "prompt": "<原始 prompt>",
+  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES
+  "completion_promise": null,
+  "outer_iteration": 0,
   "tasks": [
     {
       "id": "t1",
@@ -46,7 +50,7 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 ```
 
 ### 写入规则
-- 每轮结束时写入，先写 `.loop-cli/state/coding-loop.json.tmp`，再重命名为 `.loop-cli/state/coding-loop.json`。
+- 每轮结束时写入，先写 `.loop-cli/state/coding-pipeline.json.tmp`，再重命名为 `.loop-cli/state/coding-pipeline.json`。
 - 停止时设置 `stop_reason` 字段，`null` 表示仍在运行。
 - 每轮结束时计算"任务状态签名"（所有任务按 id 升序拼成的 `id:status` 有序串）：与上一轮**完全相同** → `stall_counter += 1`；有任一变化 → `stall_counter = 0`。
 
