@@ -10,7 +10,7 @@
       "name": "dotnet-work-codebuddy",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for CodeBuddy.",
       "version": "0.1.0",
-      "source": "./dist/codebuddy/dotnet-work-codebuddy",
+      "source": "./plugins/dotnet-work",
       "category": "development",
       "author": {
         "name": "master0071",
@@ -18,13 +18,17 @@
       },
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
-      "keywords": ["dotnet", "csharp", "development"]
+      "keywords": [
+        "dotnet",
+        "csharp",
+        "development"
+      ]
     },
     {
       "name": "loop-workflow-codebuddy",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for CodeBuddy.",
       "version": "0.1.0",
-      "source": "./dist/codebuddy/loop-workflow-codebuddy",
+      "source": "./plugins/loop-workflow",
       "category": "workflow",
       "author": {
         "name": "master0071",
@@ -32,7 +36,12 @@
       },
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
-      "keywords": ["workflow", "loop", "ralph", "coding"]
+      "keywords": [
+        "workflow",
+        "loop",
+        "ralph",
+        "coding"
+      ]
     }
   ]
 }

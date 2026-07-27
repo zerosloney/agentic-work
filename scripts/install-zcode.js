@@ -17,10 +17,10 @@ const fs = require('fs');
 const path = require('path');
 const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
+const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
-const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
 const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'scripts'];
 
@@ -55,6 +55,7 @@ function removeDir(dir) {
 }
 
 function installPlugin(pluginName, args) {
+  const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-zcode`;
   const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
@@ -125,6 +126,7 @@ function installPlugin(pluginName, args) {
 }
 
 function uninstallPlugin(pluginName, args) {
+  const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-zcode`;
   const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);

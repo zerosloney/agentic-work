@@ -9,22 +9,14 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
 - **Platform manifests** live at the plugin root:
   - `.zcode-plugin/plugin.json`
   - `.codebuddy-plugin/plugin.json`
-- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** — no duplication across platforms.
-- The only remaining platform-specific content is **CodeBuddy agent overrides** (for frontmatter incompatibility), kept at:
+- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** for ZCode.
+- **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。每个平台有独立的 agents 目录：
   ```
-  plugins/<name>/codebuddy/agents/<agent-name>.md
+  plugins/<name>/agents-zcode/<agent-name>.md      ← ZCode 版本
+  plugins/<name>/agents-codebuddy/<agent-name>.md  ← CodeBuddy 版本
+  plugins/<name>/agents-trae/<agent-name>.md       ← Trae 版本（示例）
   ```
-  The `codebuddy/` subdir holds **agent overrides only** — it no longer contains a manifest. The materializer skips `codebuddy/` during the shared copy (so no manifest or stray files leak into `dist/`) and overlays its `agents/*.md` afterward.
-
-### CodeBuddy-specific agent overrides
-
-When an agent's frontmatter uses fields CodeBuddy does not recognise (e.g. nested `permission:` blocks, `mode: subagent`, `temperature`, `steps`), put a CodeBuddy-adapted version in:
-
-```
-plugins/<name>/codebuddy/agents/<agent-name>.md
-```
-
-The install script copies agents from the plugin root, then overlays any `codebuddy/agents/` files on top. Body content should be the same as the root version; only the frontmatter changes. Each override file starts with an HTML comment noting the sync requirement.
+  各平台的 manifest（`.zcode-plugin/plugin.json`、`.codebuddy-plugin/plugin.json` 等）通过 `"agents"` 字段指向对应的目录。Body 内容应保持一致，仅 frontmatter 不同。每个非 ZCode 平台的 agent 文件开头需加 HTML 注释注明同步要求。
 
 Permission mapping for codebuddy `permissionMode` (single-value enum):
 
@@ -44,14 +36,70 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
 - When adding a new skill: create `<skill-name>/SKILL.md` + `references/` + `scripts/` under `plugins/dotnet-work/skills/`.
 
+### Skill 路由
+
+完整路由决策树 + 跨 skill 协作图见 `plugins/dotnet-work/README.md`。主诉求→主 skill 速查：
+
+| 用户说 | 主 skill |
+|--------|---------|
+| "写 C# 代码/API/服务" | `dotnet-csharp-developer` |
+| "审查/review/安全扫描/质量" | `dotnet-code-review` |
+| "连数据库/查表/SQL/导出" | `database-explorer` |
+| "WinForms/DevExpress/窗体" | `winforms-dev-flow` |
+
+跨 skill 协作（已内建调用点）：`dotnet-csharp-developer` Step 4b 调 `dotnet-code-review`；`winforms-dev-flow` Step 0a/2 调 `database-explorer` 查 schema。
+
 ## loop-workflow
 
 - Current published scope: **coding + ralph domains** (6 agents + 5 commands).
-- Shared agents live at `plugins/loop-workflow/agents/`.
+- ZCode agents live at `plugins/loop-workflow/agents-zcode/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory.
+- CodeBuddy agents live at `plugins/loop-workflow/agents-codebuddy/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
 - Shared commands live at `plugins/loop-workflow/commands/`.
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
 - Templates source files (`loop-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
-- To add a new agent or command: create the `.md` file under `plugins/loop-workflow/agents/` or `plugins/loop-workflow/commands/`. No cross-platform copy needed — the install scripts handle it.
+- To add a new agent: create a file per platform that needs it — `agents-zcode/<name>.md`、`agents-codebuddy/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
+- To add a new command: create `plugins/loop-workflow/commands/<name>.md`.
+
+## Skills
+
+可复用的工作说明，每个 skill 是一个目录 + `SKILL.md`。Agent 通过 frontmatter 的 `skills` 字段自动加载。
+
+```
+plugins/<name>/skills/<skill-name>/SKILL.md
+```
+
+当前 loop-workflow 的 skills：
+
+| Skill | 用途 | 被谁引用 |
+|-------|------|---------|
+| `scope-drift-detector` | 检测 diff 是否越界 | reviewer, worker, orchestrator |
+| `root-cause-grouper` | 把多个 issue 归并到同一根因组 | builder, reviewer, orchestrator |
+
+## Hooks
+
+事件驱动自动化，写在 `hooks/hooks.json` + `hooks/scripts/*.js`。
+
+当前 loop-workflow 的 hooks：
+
+| Hook | 事件 | 脚本 | 作用 |
+|------|------|------|------|
+| `block-forbidden-scope` | PreToolUse (Write/Edit) | `block-forbidden-scope.js` | 禁止修改 forbidden_scope 内文件 |
+| `validate-state-write` | PreToolUse (Write) | `validate-state-write.js` | 写入 state JSON 前校验 schema |
+| `check-verification-on-stop` | Stop | `check-verification-on-stop.js` | 验证未通过时阻止停止 |
+
+Hook 脚本遵循 stdin/stdout 契约：stdin 读 JSON，stdout 输出结果，退出码 0=允许、2=拒绝。
+
+## userConfig（仅 ZCode）
+
+ZCode 支持用户在设置界面配置插件参数，无需改文件。
+
+当前 loop-workflow 的 userConfig：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `max_cycles` | number | 10 | 覆盖默认最大轮次限制 |
+| `risk_level` | string | medium | 默认风险等级 |
+| `auto_escalate` | boolean | true | 达到失败阈值时自动上报 |
 
 ## Install scripts
 
@@ -59,15 +107,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 - They MUST be idempotent: re-running install replaces existing content.
 - Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode).
 - Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/` or `plugins/<name>/.zcode-plugin/`.
-- `scripts/materialize-codebuddy.js` is a pure-assembly sibling (accepts `--plugin <name>`, `--dry-run`; **no** `--uninstall` — delete `dist/codebuddy/` to revert). It shares the same copy+overlay logic as `install-codebuddy.js` via `scripts/lib/materialize.js`, so the two paths produce identical plugin trees.
-
-## CodeBuddy dist artifacts
-
-`dist/codebuddy/<name>-codebuddy/` is a **generated, committed** artifact — a self-contained CodeBuddy plugin tree (manifest + `skills/`/`commands/`/`agents/` with the codebuddy agent overrides already applied) that `.codebuddy-plugin/marketplace.json` `source` points at verbatim. This is required because CodeBuddy consumes `source` directly: the plugin root `agents/` may carry CodeBuddy-incompatible frontmatter (`mode`/`temperature`/`steps`/nested `permission`).
-
-- Produced by `node scripts/materialize-codebuddy.js`.
-- After editing any shared content (`plugins/<name>/`) or codebuddy agent overrides (`plugins/<name>/codebuddy/agents/`), re-run the script and commit the `dist/` changes alongside the source changes — keep dist in sync with sources.
-- The assembly rules (wipe → copy shared minus platform subdirs → copy codebuddy manifest → overlay codebuddy agents) live in `scripts/lib/materialize.js`.
+- For CodeBuddy, the install script copies the `agents-codebuddy/` directory (as referenced by `.codebuddy-plugin/plugin.json`'s `"agents"` field) instead of the root `agents/`.
 
 ## Verification
 
@@ -79,7 +119,7 @@ node scripts/install-zcode.js --dry-run
 node scripts/materialize-codebuddy.js --dry-run
 ```
 
-All must exit 0 without writing any files. After source edits that affect plugin content, also run `node scripts/materialize-codebuddy.js` (non-dry-run) and commit the regenerated `dist/`.
+All must exit 0 without writing any files.
 
 ## State validation
 
@@ -100,9 +140,17 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 - `agents/_shared/decomposition.md` — task complexity estimation & decomposition rules, referenced by `coding-orchestrator.md`, `ralph-orchestrator.md`, and the three command templates.
 - `agents/_shared/field-map.md` — state JSON field ↔ `=== X ===` injection mapping for each loop variant.
 
+## Versioning
+
+- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry) are derived from it.
+- **Bump with one command**: `node scripts/bump-version.js --plugin <name> --set <new-version>` updates the manifest and propagates to all sites. Without `--set`, the script syncs all sites to match the manifest (idempotent).
+- **Check in CI**: `node scripts/bump-version.js --all --check` exits non-zero on drift. Run before committing.
+- **Install scripts** (`install-zcode.js`, `install-codebuddy.js`) read the version from the manifest at runtime via `lib/plugin-version.js` — never hardcode `PLUGIN_VERSION`.
+- Bump the version on **any** skill content change (new rule, breaking SKILL.md rewrite, new reference file). Patch (0.1.0 → 0.1.1) for fixes/minor additions; minor (0.1.x → 0.2.0) for new features; major (0.x → 1.0.0) only when declaring stable.
+- `0.x` = early development (current: `0.1.0`). `1.0.0+` = declared stable. Do not declare `1.0.0` while known integrity gaps exist.
+
 ## Marketplace
 
 The `agentic-work` marketplace is used for CodeBuddy installation. Each repo uses its own marketplace name to avoid conflicts — `caveman4cn` uses `master0071`, agentic-work uses `agentic-work`.
 
-- CodeBuddy `source` paths point at `./dist/codebuddy/<name>-codebuddy/` — the committed, materialized plugin trees (see "CodeBuddy dist artifacts" above). This lets users `codebuddy plugin install <id>@agentic-work` directly from the repo.
-- ZCode `source` paths point at `./plugins/<name>/` (install script copies to the user's plugin cache).
+- Both CodeBuddy and ZCode `source` paths point at `./plugins/<name>/`. Each platform's manifest (`.codebuddy-plugin/plugin.json` / `.zcode-plugin/plugin.json`) directs the platform to the correct `agents` directory (root `agents/` for ZCode, `agents-codebuddy/` for CodeBuddy when frontmatter differs).

@@ -25,10 +25,10 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { joinHome } = require('./lib/resolve-home');
 const { materializePlugin, readCodebuddyDescription, deleteDirRecursive } = require('./lib/materialize');
+const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'agentic-work';
-const PLUGIN_VERSION = '0.1.0';
 const PLUGINS = ['dotnet-work', 'loop-workflow'];
 
 function parseArgs(argv) {
@@ -85,6 +85,7 @@ function ensureMarketplaceManifest(plugins, dryRun) {
   if (!data.description) data.description = 'Custom marketplace for local CodeBuddy plugins';
   data.plugins = data.plugins || [];
   for (const pluginName of plugins) {
+    const PLUGIN_VERSION = getPluginVersion(pluginName);
     const entry = {
       name: `${pluginName}-codebuddy`,
       description: readCodebuddyDescription(pluginName),
