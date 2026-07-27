@@ -8,10 +8,10 @@
 //   node scripts/install-zcode.js --uninstall
 //   node scripts/install-zcode.js --dry-run
 //
-// Copies plugins/<name>/* (skills, agents, commands) excluding
-// platform subdirs (codebuddy/, zcode/) to
+// Copies plugins/<name>/* (skills, agents, commands, scripts) to
 // %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/<version>/
-// and registers in marketplace.
+// and registers in marketplace. Manifest is read from .zcode-plugin/plugin.json
+// at the plugin root.
 
 const fs = require('fs');
 const path = require('path');
@@ -58,7 +58,7 @@ function installPlugin(pluginName, args) {
   const installName = `${pluginName}-zcode`;
   const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
-  const manifestSrc = path.join(src, 'zcode', '.zcode-plugin', 'plugin.json');
+  const manifestSrc = path.join(src, '.zcode-plugin', 'plugin.json');
 
   console.log(`\n→ Installing ${installName}`);
   if (!fs.existsSync(src)) {

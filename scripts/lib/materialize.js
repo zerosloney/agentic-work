@@ -9,9 +9,9 @@
 //
 // Assembly rules per plugin (mirrors AGENTS.md "Layout invariants"):
 //   1. wipe <destRoot>/<name>-codebuddy/                (idempotent)
-//   2. copy plugins/<name>/ → dest, skipping codebuddy/ + zcode/ platform subdirs
-//      (brings in shared skills/, commands/, agents/)
-//   3. copy plugins/<name>/codebuddy/.codebuddy-plugin/plugin.json → dest/.codebuddy-plugin/
+//   2. copy plugins/<name>/ → dest, skipping codebuddy/ + .zcode-plugin/ subdirs
+//      (brings in shared skills/, commands/, agents/, scripts/ plus .codebuddy-plugin/)
+//   3. copy plugins/<name>/.codebuddy-plugin/plugin.json → dest/.codebuddy-plugin/
 //   4. overlay plugins/<name>/codebuddy/agents/*.md onto dest/agents/
 //      (replaces shared agents whose frontmatter uses fields CodeBuddy
 //       doesn't recognise — mode/temperature/steps/nested permission — with
@@ -22,7 +22,10 @@ const path = require('path');
 const { copyDirRecursive } = require('./copy-dir');
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
-const SKIP_PLATFORM_DIRS = ['codebuddy', 'zcode'];
+// Directories under plugins/<name>/ that must NOT enter the CodeBuddy tree:
+//   - codebuddy/      holds CodeBuddy agent overrides only (overlaid separately in step 4)
+//   - .zcode-plugin/  competitor platform manifest (root-level now); must not pollute dist
+const SKIP_PLATFORM_DIRS = ['codebuddy', '.zcode-plugin'];
 
 function deleteDirRecursive(dir) {
   if (!fs.existsSync(dir)) return;
@@ -35,7 +38,7 @@ function deleteDirRecursive(dir) {
  */
 function readCodebuddyDescription(pluginName) {
   const manifestPath = path.join(
-    REPO_ROOT, 'plugins', pluginName, 'codebuddy', '.codebuddy-plugin', 'plugin.json'
+    REPO_ROOT, 'plugins', pluginName, '.codebuddy-plugin', 'plugin.json'
   );
   try {
     const data = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
@@ -58,7 +61,7 @@ function materializePlugin(pluginName, destRoot, opts = {}) {
   const installName = `${pluginName}-codebuddy`;
   const dest = path.join(destRoot, installName);
   const pluginRoot = path.join(REPO_ROOT, 'plugins', pluginName);
-  const manifestSrc = path.join(pluginRoot, 'codebuddy', '.codebuddy-plugin', 'plugin.json');
+  const manifestSrc = path.join(pluginRoot, '.codebuddy-plugin', 'plugin.json');
 
   if (!fs.existsSync(pluginRoot)) {
     throw new Error(`source not found: ${pluginRoot}`);
@@ -73,13 +76,13 @@ function materializePlugin(pluginName, destRoot, opts = {}) {
     console.log(`  ${dryRun ? 'would wipe' : 'wiped'}: ${dest}`);
   }
 
-  // 2. copy shared content (skills/commands/agents), skipping platform subdirs
+  // 2. copy shared content (skills/commands/agents/scripts + root manifests), skipping platform subdirs
   if (!dryRun) {
     copyDirRecursive(pluginRoot, dest, { skip: name => SKIP_PLATFORM_DIRS.includes(name) });
   }
   console.log(`  ${dryRun ? 'would copy' : 'copied'}: ${pluginRoot} → ${dest}`);
 
-  // 3. codebuddy manifest
+  // 3. codebuddy manifest (already copied in step 2, but ensure .codebuddy-plugin/ dir exists)
   const manifestDestDir = path.join(dest, '.codebuddy-plugin');
   if (!dryRun) {
     fs.mkdirSync(manifestDestDir, { recursive: true });
@@ -87,7 +90,7 @@ function materializePlugin(pluginName, destRoot, opts = {}) {
   }
   console.log(`  ${dryRun ? 'would write' : 'wrote'} manifest: .codebuddy-plugin/plugin.json`);
 
-  // 4. overlay codebuddy agent overrides
+  // 4. overlay codebuddy agent overrides (only if codebuddy/agents/ exists)
   const overridesDir = path.join(pluginRoot, 'codebuddy', 'agents');
   if (fs.existsSync(overridesDir)) {
     for (const entry of fs.readdirSync(overridesDir, { withFileTypes: true })) {

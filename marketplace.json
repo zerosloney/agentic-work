@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "dotnet-work-zcode",
-      "source": "./plugins/dotnet-work/zcode",
+      "source": "./plugins/dotnet-work",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
       "version": "0.1.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
@@ -19,7 +19,7 @@
     },
     {
       "name": "loop-workflow-zcode",
-      "source": "./plugins/loop-workflow/zcode",
+      "source": "./plugins/loop-workflow",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for ZCode.",
       "version": "0.1.0",
       "homepage": "https://github.com/zerosloney/agentic-work",

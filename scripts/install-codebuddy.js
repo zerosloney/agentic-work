@@ -8,7 +8,7 @@
 //   node scripts/install-codebuddy.js --uninstall
 //   node scripts/install-codebuddy.js --dry-run
 //
-// Copies plugins/<name>/* (skills, agents, commands) excluding
+// Copies plugins/<name>/* (skills, agents, commands, scripts) excluding
 // the codebuddy/ platform subdir to
 // %USERPROFILE%/.codebuddy/plugins/<name>-codebuddy/
 // and registers via 'codebuddy plugin' CLI.
