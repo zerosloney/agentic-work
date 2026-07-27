@@ -129,6 +129,8 @@ function install(args) {
   ensureMarketplaceManifest(plugins, args.dryRun);
 
   console.log(`\n→ Adding marketplace: ${MARKETPLACE_NAME}`);
+  // Remove first to handle existing marketplace with different source (e.g. caveman4cn git marketplace)
+  try { runCB(`plugin marketplace remove ${MARKETPLACE_NAME}`, args.dryRun); } catch (_) { /* may not exist */ }
   try { runCB(`plugin marketplace add "${PLUGIN_DIR}" --name ${MARKETPLACE_NAME}`, args.dryRun); }
   catch (_) { /* may already exist */ }
 
