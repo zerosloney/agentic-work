@@ -229,8 +229,17 @@ def main():
         "--solution", "-s",
         metavar="PATH",
         help="Path to .sln file. Enables solution-aware semantic analysis: "
-        "resolves cross-project type references using dependency project DLLs. "
-        "Pass 'full' to auto-discover and include ALL source files from the solution.",
+             "resolves cross-project type references using dependency project DLLs. "
+             "Pass 'full' to auto-discover and include ALL source files from the solution.",
+    )
+    parser.add_argument(
+        "--legacy-compat",
+        action="store_true",
+        help="Legacy (.NET Framework) compatibility mode: bypass the .NET SDK 6+ "
+             "requirement and skip the build/format layers (which need SDK-style "
+             "projects). AST, semantic, project, complexity, and NuGet analysis "
+             "still run. Use this for .NET Framework 4.x projects that cannot "
+             "install .NET 6+ SDK.",
     )
 
     args = parser.parse_args()

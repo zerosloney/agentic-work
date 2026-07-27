@@ -10,6 +10,14 @@ description: |
   - **故障修复**：生成的窗体编译/运行报错，如 `SqlOperate 找不到` / `GridStyle 未注册` / `DALBase<T> 编译失败` / `控件挤一起/Tab 乱` — 此时先查 `references/failure-modes.md` 顶部「症状→案例速查表」定位根因
 
   **不要用于**：简单对话框、纯 API 调用、无 DevExpress 的基础 WinForms。
+when_to_use: |
+  用户需要生成 WinForms + DevExpress 业务窗体、增量编辑现有窗体、架构迁移、故障修复时使用。
+  触发词："生成窗体"、"WinForms"、"DevExpress"、"加个列"、"主从结构"、"编辑弹窗"。
+license: MIT
+metadata:
+  author: master0071
+  version: 0.1.0
+  category: code-generation
 ---
 
 # WinForm + DevExpress 业务窗体生成
@@ -210,15 +218,16 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 
 ### Step 5. 循环反馈（双层闭环）
 
-```
 ┌─────────────────────── 内层：自审（自动）───────────────────────┐
-│  5a  review-checklist 逐项过 (A设计/B绑定/C输出)                │
+│  5a     review-checklist 逐项过 (A设计/B绑定/C输出)             │
 │   ↓                                                            │
-│  5b-pre  smoke_test.py 5项 + 上下文相关2项 (对照参照窗体)       │
+│  5b-pre smoke_test.py 5项 + 上下文相关2项 (对照参照窗体)        │
 │   ↓                                                            │
-│  5b  MSBuild 构建 (.sln 优先, 无则 .csproj)                    │
+│  5b     MSBuild 构建 (.sln 优先, 无则 .csproj)                 │
 │   ↓                                                            │
-│  5c  不通过 → 回对应 Step 修正 → 重审全部 checklist (防新问题)   │
+│  5b-roslyn  dotnet-code-review --legacy-compat (AST/语义/项目)  │
+│   ↓                                                            │
+│  5c     不通过 → 回对应 Step 修正 → 重审全部 checklist (防新问题)│
 └────────────────────────────────────────────────────────────────┘
                           ↓ 全过
 ┌─────────────────────── 外层：用户反馈 ─────────────────────────┐
@@ -227,7 +236,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 │  5e  用户反馈 → 识别影响环节 → 回对应 Step 改 → 重跑 5a/5b       │
 └────────────────────────────────────────────────────────────────┘
                           ↓
-✅ 自审全过 + MSBuild 通过 + 用户确认  |  ⏸ 用户说「先这样」
+✅ 自审全过 + MSBuild 通过 + review 无 error + 用户确认  |  ⏸ 用户说「先这样」
 ```
 
 #### 内层：自审（自动）
@@ -250,8 +259,24 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
   - Windows/.NET Framework 项目用 `MSBuild.exe`，不要用 `dotnet build` 代替
   - 构建失败时只修复本次生成/修改导致的错误；若是预先存在或环境缺依赖，交付时明确列出
   - **命令模板**：用 `vswhere.exe` 动态探测 MSBuild.exe 路径（覆盖 Community/Professional/Enterprise/BuildTools，注册表降级）再构建——完整可执行命令（探测 + `.sln`/`.csproj` 构建 + 失败诊断）见 `references/msbuild-commands.md`。
-- **5c** 不通过项回到对应 Step 修正（A→Step 2/4，B→Step 4，C→补文件/替占位符，MSBuild→修编译错误）
-- 修正后**重审全部 checklist**，避免引入新问题
+- **5b-roslyn** MSBuild 通过后，调用 **dotnet-code-review** skill 做静态分析（.NET Framework 项目专用模式）：
+  - .NET Framework 项目无法使用 code-review 的完整模式（Build/Format 层需要 SDK 风格项目 + .NET 6+ SDK），但 AST/语义/项目三级分析器是预编译 DLL，通过 Roslyn AdHocWorkspace 直接分析源码，不需要构建目标项目。
+  - 使用 `--legacy-compat` 标志跳过 SDK 硬门槛 + 自动跳过 Build/Format 层：
+    ```bash
+    python skill://dotnet-code-review/scripts/review.py \
+      --target <项目根> \
+      --legacy-compat \
+      --format compact \
+      --output-mode top \
+      --max-issues 10
+    ```
+  - 先跑 compact + top 拿分数和最严重问题（~200-500 token）
+  - error 级问题必须修复或显式说明原因；warning 级建议修复
+  - 安全类（SEC\*）问题**强制修复**——交付前不可留 error 级 SEC
+  - 详细审查协议、triage 解读、修复建议规则见 dotnet-code-review SKILL.md §2.2 / §4.1
+  - **降级**：若 `dotnet` CLI 也不存在（极端环境），跳过此步，在交付「未覆盖项」中说明"无 .NET CLI，跳过静态审查"
+- **5c** 不通过项回到对应 Step 修正（A→Step 2/4，B→Step 4，C→补文件/替占位符，MSBuild→修编译错误，review SEC error→Step 2/3/4 修安全问题）
+- 修正后**重审全部 checklist + 重跑 5b-roslyn**，避免引入新问题
 
 #### 外层：用户反馈
 

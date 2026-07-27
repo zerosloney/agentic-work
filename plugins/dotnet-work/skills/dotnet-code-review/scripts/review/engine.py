@@ -353,6 +353,44 @@ def _extract_params(line: str) -> str:
 # ============================================================
 
 
+def _dotnet_command_exists() -> bool:
+    """Check if the `dotnet` CLI command exists on PATH (any version).
+
+    Used by --legacy-compat mode: the precompiled analyzer DLLs only need
+    the `dotnet` host to run, regardless of SDK version.
+    """
+    try:
+        result = subprocess.run(
+            ["dotnet", "--version"], capture_output=True, text=True, timeout=15
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+# ── Legacy-compat global flag ──
+# Set by run_review() before invoking AST/semantic/project analyzers, then
+# cleared afterward. This avoids threading the flag through every analyzer
+# function signature while keeping the module import-safe (default False).
+_legacy_compat_active: bool = False
+
+
+def _should_allow_analyzer_subprocess() -> bool:
+    """Return True if the precompiled analyzer DLLs may be invoked.
+
+    In normal mode: requires .NET SDK ≥ 6.0 (the analyzers are compiled for
+    net6.0 and need a compatible host).
+
+    In --legacy-compat mode: only requires that `dotnet` exists on PATH — the
+    analyzer DLLs can run on any SDK version that can host net6.0 runtime.
+    """
+    if dotnet_available():
+        return True
+    if _legacy_compat_active and _dotnet_command_exists():
+        return True
+    return False
+
+
 @lru_cache(maxsize=1)
 def dotnet_available() -> bool:
     """Check if .NET SDK ≥ 6.0 is available (memoized — result cached for process lifetime).
@@ -363,6 +401,8 @@ def dotnet_available() -> bool:
     produce a partial result. We deliberately do NOT soft-degrade to regex-only
     mode because partial findings mislead users into thinking their code was
     actually reviewed at semantic/AST level.
+
+    Use --legacy-compat to bypass this gate for .NET Framework projects.
     """
     try:
         result = subprocess.run(
@@ -533,7 +573,9 @@ def analyze_ast(files: list[str], project_root: str = "",
     """
     if not files:
         return []
-    if not dotnet_available():
+    # In legacy-compat mode, only check that `dotnet` exists (any version),
+    # not that it's ≥ 6.0 — the precompiled analyzer DLLs can run on any SDK.
+    if not _should_allow_analyzer_subprocess():
         return []
 
     ast_dir = Path(__file__).resolve().parent.parent / "csharp-ast-analyzer"
@@ -682,7 +724,7 @@ def analyze_semantic(
     """
     if not files:
         return [], {}
-    if not dotnet_available():
+    if not _should_allow_analyzer_subprocess():
         return [], {}
 
     sem_dir = Path(__file__).resolve().parent.parent / "csharp-semantic-analyzer"
@@ -847,7 +889,7 @@ def analyze_project(files: list[str]) -> dict:
     """
     if not files:
         return {}
-    if not dotnet_available():
+    if not _should_allow_analyzer_subprocess():
         return {}
 
     proj_dir = Path(__file__).resolve().parent.parent / "csharp-project-analyzer"
@@ -1858,15 +1900,22 @@ def _parallel_map_files(
 
 def run_review(args) -> dict:
     """Main review entry point."""
+    global _legacy_compat_active
     start_time = time.time()
     project_root = os.getcwd()
 
-    # ── .NET SDK hard gate (fail-fast, no soft degradation) ──
+    # ── .NET SDK gate ──
     # C# code review without Roslyn is misleading: regex-only mode misses
     # cross-file, type-aware, and AST-level defects, so a "0 issues" report
-    # would falsely imply the code was actually reviewed. Refuse to run and
-    # tell the user exactly what to install.
-    if not dotnet_available():
+    # would falsely imply the code was actually reviewed.
+    #
+    # --legacy-compat bypasses this gate: the AST/semantic/project analyzers
+    # are precompiled DLLs that use Roslyn's AdHocWorkspace to parse source
+    # directly — they don't need to build the target project. Only the build
+    # and format layers truly need .NET 6+ SDK, and those are auto-skipped
+    # in legacy mode.
+    legacy_compat = getattr(args, "legacy_compat", False)
+    if not dotnet_available() and not legacy_compat:
         detected = get_dotnet_sdk_version()
         if detected is None:
             reason = "no `dotnet` command found on PATH"
@@ -1885,7 +1934,9 @@ def run_review(args) -> dict:
             fix="Install .NET SDK 6+ from https://dotnet.microsoft.com/download "
             "(LTS recommended: .NET 8.0), then re-run this command. "
             "We do NOT fall back to regex-only review because partial "
-            "findings would be misleading.",
+            "findings would be misleading. "
+            "For .NET Framework projects without .NET 6+ SDK, use --legacy-compat "
+            "to run AST/semantic/project analysis without the build/format layers.",
         )
 
     # ── File Discovery ──
@@ -2191,14 +2242,25 @@ def run_review(args) -> dict:
         layer_counts["nuget"] = len(nuget_issues)
 
     # ── Layer 3: AST (optional, batch mode for efficiency) ──
-    sdk_present = dotnet_available()
+    # In legacy-compat mode, the AST/semantic/project analyzers only need the
+    # `dotnet` CLI to host the precompiled analyzer DLLs — they don't need the
+    # .NET 6+ SDK. So we treat "sdk_present" as True if either the SDK is
+    # available OR legacy-compat is active (and `dotnet` exists at all).
+    _dotnet_cmd_exists = legacy_compat and _dotnet_command_exists()
+    sdk_present = dotnet_available() or _dotnet_cmd_exists
+    # Activate the global legacy-compat flag so analyzer functions (analyze_ast,
+    # analyze_semantic, analyze_project) skip their internal dotnet_available()
+    # check and only verify that `dotnet` exists on PATH.
+    if legacy_compat and sdk_present:
+        _legacy_compat_active = True
     skipped_layers: list[str] = []
     if not sdk_present:
         # Defensive fallback only. `run_review()` already raises ToolMissingError
-        # (exit code 4) when dotnet_available() is False, so under normal CLI
-        # invocation we never reach this branch. It remains here to keep the
-        # run_review() function usable from unit tests that monkeypatch
-        # dotnet_available() mid-execution. Do NOT delete.
+        # (exit code 4) when dotnet_available() is False (and --legacy-compat
+        # is not set), so under normal CLI invocation we never reach this
+        # branch. It remains here to keep the run_review() function usable
+        # from unit tests that monkeypatch dotnet_available() mid-execution.
+        # Do NOT delete.
         skipped_layers = ["ast", "semantic", "project", "build", "format"]
         skipped_layer_details.extend(
             {"layer": layer, "reason": ".NET SDK unavailable"}
@@ -2216,12 +2278,23 @@ def run_review(args) -> dict:
         if getattr(args, "skip_project", False):
             skipped_layers.append("project")
             skipped_layer_details.append({"layer": "project", "reason": "--skip-project"})
-        # Auto-skip build/format when --files is specified: reviewing specific
-        # files, not checking project-wide compilation. User can override by
-        # NOT using --files (use --target instead) or by passing explicit flags.
+        # Auto-skip build/format when:
+        #   1. --files is specified (reviewing specific files, not project-wide)
+        #   2. --legacy-compat is set (build/format need SDK-style projects + .NET 6+ SDK;
+        #      AST/semantic/project analyzers don't — they use AdHocWorkspace)
+        # User can override by NOT using --files / --legacy-compat or by passing
+        # explicit flags.
         args_has_files = bool(getattr(args, "files", None))
-        skip_build = getattr(args, "skip_build", False) or args_has_files
-        skip_format = getattr(args, "skip_format", False) or args_has_files
+        skip_build = (
+            getattr(args, "skip_build", False)
+            or args_has_files
+            or legacy_compat
+        )
+        skip_format = (
+            getattr(args, "skip_format", False)
+            or args_has_files
+            or legacy_compat
+        )
         if skip_build:
             skipped_layers.append("build")
             skipped_layer_details.append(
@@ -2482,6 +2555,12 @@ def run_review(args) -> dict:
         if project_issues:
             all_issues.extend(project_issues)
             layer_counts["project"] += len(project_issues)
+
+    # Clear the legacy-compat global flag — AST/semantic/project analyzers
+    # have finished. Subsequent layers (build, format) use their own
+    # dotnet_available() checks which correctly require .NET 6+.
+    if legacy_compat:
+        _legacy_compat_active = False
 
     # Layer 5: dotnet format (SDK style only)
     if sdk_present and csproj_files and not skip_format:
