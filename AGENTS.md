@@ -74,12 +74,14 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - **MVP scope (Phase 1)**: PostToolUse + PostToolUseFailure hooks → JSONL traces. No aggregation, no feedback loop.
 - **ZCode + CodeBuddy** supported. CodeBuddy uses shell wrapper (`run-hook.cmd` + `observe.sh`) with `CLAUDE_PLUGIN_ROOT` env var and `hookSpecificOutput` output format. Other platforms (Trae/Qoder/Qwen) marked `unsupported` until verified.
 - Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.json"`.
-- Storage: `ZCODE_PLUGIN_DATA/traces/<YYYY-MM-DD>.jsonl` (falls back to `~/.skill-radar/traces/`).
-- Session correlation: `SessionStart` generates uuid → `ZCODE_PLUGIN_DATA/session.json`; `log-invocation.js` reads it.
+- Storage: data dir resolved in order `ZCODE_PLUGIN_DATA` → `CODEBUDDY_PLUGIN_DATA` → `~/.skill-radar/`. Traces at `<data-dir>/traces/<YYYY-MM-DD>.jsonl`, signals at `<data-dir>/signals/<YYYY-MM-DD>.jsonl`, session at `<data-dir>/session.json`.
+- Session correlation: `SessionStart` generates uuid → `<data-dir>/session.json`; `log-invocation.js` reads it. CodeBuddy routes `session-start` → `session-start.js` via `observe.sh` dispatch (not `log-invocation.js`).
 - Manifest: `.codebuddy-plugin/plugin.json` is version source of truth; `.zcode-plugin/plugin.json` derived.
 - Hooks:
   - `session-start.js` — SessionStart: generate + persist session_id.
-  - `log-invocation.js` — PostToolUse + PostToolUseFailure: append JSONL trace.
+  - `log-invocation.js` — PostToolUse + PostToolUseFailure: append JSONL trace (with `skill` tag via `infer-skill.js`).
+  - `stop-signal.js` — Stop: detect negative signal in last assistant message, append to `signals/<date>.jsonl`.
+  - `observe.sh` — CodeBuddy wrapper: dispatches `session-start`/`post-tool-use[-failure]`/`stop` to the matching Node script; normalizes kebab-case event args to canonical schema names.
 - Trace schema:
   ```jsonc
   {
@@ -88,6 +90,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
     "tool_name": "Edit",
     "session_id": "sess_...",
     "platform": "zcode",
+    "skill": "dotnet-csharp-developer",   // present when inferable, else omitted
     "tool_input": { "file_path": "...", "old_string": "...", "new_string": "..." },
     "tool_input_size": 62,
     "tool_response_size": 40,
@@ -95,9 +98,10 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
     "error": { "message": "...", "stack": null }
   }
   ```
-- Phase 2 (aggregation): `plugins/skill-radar/scripts/aggregate-traces.js` — reads JSONL traces, outputs console summary + JSON report. Supports `--days N`, `--json`, `--out <file>`, `--data-dir <path>`. Metrics: invocation count, success/failure rate, avg response size, unique sessions, top errors, daily breakdown.
-- Phase 3 (feedback scoring): `plugins/skill-radar/scripts/feedback-scoring.js` — reads traces + Stop signals, computes per-tool and per-session scores. Tool score = 1 - failure_rate. Session score = failure-based score minus signal penalty (Stop hook detects error/incompleteness in last assistant message, each negative signal = -0.15 penalty, max -0.3). Supports `--days N`, `--json --out`, `--threshold`. Stop hook: `hooks/stop-signal.js` — writes to `signals/<date>.jsonl`, never blocks.
-- Phase 4 (evolution): `plugins/skill-radar/scripts/evolve.js` — reads traces, identifies high-failure tools/skills, categorizes error patterns (permission/not_found/timeout/syntax/connection/resource/other), generates actionable recommendations. Skill inference: maps tool+input context to likely skill via heuristics (Bash+dotnet → dotnet-csharp-developer, Edit+.cs → dotnet-csharp-developer, Bash+sql → database-explorer). Manual trigger (`node evolve.js`), human reviews before applying. Supports `--days N`, `--json --out`, `--threshold`. Output: per-tool + per-skills recommendations with severity (high/medium), dominant error pattern, and suggested action.
+- Phase 2 (aggregation): `plugins/skill-radar/scripts/aggregate-traces.js` — reads JSONL traces, outputs console summary + JSON report. Supports `--days N`, `--json`, `--out <file>`, `--data-dir <path>`. Metrics: invocation count, success/failure rate, avg response size, unique sessions, **top errors grouped by category** (via `categorize-error.js`, so ENOENT on different paths collapses to one `not_found` row with a sample message), daily breakdown, **per-skill breakdown** (count/failure_rate/unique_sessions, grouped by trace-time `skill` tag).
+- Phase 3 (feedback scoring): `plugins/skill-radar/scripts/feedback-scoring.js` — reads traces + Stop signals, computes per-tool, **per-skill**, and per-session scores. Tool/skill score = 1 - failure_rate. Session score = failure-based score minus signal penalty (Stop hook detects error/incompleteness in last assistant message, each negative signal = -0.15 penalty, max -0.3). Stop hook strips code blocks/inline code/blockquotes and suppresses messages with resolution markers ("fixed"/"now passes"/"resolved") to reduce false positives. Supports `--days N`, `--json --out`, `--threshold`. Stop hook: `hooks/stop-signal.js` — writes to `signals/<date>.jsonl`, never blocks.
+- Phase 4 (evolution): `plugins/skill-radar/scripts/evolve.js` — reads traces + signals, identifies high-failure tools/skills, categorizes error patterns (permission/not_found/timeout/syntax/connection/resource/other), generates actionable recommendations. **Consumes Stop signals**: negative signals attributed to skills via session→skill mapping, surfaced as a note in skill recommendations. Skill inference shared via `scripts/lib/infer-skill.js` (single source of truth for trace-time tagging + offline analysis); covers dotnet-csharp-developer, dotnet-code-review, database-explorer, winforms-dev-flow, graph-workflow, agentic-workflow, skill-radar self-edits. Error categorization shared via `scripts/lib/categorize-error.js`; JSONL loading shared via `scripts/lib/load-jsonl.js` (UTC filename-date parsing — fixes local-tz boundary drift). Manual trigger (`node evolve.js`), human reviews before applying. Supports `--days N`, `--json --out`, `--threshold`. Output: per-tool + per-skill recommendations with severity (high/medium), dominant error pattern, negative signal count, and suggested action.
+- Retention: `plugins/skill-radar/scripts/cleanup-traces.js` — deletes traces/signals older than `--prune-days N` (UTC filename-date cutoff). `--dry-run` previews. Shared libs under `scripts/lib/` (`infer-skill.js`, `categorize-error.js`, `load-jsonl.js`).
 
 ## Skills
 

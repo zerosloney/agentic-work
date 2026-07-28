@@ -11,22 +11,16 @@ import json
 import logging
 import os
 import re
-import subprocess
-import tempfile
 import concurrent.futures
 import time
 from collections.abc import Callable
-from functools import lru_cache
 from pathlib import Path
 
 from .models import CodeIssue
-from .rules import TEST_PROJECT_RELAXED_RULES, WIN_ONLY_API_RULES, AUTO_FIXES
 from .files import (
     discover_files,
     get_diff_files,
-    get_changed_line_ranges,
     find_csproj_files,
-    normalize_review_path,
 )
 from .framework import (
     parse_target_frameworks,
@@ -42,7 +36,7 @@ from .duplication import detect_duplicates
 from .coverage import load_coverage, analyze_coverage
 from .docs import check_xml_documentation
 from .nuget import check_nuget_versions, check_nuget_cves
-from .history import save_report_history, compute_trend
+from .history import save_report_history
 from .api_compat import check_api_compatibility
 from .scoring import (
     calculate_score,
@@ -52,7 +46,6 @@ from .scoring import (
 )
 from .auto_fix import apply_all_auto_fixes
 from .errors import UserInputError, ToolMissingError, ReviewError, safe_read_file
-from .evidence import build_review_integrity, serialize_issue
 
 # ── analyzer/ subpackage ──
 from .analyzer.fetcher import (
@@ -64,12 +57,10 @@ from .analyzer.fetcher import (
     analyze_build,
     analyze_format,
     _project_findings_to_issues,
-    _csproj_for_files,
     _nuget_references_for_csproj,
     _expand_files_for_semantic_analysis,
 )
 from .analyzer.triage import (
-    classify_rule,
     suppress_ast_semantic_overlap,
     load_suppressions,
     apply_suppressions,
@@ -472,7 +463,6 @@ def _parallel_map_files(
 
 def run_review(args) -> dict:
     """Main review entry point."""
-    global _legacy_compat_active
     start_time = time.time()
     project_root = os.getcwd()
 
@@ -582,6 +572,7 @@ def run_review(args) -> dict:
     project_type = "unknown"
     nuget_packages: list[dict] = []
     project_metadata: dict = {}
+    test_available = False
 
     if csproj_files:
         frameworks = parse_target_frameworks(csproj_files[0])
@@ -837,7 +828,7 @@ def run_review(args) -> dict:
     all_issues, suppressed_by_config = apply_suppressions(all_issues, suppressions, project_root)
 
     verdicts = load_verdicts(project_root)
-    all_issues, suppressed_by_verdict = apply_verdicts(all_issues, verdicts, project_root)
+    all_issues, suppressed_by_verdict = apply_verdicts(all_issues, verdicts)
 
     # ── Auto-fix ──
     fix_result = None
@@ -850,21 +841,30 @@ def run_review(args) -> dict:
     # ── Dedup & score ──
     all_issues = dedup_issues(all_issues)
     score = calculate_score(all_issues)
-    by_severity = count_by_severity(all_issues)
-    debt_minutes = estimate_technical_debt(all_issues)
+    # by_severity and technical_debt are computed inside build_report (reporter.py),
+    # so no need to materialize them here.
 
     # ── Maintainability Index ──
     mi_score = calculate_maintainability_index(file_codes, all_issues)
 
     # ── History & trend ──
     history_summary = None
-    if getattr(args, "save_history", False):
-        history_summary = save_report_history(project_root, all_issues, score)
+    history_dir = getattr(args, "history_dir", None)
+    if history_dir:
+        history_snapshot = {
+            "files_scanned": len(cs_files),
+            "total_issues": len(all_issues),
+            "by_severity": count_by_severity(all_issues),
+            "score": score,
+            "cognitive_complexity": 0,
+            "technical_debt_minutes": estimate_technical_debt(all_issues),
+        }
+        history_summary = save_report_history(history_dir, history_snapshot, cs_files, all_issues)
 
     # ── API compatibility ──
     api_compat = None
-    if getattr(args, "baseline_report", None):
-        api_compat = check_api_compatibility(all_issues, getattr(args, "baseline_report"))
+    if getattr(args, "api_compat", False) and getattr(args, "diff", None):
+        api_compat = check_api_compatibility(project_root, getattr(args, "diff"))
 
     # ── Diff baseline ──
     diff_baseline_result = None

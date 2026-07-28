@@ -20,6 +20,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { loadJSONL } = require(path.join(__dirname, 'lib', 'load-jsonl.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
@@ -45,69 +46,6 @@ function getTracesDir(args) {
   return path.join(base, 'traces');
 }
 
-// ─── load traces ──────────────────────────────────────────────────
-
-function loadTraces(tracesDir, daysLimit) {
-  if (!fs.existsSync(tracesDir)) return [];
-
-  const files = fs.readdirSync(tracesDir).filter((f) => f.endsWith('.jsonl'));
-  const entries = [];
-  const cutoff = daysLimit ? Date.now() - daysLimit * 86400000 : 0;
-
-  for (const file of files) {
-    if (daysLimit) {
-      const fileDate = new Date(file.replace('.jsonl', '')).getTime();
-      if (fileDate < cutoff - 86400000) continue;
-    }
-    const lines = fs.readFileSync(path.join(tracesDir, file), 'utf-8').split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (!daysLimit || new Date(entry.ts).getTime() >= cutoff) {
-          entries.push(entry);
-        }
-      } catch {
-        // skip malformed
-      }
-    }
-  }
-
-  return entries;
-}
-
-// ─── load signals ──────────────────────────────────────────────────
-
-function loadSignals(dataDir, daysLimit) {
-  const signalsDir = path.join(dataDir, 'signals');
-  if (!fs.existsSync(signalsDir)) return [];
-
-  const files = fs.readdirSync(signalsDir).filter((f) => f.endsWith('.jsonl'));
-  const signals = [];
-  const cutoff = daysLimit ? Date.now() - daysLimit * 86400000 : 0;
-
-  for (const file of files) {
-    if (daysLimit) {
-      const fileDate = new Date(file.replace('.jsonl', '')).getTime();
-      if (fileDate < cutoff - 86400000) continue;
-    }
-    const lines = fs.readFileSync(path.join(signalsDir, file), 'utf-8').split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (!daysLimit || new Date(entry.ts).getTime() >= cutoff) {
-          signals.push(entry);
-        }
-      } catch {
-        // skip
-      }
-    }
-  }
-
-  return signals;
-}
-
 // ─── scoring ───────────────────────────────────────────────────────
 
 function computeScores(entries, signals) {
@@ -115,6 +53,8 @@ function computeScores(entries, signals) {
   const toolAgg = {};
   // Aggregate per session
   const sessionAgg = {};
+  // Aggregate per skill (tagged traces only)
+  const skillAgg = {};
 
   for (const e of entries) {
     const tool = e.tool_name || 'unknown';
@@ -125,6 +65,13 @@ function computeScores(entries, signals) {
     if (!toolAgg[tool]) toolAgg[tool] = { total: 0, failures: 0 };
     toolAgg[tool].total++;
     if (isFailure) toolAgg[tool].failures++;
+
+    // Skill aggregation (only for tagged traces)
+    if (e.skill) {
+      if (!skillAgg[e.skill]) skillAgg[e.skill] = { total: 0, failures: 0 };
+      skillAgg[e.skill].total++;
+      if (isFailure) skillAgg[e.skill].failures++;
+    }
 
     // Session aggregation
     if (!sessionAgg[session]) {
@@ -142,6 +89,18 @@ function computeScores(entries, signals) {
   for (const [tool, agg] of Object.entries(toolAgg)) {
     const failureRate = agg.total > 0 ? agg.failures / agg.total : 0;
     toolScores[tool] = {
+      total: agg.total,
+      failures: agg.failures,
+      failure_rate: +failureRate.toFixed(3),
+      score: +(1 - failureRate).toFixed(3),
+    };
+  }
+
+  // Compute skill scores
+  const skillScores = {};
+  for (const [skill, agg] of Object.entries(skillAgg)) {
+    const failureRate = agg.total > 0 ? agg.failures / agg.total : 0;
+    skillScores[skill] = {
       total: agg.total,
       failures: agg.failures,
       failure_rate: +failureRate.toFixed(3),
@@ -197,6 +156,7 @@ function computeScores(entries, signals) {
     total_invocations: totalInvocations,
     total_failures: totalFailures,
     tool_scores: toolScores,
+    skill_scores: skillScores,
     session_scores: sessionScores,
   };
 }
@@ -219,6 +179,19 @@ function printSummary(scores, threshold) {
       const alert = s.score < threshold ? ' ⚠️' : '';
       console.log(
         `${tool.padEnd(12)} ${(s.score * 100).toFixed(0).padStart(5)}% ${(s.failure_rate * 100).toFixed(1).padStart(6)}% ${String(s.total).padStart(6)}${alert}`
+      );
+    }
+  }
+
+  // Skill scores
+  if (Object.keys(scores.skill_scores).length > 0) {
+    console.log('\n── Per Skill ──────────────────────────');
+    console.log(`${'Skill'.padEnd(28)} ${'Score'.padStart(6)} ${'Fail%'.padStart(7)} ${'Count'.padStart(6)}`);
+    console.log('─'.repeat(52));
+    for (const [skill, s] of Object.entries(scores.skill_scores).sort((a, b) => a[1].score - b[1].score)) {
+      const alert = s.score < threshold ? ' ⚠️' : '';
+      console.log(
+        `${skill.padEnd(28)} ${(s.score * 100).toFixed(0).padStart(5)}% ${(s.failure_rate * 100).toFixed(1).padStart(6)}% ${String(s.total).padStart(6)}${alert}`
       );
     }
   }
@@ -256,6 +229,14 @@ function printSummary(scores, threshold) {
     }
   }
 
+  const lowSkills = Object.entries(scores.skill_scores).filter(([, s]) => s.score < threshold);
+  if (lowSkills.length > 0) {
+    console.log(`\n⚠️  Skills below threshold (${threshold}):`);
+    for (const [skill, s] of lowSkills) {
+      console.log(`   ${skill}: score ${(s.score * 100).toFixed(0)}% (${s.failures}/${s.total} failures)`);
+    }
+  }
+
   console.log('');
 }
 
@@ -268,8 +249,8 @@ function main() {
     ? args.dataDir
     : process.env.ZCODE_PLUGIN_DATA ||
       path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
-  const entries = loadTraces(tracesDir, args.days);
-  const signals = loadSignals(dataDir, args.days);
+  const entries = loadJSONL(tracesDir, args.days);
+  const signals = loadJSONL(path.join(dataDir, 'signals'), args.days);
   const scores = computeScores(entries, signals);
 
   if (args.json) {

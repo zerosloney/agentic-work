@@ -10,10 +10,9 @@ const path = require('path');
 const fs = require('fs');
 
 function getDataDir() {
-  return (
-    process.env.ZCODE_PLUGIN_DATA ||
-    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar')
-  );
+  const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
+  if (envDir) return envDir;
+  return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
 }
 
 function generateSessionId() {

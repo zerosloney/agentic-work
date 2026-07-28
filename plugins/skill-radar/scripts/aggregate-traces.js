@@ -21,11 +21,13 @@
 
 const path = require('path');
 const fs = require('fs');
+const { loadJSONL } = require(path.join(__dirname, 'lib', 'load-jsonl.js'));
+const { categorizeError } = require(path.join(__dirname, 'lib', 'categorize-error.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
-  const args = { json: false, out: null, days: null, dataDir: null };
+  const args = { json: false, out: null, days: null, dataDir: null, topCategories: false };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--json') args.json = true;
     else if (argv[i] === '--out') args.out = argv[++i];
@@ -45,48 +47,12 @@ function getTracesDir(args) {
   return path.join(base, 'traces');
 }
 
-// ─── load traces ──────────────────────────────────────────────────
-
-function loadTraces(tracesDir, daysLimit) {
-  if (!fs.existsSync(tracesDir)) return [];
-
-  const files = fs.readdirSync(tracesDir).filter((f) => f.endsWith('.jsonl'));
-  const entries = [];
-
-  // Date filter: only load files within the window
-  const cutoff = daysLimit
-    ? Date.now() - daysLimit * 86400000
-    : 0;
-
-  for (const file of files) {
-    // Filename is YYYY-MM-DD.jsonl — quick pre-filter
-    if (daysLimit) {
-      const fileDate = new Date(file.replace('.jsonl', '')).getTime();
-      if (fileDate < cutoff - 86400000) continue; // 1 day buffer
-    }
-
-    const lines = fs.readFileSync(path.join(tracesDir, file), 'utf-8').split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (!daysLimit || new Date(entry.ts).getTime() >= cutoff) {
-          entries.push(entry);
-        }
-      } catch {
-        // skip malformed lines
-      }
-    }
-  }
-
-  return entries;
-}
-
 // ─── aggregation ───────────────────────────────────────────────────
 
 function aggregate(entries) {
   const byTool = {};
   const byDate = {};
+  const bySkill = {};
   const sessions = new Set();
   const errors = {};
   let totalSuccess = 0;
@@ -107,6 +73,17 @@ function aggregate(entries) {
     else byTool[tool].success++;
     if (e.session_id) byTool[tool].sessions.add(e.session_id);
 
+    // By skill (only tagged traces; untagged fall through, no 'unknown' bucket)
+    if (e.skill) {
+      if (!bySkill[e.skill]) {
+        bySkill[e.skill] = { count: 0, success: 0, failure: 0, sessions: new Set() };
+      }
+      bySkill[e.skill].count++;
+      if (isFailure) bySkill[e.skill].failure++;
+      else bySkill[e.skill].success++;
+      if (e.session_id) bySkill[e.skill].sessions.add(e.session_id);
+    }
+
     // By date
     if (date) {
       if (!byDate[date]) byDate[date] = { count: 0, success: 0, failure: 0 };
@@ -120,10 +97,15 @@ function aggregate(entries) {
     else totalSuccess++;
     if (e.session_id) sessions.add(e.session_id);
 
-    // Errors
+    // Errors — bucket by category (so ENOENT on different paths collapse to
+    // one "not_found" row) and keep one sample message per category.
     if (isFailure && e.error && e.error.message) {
-      const msg = e.error.message.slice(0, 100);
-      errors[msg] = (errors[msg] || 0) + 1;
+      const category = categorizeError(e.error.message);
+      if (!errors[category]) errors[category] = { count: 0, sample: null };
+      errors[category].count++;
+      if (!errors[category].sample) {
+        errors[category].sample = String(e.error.message).slice(0, 100);
+      }
     }
   }
 
@@ -140,11 +122,23 @@ function aggregate(entries) {
     };
   }
 
-  // Top errors
+  // Finalize skill stats
+  const skillStats = {};
+  for (const [skill, s] of Object.entries(bySkill)) {
+    skillStats[skill] = {
+      count: s.count,
+      success: s.success,
+      failure: s.failure,
+      failure_rate: s.count > 0 ? +(s.failure / s.count).toFixed(3) : 0,
+      unique_sessions: s.sessions.size,
+    };
+  }
+
+  // Top errors — by category, with a representative sample message.
   const topErrors = Object.entries(errors)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 5)
-    .map(([message, count]) => ({ message, count }));
+    .map(([category, v]) => ({ category, count: v.count, sample: v.sample }));
 
   return {
     total: entries.length,
@@ -153,6 +147,7 @@ function aggregate(entries) {
     failure_rate: entries.length > 0 ? +(totalFailure / entries.length).toFixed(3) : 0,
     unique_sessions: sessions.size,
     tools: toolStats,
+    skills: skillStats,
     daily: byDate,
     top_errors: topErrors,
   };
@@ -180,6 +175,18 @@ function printSummary(metrics) {
     }
   }
 
+  if (Object.keys(metrics.skills).length > 0) {
+    console.log('\n── Per Skill ──────────────────────────');
+    console.log(`${'Skill'.padEnd(28)} ${'Count'.padStart(6)} ${'Fail%'.padStart(7)} ${'Sessions'.padStart(9)}`);
+    console.log('─'.repeat(55));
+    for (const [skill, s] of Object.entries(metrics.skills).sort((a, b) => b[1].count - a[1].count)) {
+      const failPct = (s.failure_rate * 100).toFixed(1);
+      console.log(
+        `${skill.padEnd(28)} ${String(s.count).padStart(6)} ${failPct.padStart(6)}% ${String(s.unique_sessions).padStart(9)}`
+      );
+    }
+  }
+
   if (Object.keys(metrics.daily).length > 0) {
     console.log('\n── Daily ─────────────────────────────');
     for (const [date, d] of Object.entries(metrics.daily).sort()) {
@@ -188,9 +195,9 @@ function printSummary(metrics) {
   }
 
   if (metrics.top_errors.length > 0) {
-    console.log('\n── Top Errors ────────────────────────');
+    console.log('\n── Top Errors (by category) ─────────');
     for (const e of metrics.top_errors) {
-      console.log(`  [${e.count}x] ${e.message}`);
+      console.log(`  [${e.count}x ${e.category}] ${e.sample}`);
     }
   }
 
@@ -202,7 +209,7 @@ function printSummary(metrics) {
 function main() {
   const args = parseArgs(process.argv);
   const tracesDir = getTracesDir(args);
-  const entries = loadTraces(tracesDir, args.days);
+  const entries = loadJSONL(tracesDir, args.days);
   const metrics = aggregate(entries);
 
   if (args.json) {

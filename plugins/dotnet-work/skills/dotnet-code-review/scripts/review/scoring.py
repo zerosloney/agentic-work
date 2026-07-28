@@ -151,15 +151,7 @@ def dedup_issues(issues: list[CodeIssue]) -> list[CodeIssue]:
 # ============================================================
 # Layer 1→3 Suppression (concept-level dedup)
 # ============================================================
-
-
-def suppress_builtin_overlap(
-    issues: list[CodeIssue],
-    project_root: str = "",
-) -> tuple[list[CodeIssue], int]:
-    """Suppress builtin (regex) issues authoritatively covered by AST/semantic.
-
-    The regex layer is permanently disabled — no builtin issues are produced,
-    so no suppression is needed. Returns (kept_issues, 0).
-    """
-    return issues, 0
+# Note: builtin/regex layer is permanently disabled — no builtin issues are
+# produced, so concept-level suppression is unnecessary. AST/semantic
+# authority is enforced in analyzer/triage.suppress_ast_semantic_overlap.
+# (Previously suppress_builtin_overlap lived here as a no-op stub.)

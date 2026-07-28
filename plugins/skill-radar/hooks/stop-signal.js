@@ -12,19 +12,47 @@ const path = require('path');
 const fs = require('fs');
 
 function getDataDir() {
-  return (
-    process.env.ZCODE_PLUGIN_DATA ||
-    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar')
-  );
+  const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
+  if (envDir) return envDir;
+  return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
 }
 
-// Heuristic: detect if the message suggests failure/incompleteness
+// Heuristic: detect if the message suggests failure/incompleteness.
+//
+// To reduce false positives, before pattern matching we strip:
+//   - fenced code blocks (```...```) and inline code (`...`) — error strings
+//     quoted from logs would otherwise trigger 'error:' / 'not found' etc.
+//   - blockquote lines (> ...) — same reason for quoted log excerpts.
+// Then we reject the whole message if it contains resolution markers
+// ("now passes", "fixed", "resolved", "no longer fails") — the agent quoting
+// a failure it has just resolved is not a negative signal.
 function detectNegativeSignal(message) {
   if (!message || typeof message !== 'string') return null;
 
-  const lower = message.toLowerCase();
+  // Strip code fences, inline code, and blockquotes. These are the main
+  // sources of false positives (agents quote logs/errors while explaining).
+  const stripped = message
+    .replace(/```[\s\S]*?```/g, ' ')   // fenced code blocks
+    .replace(/`[^`\n]*`/g, ' ')         // inline code
+    .replace(/^\s*>.*$/gm, ' ');        // blockquote lines
 
-  // Explicit error indicators
+  const lower = stripped.toLowerCase();
+
+  // Resolution context: agent describes a failure it already fixed.
+  // One match suppresses the whole message — quoting a solved failure is
+  // not a fresh negative signal.
+  const resolutionPatterns = [
+    /\b(now|already|previously)\s+(pass|passes|passed|working|works|succeed)/,
+    /\b(fixed|resolved|solved|corrected|patched)\b/,
+    /\bno longer (fails|errors|times out)/,
+    /\bafter (the )?fix/,
+  ];
+  for (const re of resolutionPatterns) {
+    if (re.test(lower)) return null;
+  }
+
+  // Require at least one explicit error pattern AND enough signal to not
+  // fire on stray fragments.
   const errorPatterns = [
     /\bfailed\b/,
     /\berror:\s/,
@@ -43,14 +71,13 @@ function detectNegativeSignal(message) {
     }
   }
 
-  // Incompleteness markers
   const incompletePatterns = [
     /\bi('?m| am) unable\b/,
     /\bwe cannot\b/,
     /\bnot possible\b/,
     /\byou may need to\b/,
     /\bplease try again\b/,
-    /\bI couldn't\b/,
+    /\bi couldn't\b/,
   ];
 
   for (const re of incompletePatterns) {

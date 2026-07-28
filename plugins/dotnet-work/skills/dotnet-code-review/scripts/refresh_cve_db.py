@@ -6,7 +6,7 @@ Pulls the latest NuGet vulnerabilities from OSV.dev and writes them to a local
 JSON file in the format consumed by `review.py --cve-check`.
 
 Usage:
-  python scripts/refresh_cve_db.py                       # default: scripts/review/cve-db/nuget-cve.json
+  python scripts/refresh_cve_db.py                       # default: scripts/review/cve-db/nuget-cve.json.gz
   python scripts/refresh_cve_db.py ./cve-db/nuget.json   # custom output path
   python scripts/refresh_cve_db.py --output PATH         # explicit --output flag
   python scripts/refresh_cve_db.py --quiet               # only print errors

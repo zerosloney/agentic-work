@@ -9,8 +9,8 @@ Verdicts are stored in `.dotnet-review/agent-verdicts.json`.
 from __future__ import annotations
 import json
 import logging
-import fnmatch
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +18,23 @@ logger = logging.getLogger("dotnet-review")
 
 VERDICTS_DIR = ".dotnet-review"
 VERDICTS_FILE = "agent-verdicts.json"
+
+
+def _glob_match(filepath: str, pattern: str) -> bool:
+    """Glob match supporting `**` (cross-directory) and `*` (within-segment).
+
+    Tries the full POSIX-normalized path first, then the basename as a
+    fallback so patterns like `*.cs` still match `src/Foo.cs`.
+    """
+    regex = pattern.replace("**", "{{GLOBSTAR}}")
+    regex = regex.replace("*", "[^/]*")
+    regex = regex.replace("{{GLOBSTAR}}", ".*")
+    regex = regex.replace("?", ".")
+    regex = f"^{regex}$"
+    norm_path = filepath.replace("\\", "/")
+    if re.match(regex, norm_path):
+        return True
+    return bool(re.match(regex, os.path.basename(norm_path)))
 
 
 def _verdicts_path(project_root: str) -> Path:
@@ -67,7 +84,7 @@ def apply_verdicts(
 
     A verdict matches an issue when ALL of:
     - verdict.rule matches issue.rule (exact match)
-    - verdict.file_pattern matches issue.file (fnmatch glob)
+    - verdict.file_pattern matches issue.file (glob with `**` support)
     - verdict.verdict == "false_positive"
 
     Returns (filtered_issues, suppressed_count).
@@ -85,13 +102,12 @@ def apply_verdicts(
             if v.get("rule") != issue.rule:
                 continue
             pattern = v.get("file_pattern", "*")
-            # Match against both full path and basename
-            if fnmatch.fnmatch(issue.file, pattern) or \
-               fnmatch.fnmatch(os.path.basename(issue.file), pattern):
+            if _glob_match(issue.file, pattern):
                 matched = True
                 break
         if matched:
             suppressed += 1
+            logger.debug("Suppressed by verdict: %s in %s:%d", issue.rule, issue.file, issue.line)
         else:
             kept.append(issue)
     return kept, suppressed
@@ -112,8 +128,7 @@ def count_verdict_matches(
             if v.get("rule") != issue.rule:
                 continue
             pattern = v.get("file_pattern", "*")
-            if fnmatch.fnmatch(issue.file, pattern) or \
-               fnmatch.fnmatch(os.path.basename(issue.file), pattern):
+            if _glob_match(issue.file, pattern):
                 count += 1
                 break
     return count

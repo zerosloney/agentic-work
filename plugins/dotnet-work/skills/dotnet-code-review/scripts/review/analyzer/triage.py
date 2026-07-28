@@ -184,51 +184,10 @@ def apply_suppressions(
 
 # ============================================================
 # Agent verdict suppression
+#
+# Verdict loading and matching live in ..agent_verdicts (single source of
+# truth, documented in SKILL.md §2.3). Re-exported here so existing imports
+# from review.analyzer.triage keep working.
 # ============================================================
 
-
-def load_verdicts(project_root: str) -> list[dict]:
-    """Load agent verdicts from .dotnet-review/agent-verdicts.json."""
-    path = Path(project_root) / ".dotnet-review" / "agent-verdicts.json"
-    if not path.exists():
-        return []
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data.get("verdicts", [])
-    except (json.JSONDecodeError, OSError):
-        return []
-
-
-def apply_verdicts(
-    issues: list[CodeIssue],
-    verdicts: list[dict],
-    project_root: str,
-) -> tuple[list[CodeIssue], int]:
-    """Apply agent verdicts to suppress false positives.
-
-    Returns (filtered_issues, suppressed_count).
-    """
-    if not verdicts:
-        return issues, 0
-
-    filtered: list[CodeIssue] = []
-    suppressed = 0
-    for issue in issues:
-        matched = False
-        for verdict in verdicts:
-            if verdict.get("verdict") != "false_positive":
-                continue
-            if verdict.get("rule") != issue.rule:
-                continue
-            if "file_pattern" in verdict:
-                if not _glob_match(issue.file, verdict["file_pattern"]):
-                    continue
-            matched = True
-            break
-        if matched:
-            suppressed += 1
-            logger.debug("Suppressed by verdict: %s in %s:%d", issue.rule, issue.file, issue.line)
-        else:
-            filtered.append(issue)
-
-    return filtered, suppressed
+from ..agent_verdicts import load_verdicts, apply_verdicts  # noqa: E402,F401

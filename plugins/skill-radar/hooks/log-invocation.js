@@ -15,6 +15,10 @@
 const path = require('path');
 const fs = require('fs');
 
+// inferSkill lives under scripts/lib/ (sibling of hooks/). Resolve relative
+// to this file so it works regardless of process cwd.
+const { inferSkill } = require(path.join(__dirname, '..', 'scripts', 'lib', 'infer-skill.js'));
+
 // ─── args ─────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
@@ -95,8 +99,17 @@ async function main() {
     return;
   }
 
-  // Event name: from --event arg (CodeBuddy wrapper) or stdin (ZCode)
-  const eventName = args.event
+  // Event name: from --event arg (CodeBuddy wrapper) or stdin (ZCode).
+  // Normalize CodeBuddy kebab-case args to the canonical schema event names
+  // so downstream aggregation (which compares against 'PostToolUseFailure') works.
+  const argEventMap = {
+    'post-tool-use': 'PostToolUse',
+    'post-tool-use-failure': 'PostToolUseFailure',
+    'session-start': 'SessionStart',
+    'stop': 'Stop',
+  };
+  const argEvent = args.event ? (argEventMap[args.event] || args.event) : null;
+  const eventName = argEvent
     || input.event
     || (input.tool_response && input.tool_response.error ? 'PostToolUseFailure' : 'PostToolUse');
 
@@ -117,6 +130,10 @@ async function main() {
   if (toolInput) {
     entry.tool_input = toolInput;
     entry.tool_input_size = JSON.stringify(toolInput).length;
+    // Tag the likely skill at trace time so aggregation can group by skill
+    // without re-running inference offline.
+    const skill = inferSkill(toolName, toolInput);
+    if (skill) entry.skill = skill;
   }
 
   entry.tool_response_size = JSON.stringify(toolResponse).length;
