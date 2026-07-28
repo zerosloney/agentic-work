@@ -1,6 +1,6 @@
 ---
 name: dotnet-csharp-developer
-description: "用 .NET 8+、ASP.NET Core API、Blazor、Entity Framework Core 编写现代 C#。优化 .NET 应用，实现企业级模式，确保全面测试。在构建 C# 应用、重构、性能优化或复杂 .NET 解决方案时使用。"
+description: "用 .NET 8+、ASP.NET Core API、Blazor、Entity Framework Core 编写现代 C#。Clean Architecture 分层、gRPC/SignalR 实时通信、微服务 (Dapr/Orleans/Service Fabric)。优化 .NET 应用，实现企业级模式，确保全面测试。在构建 C# 应用、重构、性能优化或复杂 .NET 解决方案时使用。"
 when_to_use: |
   用户需要构建 ASP.NET Core API、实现 EF Core 数据访问、创建 Blazor 应用、性能优化、C# 重构时使用。
   触发词："C#"、".NET"、"ASP.NET"、"Blazor"、"EF Core"、"Web API"、"实体框架"、"性能优化"。
@@ -51,6 +51,9 @@ metadata:
 | 自定义中间件 | `references/middleware-patterns.md`（L2） |
 | BackgroundService / 定时任务 / 队列 | `references/background-tasks.md`（L2） |
 | Docker / GitHub Actions / Azure 部署 | `references/deployment-and-ci.md`（L2） |
+| Clean Architecture / CQRS / MediatR Pipeline | `references/clean-architecture.md`（L2） |
+| gRPC 双向流 / SignalR 实时推送 | `references/grpc-signalr.md`（L2） |
+| 微服务 (Dapr/Orleans/Service Fabric) / Saga | `references/microservices.md`（L2） |
 
 ## 架构分层（统一）
 
@@ -236,6 +239,9 @@ python skill://dotnet-csharp-developer/scripts/review_orchestrator.py \
 | `references/middleware-patterns.md` | 用户要求自定义中间件 / 管道顺序 / 工厂式中间件 |
 | `references/background-tasks.md` | 用户要求后台任务 / 定时任务 / BackgroundService / 队列处理 / Quartz.NET |
 | `references/deployment-and-ci.md` | 用户要求部署 / Docker / CI/CD / GitHub Actions / Azure / 发布 |
+| `references/clean-architecture.md` | 用户要求 Clean Architecture / 分层架构 / 领域驱动 / DDD / MediatR Pipeline / 领域事件 |
+| `references/grpc-signalr.md` | 用户要求 gRPC / SignalR / 实时通信 / WebSocket / 双向流 / 服务端推送 |
+| `references/microservices.md` | 用户要求微服务 / Dapr / Orleans / Service Fabric / Saga / 分布式事务 / OpenTelemetry |
 
 ## Examples
 
