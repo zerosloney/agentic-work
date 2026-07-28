@@ -36,6 +36,6 @@ description: "用自然语言描述一个任务,自动初始化图状态并启�
 4. 闭环结束后,把 `task_id` 与最终状态回显给用户,并说明可用 `/loop-review` 复盘进展。
 
 注意:
-- 图拓扑是不可变的声明数据;prompt 里禁止"决定下一步去哪",必须用 `bash .codebuddy/statectl.sh graph-next` 算。
+- 图拓扑是不可变的声明数据;prompt 里禁止"决定下一步去哪",必须用 `bash scripts/statectl.sh graph-next` 算。
 - 与 `/loop-task` 完全兼容:`/graph-task` 不指定 `--graph` 时行为等价于 `/loop-task`(默认图就是 exec→review→fix 循环)。
 - 闭环的硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT)由脚本控制,不要在此命令里自行实现循环逻辑或绕过硬约束。

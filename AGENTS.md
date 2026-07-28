@@ -103,6 +103,25 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - Phase 4 (evolution): `plugins/skill-radar/scripts/evolve.js` — reads traces + signals, identifies high-failure tools/skills, categorizes error patterns (permission/not_found/timeout/syntax/connection/resource/other), generates actionable recommendations. **Consumes Stop signals**: negative signals attributed to skills via session→skill mapping, surfaced as a note in skill recommendations. Skill inference shared via `scripts/lib/infer-skill.js` (single source of truth for trace-time tagging + offline analysis); covers dotnet-csharp-developer, dotnet-code-review, database-explorer, winforms-dev-flow, graph-workflow, agentic-workflow, skill-radar self-edits. Error categorization shared via `scripts/lib/categorize-error.js`; JSONL loading shared via `scripts/lib/load-jsonl.js` (UTC filename-date parsing — fixes local-tz boundary drift). Manual trigger (`node evolve.js`), human reviews before applying. Supports `--days N`, `--json --out`, `--threshold`. Output: per-tool + per-skill recommendations with severity (high/medium), dominant error pattern, negative signal count, and suggested action.
 - Retention: `plugins/skill-radar/scripts/cleanup-traces.js` — deletes traces/signals older than `--prune-days N` (UTC filename-date cutoff). `--dry-run` previews. Shared libs under `scripts/lib/` (`infer-skill.js`, `categorize-error.js`, `load-jsonl.js`).
 
+## graph-workflow
+
+- **Purpose**: Loop Engineering + Graph Engineering 双档位闭环 — 外层脚本硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD) + 内层三角色(executor/reviewer/fixer)协作,无人值守长任务。
+- **ZCode + CodeBuddy** 已支持;Trae/Qoder/QwenCode 未支持(install 脚本 PLUGINS 未登记,且缺三平台 manifest + agents,见 REVIEW G-002)。
+- **两个入口命令**:`commands/loop-task.md`(Loop Engineering,固定 exec→review→fix 循环,状态 version=1)、`commands/graph-task.md`(Graph Engineering 档位 B,声明式图拓扑,默认图等价 loop-task,状态 version=2)。两档位跨版本不兼容(旧状态读到不匹配 version 拒绝续跑,防漂移)。
+- **三角色 agents**(ZCode 嵌套 `permission:` / CodeBuddy flat `permissionMode`,body 一致仅 frontmatter 不同):
+  - `orchestrator`(`permissionMode: plan`) — 决策层,读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer,不直接写业务代码。`graph-orchestrator` 变体按 `state.graph` 拓扑 + `statectl graph-next` 边路由执行。
+  - `executor`(`permissionMode: auto-edit`) — 按 plan 实际执行(写代码/改文件/跑命令),写 `progress_delta`。
+  - `reviewer`(`permissionMode: plan`) — 确定性验证 + 语义审查,写 `status`/`goal_met`/`review`。有"零证据禁令":项目有验证手段但没跑 → 禁止判 pass。
+  - `fixer`(`permissionMode: auto-edit`) — 根因最小修复,修完回 orchestrator 重新委派 reviewer。
+- **Manifest 单一真源**:`.codebuddy-plugin/plugin.json` version 字段权威;`.zcode-plugin/plugin.json` / 根 `marketplace.json` 条目派生。
+- **Hooks**:
+  - `validate-state-write` — PreToolUse (Write|Edit):写 `scripts/loop-state/*.json` 前做廉价前置校验(JSON 可解析 + 必填字段 + enum + version ∈ {1,2})。Edit 片段 / 非 state 文件 / 内部错误 fail-open 退出 0。非完整 schema,写完后仍须跑独立校验脚本。
+- **状态 schema**:`plugins/graph-workflow/scripts/state-schema.json` — version=1 单节点自环 / version=2 图编排。字段:task_id/task_type/objective/goal_criteria/iteration/phase/status/goal_met/progress_delta/review/graph/node_states/current_node/history 等。
+- **运行时产物**:`scripts/loop-state/task-*.json` + `.loop-marker` — 已被根 `.gitignore` 忽略(G-003 修复)。勿手动提交。
+- **复盘命令**:`commands/loop-review.md` — 扫描 loop-state 输出汇总(完成/转人工/进行中)。底层脚本 `scripts/loop-review.sh`。
+- **安全红线**:executor/fixer 受 bash 白名单约束(禁止通用解释器裸调用 `node`/`python -e`、不可逆删除、远程推送/历史改写、提权等)。白名单外命令需推进时 → 设 `status:"blocked"` + `blocker` 交人工。
+- **版本**:`0.1.0`(early development)。
+
 ## Skills
 
 可复用的工作说明，每个 skill 是一个目录 + `SKILL.md`。
