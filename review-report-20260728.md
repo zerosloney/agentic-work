@@ -38,18 +38,15 @@
   全仓库仅 `plugins/graph-workflow/hooks/validate-state-write.js` 存在。agentic-workflow 既无 `hooks/` 目录，zcode manifest 也无 `hooks` 字段。
 
 ### userConfig
-- ❌ **zcode manifest 完全没有 userConfig 字段**。AGENTS.md 声明 max_cycles（默认 10）、risk_level（默认 medium）、auto_escalate（默认 true）三项配置，实现为零。
+- ✅ ~~userConfig 三项未实现问题已修复~~（commit 见下）。深层根因：三项与实现脱节——`max_cycles` agent 硬编码 8/10 且 max_iterations 运行时参数已覆盖；`risk_level` 逻辑已存在但来源是 prompt 注入；`auto_escalate` 零逻辑。已删除 AGENTS.md 虚假承诺，记录真实实现路径。
 
 ### Versioning
 - ✅ 所有平台 manifest version=0.1.0，SKILL.md version=0.1.0，marketplace.json=0.1.0，`bump-version.js --all --check` 全部 in sync。
 
 ### Install
 - ✅ 6 个 install/materialize dry-run 全部 exit 0、不写文件。
-- ❌ **`_shared/` 在 codebuddy/trae/qoder/qwencode 安装后断裂**：
-  - zcode install 复制 `zcode/agents/`（含 `_shared/` 子目录）→ 正常。
-  - codebuddy materialize 跳过所有平台目录（含 zcode），只 overlay 6 个 agent 文件 → dest `agents/` 下无 `_shared/`，agent 引用 `../agents/_shared/field-map.md` 断裂。
-  - trae/qoder/qwencode 各自的 `agents/` 目录下无 `_shared/`（仅 zcode 有），install 只复制各自平台目录 → 安装后 agent 引用 `_shared/` 断裂。
-- ⚠️ qwencode manifest 缺 `description` 字段（其他平台都有），轻量不一致。
+- ✅ ~~`_shared/` 断裂问题已修复~~（commit 见下）。`_shared/` 提升到 plugin root，所有平台 agent 统一用 `../_shared/` 引用（dest 后 agent 在 `agents/`，`_shared` 在 dest 根，路径解析正确），4 个 install 脚本 SUBDIRS 加 `_shared`（向后兼容，无 `_shared` 的插件自动跳过），materialize 整体复制 plugin root 已含 `_shared`。实测 materialize 后 `dest/_shared/field-map.md` 存在，链接解析正确。
+- ⚠️ qwencode manifest 缺 `description` 字段（其他平台都有），轻量不一致（已在 F2 修复）。
 
 ### 其他
 - ✅ scripts/setup-ralph-pipeline.sh 存在。
@@ -62,9 +59,9 @@
 | # | 优先级 | 问题 | 根因 | 建议修复 | 影响文件 |
 |---|--------|------|------|----------|----------|
 | G1 | **P0 → ✅ 部分修复** | 3 个 hook 完全缺失 | AGENTS.md 承诺未实现；深层根因：forbidden_scope/verification 状态活在 orchestrator prompt 内存，hook（独立进程）读不到 | **已落地可落地子集**（commit `0cfb871`）：`validate-state-write.js` 真实现（PreToolUse 校验 `.loop-cli/state/*.json`）+ hooks.json + zcode manifest hooks 字段 + AGENTS.md 重写标注另两个未实现的根因与升级路径。block-forbidden-scope / check-verification-on-stop 不写假门禁，升级路径已记入文档（需扩展 state schema 持久化 scope/verification） | hooks/validate-state-write.js + hooks/hooks.json + zcode manifest + AGENTS.md |
-| G2 | **P1** | `_shared/` 在 4 平台安装后断裂 | codebuddy materialize 跳过平台目录；trae/qoder/qwencode 各自 agents 目录无 `_shared` | materialize 复制 `_shared/`；trae/qoder/qwencode 的 agent 改用与 zcode 一致的相对引用 + install 脚本复制 `_shared` | materialize.js + 3 平台 agent + install 脚本 |
+| G2 | **P1 → ✅ 已修复** | `_shared/` 在 4 平台安装后断裂 | 根因：`_shared` 只在 `zcode/agents/_shared/`，其他平台 agent 引用路径不一致（`_shared/` vs `../agents/_shared/`），install 脚本 SUBDIRS 不含 `_shared` | **提升 `_shared/` 到 plugin root**（`plugins/agentic-workflow/_shared/`），所有 5 平台 agent 统一用 `../_shared/`（32 处引用），4 install 脚本 SUBDIRS 加 `_shared`（向后兼容），materialize 整体复制已含 | 移动 `_shared` + 10 agent + 4 install 脚本 |
 | G3 | **P1 → ✅ 已修复** | 2 个 skill 冗余 | 深层根因：skill 逻辑已内联在 agent body，SKILL.md 是重复副本无人引用 | **删除** `skills/scope-drift-detector/` + `skills/root-cause-grouper/`（逻辑保留在内联处），AGENTS.md Skills 章节改写说明已内联 | 删 2 目录 + AGENTS.md |
-| G4 | **P1** | userConfig 三项未实现 | manifest 缺字段 | zcode manifest 补 `userConfig` 块；agent 内读取逻辑（若需要） | zcode manifest + 相关 agent |
+| G4 | **P1 → ✅ 已修复** | userConfig 三项未实现 | 深层根因：三项与实现脱节（max_cycles 硬编码+max_iterations 运行时参数已覆盖、risk_level 走 prompt 注入、auto_escalate 零逻辑），加 manifest 字段会成假配置 | **删除 AGENTS.md userConfig 虚假承诺**，记录三项真实实现路径 + 未来落地条件 | AGENTS.md |
 | G5 | **P2** | codebuddy coding-orchestrator 排版空行差异 | 手动同步遗漏 | 统一空行 | codebuddy/agents/coding-orchestrator.md |
 | G6 | **P2** | AGENTS.md agentic-workflow 章节目录名过时 | 文档漂移 | `agents-zcode/`→`zcode/agents/` 等措辞校正 | AGENTS.md |
 | G7 | **P2** | qwencode manifest 缺 description | 轻量不一致 | 补 description 字段 | .qwen-plugin/qwen-extension.json |
@@ -80,7 +77,7 @@
 - **F3（G5, P2）**：codebuddy coding-orchestrator 排版空行对齐 zcode 版。单文件。
 
 **本轮不修复（需用户决策或跨 STOP 线）：**
-- ~~G1（P0 hook 缺失）~~：**已部分修复**（commit `0cfb871`），见上。剩余 block-forbidden-scope / check-verification-on-stop 需扩展 state schema 持久化 scope/verification 状态，属数据迁移 + 公共契约变更，待后续。
-- G2（P1 `_shared` 断裂）：修复需同时改 materialize.js + 3 平台 agent 路径 + install 脚本，跨 5+ 业务文件，触发 STOP 线。建议拆为独立任务。
+- ~~G1（P0 hook 缺失）~~：**已完全修复**。validate-state-write（commit `0cfb871`）+ block-forbidden-scope / check-verification-on-stop（state schema 扩展后落地，commit 见下）。
+- ~~G2（P1 `_shared` 断裂）~~：**已修复**（commit 见下），`_shared` 提升到 plugin root + 统一路径 + install 脚本复制。
 - ~~G3（P1 skill 孤儿）~~：**已修复**（commit 见下），深层根因是冗余非孤儿，删除副本保持单一事实源。
-- G4（P1 userConfig）：补 manifest 字段本身小，但 agent 是否需要读取逻辑未明，需用户确认实现深度。
+- ~~G4（P1 userConfig）~~：**已修复**（commit 见下），删除虚假承诺，记录真实实现路径。
