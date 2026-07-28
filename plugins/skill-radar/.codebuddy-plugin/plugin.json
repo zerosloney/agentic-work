@@ -1,0 +1,19 @@
+{
+  "name": "skill-radar-codebuddy",
+  "version": "0.1.0",
+  "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/zerosloney"
+  },
+  "homepage": "https://github.com/zerosloney/agentic-work",
+  "repository": "https://github.com/zerosloney/agentic-work",
+  "license": "MIT",
+  "keywords": [
+    "observability",
+    "tracing",
+    "skill",
+    "telemetry"
+  ],
+  "hooks": "hooks/hooks.codebuddy.json"
+}

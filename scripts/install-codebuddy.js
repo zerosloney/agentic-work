@@ -29,7 +29,7 @@ const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'agentic-work';
-const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar', 'graph-workflow'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };

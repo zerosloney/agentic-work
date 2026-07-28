@@ -1,0 +1,174 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Loop/Graph Task State",
+  "description": "任务状态文件 schema(档位 B / Loop + Graph 联合)。外层脚本与编排者通过此状态文件通信。version=1→loop-task.sh 单节点循环(向后兼容);version=2→graph-run.sh 图编排档位 B(本计划新增)。",
+  "type": "object",
+  "required": [
+    "version",
+    "task_id",
+    "task_type",
+    "iteration",
+    "phase",
+    "status",
+    "goal_met",
+    "progress_delta",
+    "review"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "enum": [1, 2],
+      "description": "schema 版本(loop-task.sh 写 1 = 单节点循环;graph-run.sh 写 2 = 图编排)。跨模式不兼容:旧状态文件读到不匹配版本拒绝续跑,避免漂移(loop-task.sh:72-80 / graph-run.sh 同样保护)。"
+    },
+    "task_id": {
+      "type": "string",
+      "description": "任务标识(task-<timestamp>),loop-task / graph-run 各自写入"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": ["task", "graph"],
+      "description": "任务类型:task=loop-task.sh 单节点自环 / graph=graph-run.sh 多节点图编排"
+    },
+    "objective": {
+      "type": "string",
+      "description": "任务目标描述(loop-task / graph-run 写入)"
+    },
+    "goal_criteria": {
+      "type": "string",
+      "description": "目标达成判定标准(loop-task / graph-run 写入)"
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO 时间戳(loop-task / graph-run 写入)"
+    },
+    "graph_file": {
+      "type": "string",
+      "description": "图定义文件路径(可选,graph-run 写入;缺省则用默认图)"
+    },
+    "iteration": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "当前轮次(外层脚本每轮 +1)"
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["init", "orchestrate", "exec", "verify", "review", "fix", "done", "aborted"],
+      "description": "当前阶段(loop-task 用;graph 模式仍填当前节点对应阶段)"
+    },
+    "graph": {
+      "type": "object",
+      "description": "图拓扑(graph-run 初始化时写一次,graph-orchestrator 每轮只读);loop-task 不用此字段",
+      "required": ["entry", "nodes", "edges"],
+      "properties": {
+        "entry": {
+          "type": "string",
+          "description": "入口节点 id(图执行起点)"
+        },
+        "nodes": {
+          "type": "array",
+          "description": "节点列表(每个节点 = 一个专门 agent 角色)",
+          "items": {
+            "type": "object",
+            "required": ["id", "role"],
+            "properties": {
+              "id": { "type": "string", "description": "节点唯一 id,在 edges 中被 from/to 引用" },
+              "role": {
+                "type": "string",
+                "enum": ["executor", "reviewer", "fixer"],
+                "description": "节点角色(委派给哪个 agent 进程),严格收敛到现有三角色"
+              },
+
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "description": "节点间路由边;from=源节点 id;to=目标节点 id 或虚拟终点 __done__/__abort__;when=匹配节点 result 的条件表达式(可选,缺省=无条件直边)",
+          "items": {
+            "type": "object",
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "type": "string" },
+              "to": { "type": "string", "description": "目标节点 id 或 __done__ / __abort__ 虚拟终点" },
+              "when": { "type": "string", "description": "匹配节点 result 的条件;缺省=无条件(顺序流程);常用值:approved / changes_requested / blocked / pass / fail;支持管道分隔多值:\"pass|approved\" = 任一匹配即走此边" }
+            }
+          }
+        }
+      }
+    },
+    "current_node": {
+      "type": "string",
+      "description": "当前正在执行的节点 id(graph-orchestrator 写;loop-task 不用)"
+    },
+    "node_states": {
+      "type": "object",
+      "description": "各节点的执行状态(graph-orchestrator 写回;loop-task 不用);key = node.id",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["pending", "done", "failed"],
+            "description": "节点执行状态(graph-orchestrator 写回)"
+          },
+          "result": {
+            "type": "string",
+            "description": "节点产出值,用于匹配出边的 when 条件(如 approved / changes_requested / blocked / pass / fail)"
+          },
+          "executed_at": {
+            "type": "string",
+            "description": "ISO 时间戳(节点完成时写)"
+          }
+        }
+      }
+    },
+    "plan": {
+      "type": "string",
+      "description": "本轮步骤摘要(orchestrator 写入)"
+    },
+    "progress_delta": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "本回合真实进展(Anti-Lazy 依据,executor/reviewer/fixer 或 graph-orchestrator 写入)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "pass", "fail", "blocked", "stalled", "done"],
+      "description": "外层验证状态(reviewer/graph-orchestrator 写入;done 由脚本归一)"
+    },
+    "goal_met": {
+      "type": "boolean",
+      "description": "整体目标是否达成(reviewer/graph-orchestrator 写入)"
+    },
+    "review": {
+      "type": "string",
+      "enum": ["pending", "approved", "changes_requested"],
+      "description": "语义审查结果(reviewer/graph-orchestrator 写入)"
+    },
+    "review_notes": {
+      "type": "string",
+      "description": "修改建议(changes_requested 时必填)"
+    },
+    "metrics": {
+      "type": "object",
+      "description": "验证指标(reviewer 写入,如 {\"tests\":\"12/12\"})"
+    },
+    "blocker": {
+      "type": ["string", "null"],
+      "description": "阻塞原因(status=blocked 时必填)"
+    },
+    "next_action": {
+      "type": "string",
+      "description": "建议下一步(orchestrate/review/fix/done)"
+    },
+    "history": {
+      "type": "array",
+      "description": "跨轮上下文累积(orchestrator 每轮 append 一条),缓解每轮 spawn 新进程导致的上下文丢失",
+      "items": {
+        "type": "object",
+        "description": "单轮摘要,建议含 iter/plan/files_touched/result/next 等字段"
+      }
+    }
+  }
+}

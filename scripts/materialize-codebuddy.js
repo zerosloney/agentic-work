@@ -26,7 +26,7 @@ const {
   materializePlugin,
 } = require('./lib/materialize');
 
-const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar'];
 const DIST_ROOT = path.join(REPO_ROOT, 'dist', 'codebuddy');
 
 function parseArgs(argv) {

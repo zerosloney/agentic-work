@@ -12,6 +12,7 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
   - `.trae-plugin/plugin.json`
   - `.qoder-plugin/plugin.json`
   - `.qwen-plugin/qwen-extension.json`
+- 各平台 manifest 字段按各自 schema 要求，允许不一致（如 `author`、`description`、`keywords` 等字段在不同平台 manifest 中可有不同子集）。
 - Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** for ZCode（ZCode 直接使用根 `agents/`，无需单独子目录）。
 - **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。每个平台有独立的 agents 目录：
   ```
@@ -66,6 +67,37 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - Templates source files (`agentic-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
 - To add a new agent: create a file per platform that needs it — `agents-zcode/<name>.md`、`agents-codebuddy/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
 - To add a new command: create `plugins/agentic-workflow/commands/<name>.md`.
+
+## skill-radar
+
+- **Purpose**: skill observability — tool invocation tracing (Phase 1), aggregation (Phase 2), feedback (Phase 3), evolution (Phase 4).
+- **MVP scope (Phase 1)**: PostToolUse + PostToolUseFailure hooks → JSONL traces. No aggregation, no feedback loop.
+- **ZCode + CodeBuddy** supported. CodeBuddy uses shell wrapper (`run-hook.cmd` + `observe.sh`) with `CLAUDE_PLUGIN_ROOT` env var and `hookSpecificOutput` output format. Other platforms (Trae/Qoder/Qwen) marked `unsupported` until verified.
+- Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.json"`.
+- Storage: `ZCODE_PLUGIN_DATA/traces/<YYYY-MM-DD>.jsonl` (falls back to `~/.skill-radar/traces/`).
+- Session correlation: `SessionStart` generates uuid → `ZCODE_PLUGIN_DATA/session.json`; `log-invocation.js` reads it.
+- Manifest: `.codebuddy-plugin/plugin.json` is version source of truth; `.zcode-plugin/plugin.json` derived.
+- Hooks:
+  - `session-start.js` — SessionStart: generate + persist session_id.
+  - `log-invocation.js` — PostToolUse + PostToolUseFailure: append JSONL trace.
+- Trace schema:
+  ```jsonc
+  {
+    "ts": "2026-07-28T06:02:54.014Z",
+    "event": "PostToolUse|PostToolUseFailure",
+    "tool_name": "Edit",
+    "session_id": "sess_...",
+    "platform": "zcode",
+    "tool_input": { "file_path": "...", "old_string": "...", "new_string": "..." },
+    "tool_input_size": 62,
+    "tool_response_size": 40,
+    "tool_response_excerpt": "...[N more]",
+    "error": { "message": "...", "stack": null }
+  }
+  ```
+- Phase 2 (aggregation): `plugins/skill-radar/scripts/aggregate-traces.js` — reads JSONL traces, outputs console summary + JSON report. Supports `--days N`, `--json`, `--out <file>`, `--data-dir <path>`. Metrics: invocation count, success/failure rate, avg response size, unique sessions, top errors, daily breakdown.
+- Phase 3 (feedback scoring): `plugins/skill-radar/scripts/feedback-scoring.js` — reads traces + Stop signals, computes per-tool and per-session scores. Tool score = 1 - failure_rate. Session score = failure-based score minus signal penalty (Stop hook detects error/incompleteness in last assistant message, each negative signal = -0.15 penalty, max -0.3). Supports `--days N`, `--json --out`, `--threshold`. Stop hook: `hooks/stop-signal.js` — writes to `signals/<date>.jsonl`, never blocks.
+- Phase 4 (evolution): `plugins/skill-radar/scripts/evolve.js` — reads traces, identifies high-failure tools/skills, categorizes error patterns (permission/not_found/timeout/syntax/connection/resource/other), generates actionable recommendations. Skill inference: maps tool+input context to likely skill via heuristics (Bash+dotnet → dotnet-csharp-developer, Edit+.cs → dotnet-csharp-developer, Bash+sql → database-explorer). Manual trigger (`node evolve.js`), human reviews before applying. Supports `--days N`, `--json --out`, `--threshold`. Output: per-tool + per-skills recommendations with severity (high/medium), dominant error pattern, and suggested action.
 
 ## Skills
 

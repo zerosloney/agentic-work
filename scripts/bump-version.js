@@ -21,7 +21,7 @@ const path = require('path');
 const { REPO_ROOT } = require('./lib/materialize');
 const { getPluginVersion, collectVersionSites } = require('./lib/plugin-version');
 
-const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar', 'graph-workflow'];
 
 function parseArgs(argv) {
   const args = { plugin: null, all: false, check: false, set: null };

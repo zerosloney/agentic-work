@@ -1,0 +1,60 @@
+{
+  "description": "Skill Radar — skill observability hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/session-start.js"],
+            "timeoutMs": 10000,
+            "statusMessage": "Skill Radar: initializing session…"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/log-invocation.js"],
+            "timeoutMs": 5000,
+            "statusMessage": "Skill Radar: tracing…"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/log-invocation.js"],
+            "timeoutMs": 5000,
+            "statusMessage": "Skill Radar: tracing failure…"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/stop-signal.js"],
+            "timeoutMs": 5000,
+            "statusMessage": "Skill Radar: checking session end…"
+          }
+        ]
+      }
+    ]
+  }
+}
