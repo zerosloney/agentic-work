@@ -61,8 +61,8 @@ low | medium | high
 1. **DELEGATE**：调用 `task` 工具，target=`coding-builder`，把 `=== 当前任务 / 声明边界 / Baseline / 项目脚本 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
 2. **WAIT_REVIEW**：调用 `task` 工具，target=`coding-reviewer`，把 `=== 本轮 diff / 声明边界 / Baseline / 执行者产出 / Risk Level / Detected Stack / Scripts Gap ===` 注入 query 字段。
 3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
-
 **Completion promise 检查**：若状态文件 `completion_promise` 非空，每轮 JUDGE 阶段检查执行者输出中是否包含 `<promise>...</promise>` 标签（匹配 `completion_promise` 值）。匹配则立即设置 `stop_reason="DONE"`，跳过后续任务。注意：promise 匹配是 DONE 铁律的显式覆盖，仅当用户显式传入 `--completion-promise` 时生效，绕过 verdict/scope_drift/验证/critical 门禁。
+
 工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
 ## 状态管理
