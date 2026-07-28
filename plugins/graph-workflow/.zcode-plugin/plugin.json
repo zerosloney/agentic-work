@@ -1,6 +1,6 @@
 {
   "name": "graph-workflow-zcode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Graph Workflow for ZCode — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作)",
   "author": {
     "name": "master0071",
@@ -9,7 +9,12 @@
   "homepage": "https://github.com/zerosloney/agentic-work",
   "repository": "https://github.com/zerosloney/agentic-work",
   "license": "MIT",
-  "keywords": ["workflow", "loop", "graph", "orchestration"],
+  "keywords": [
+    "workflow",
+    "loop",
+    "graph",
+    "orchestration"
+  ],
   "commands": "commands",
   "agents": "zcode/agents",
   "hooks": "hooks/hooks.json"

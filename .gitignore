@@ -7,3 +7,7 @@ node_modules/
 .zcode/
 !.codebuddy-plugin/
 tests
+
+# graph-workflow 运行时产物(task 状态 + 反懒惰标记)
+loop-state/
+.loop-marker
