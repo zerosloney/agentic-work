@@ -1,5 +1,7 @@
 ---
 name: database-explorer
+metadata:
+  version: 1.0.0
 description: |
   数据库探索工具，支持 SQL Server/MySQL/PostgreSQL/KingbaseES(人大金仓)/SQLite 五种数据库的连接、查询、结构探索、CRUD 生成、CSV 导出。
   典型需求："连一下这个数据库" / "看看有哪些表" / "查一下XX表的数据" / "搜一下跟XX相关的表" / "导出XX查询结果" / "生成XX表的增删改查SQL"。

@@ -1,0 +1,8 @@
+{
+  "name": "agentic-workflow-qoder",
+  "version": "0.1.0",
+  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qoder.",
+  "category": "workflow",
+  "commands": "commands",
+  "agents": "qoder/agents"
+}

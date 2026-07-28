@@ -1,8 +1,8 @@
 {
-  "name": "loop-workflow-codebuddy",
+  "name": "agentic-workflow-codebuddy",
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
   "category": "workflow",
   "commands": "commands",
-  "agents": "agents"
+  "agents": "codebuddy/agents"
 }

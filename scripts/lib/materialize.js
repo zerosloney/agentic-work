@@ -25,7 +25,14 @@ const REPO_ROOT = path.join(__dirname, '..', '..');
 // Directories under plugins/<name>/ that must NOT enter the CodeBuddy tree:
 //   - codebuddy/      holds CodeBuddy agent overrides only (overlaid separately in step 4)
 //   - .zcode-plugin/  competitor platform manifest (root-level now); must not pollute dist
-const SKIP_PLATFORM_DIRS = ['codebuddy', '.zcode-plugin'];
+//   - .trae-plugin/   Trae platform manifest
+//   - .qoder-plugin/  Qoder platform manifest
+//   - .qwen-plugin/   Qwen Code platform manifest
+//   - zcode/          ZCode agents directory
+//   - trae/           Trae agents directory
+//   - qoder/          Qoder agents directory
+//   - qwencode/       Qwen Code agents directory
+const SKIP_PLATFORM_DIRS = ['codebuddy', '.zcode-plugin', '.trae-plugin', '.qoder-plugin', '.qwen-plugin', 'zcode', 'trae', 'qoder', 'qwencode'];
 
 function deleteDirRecursive(dir) {
   if (!fs.existsSync(dir)) return;
@@ -51,7 +58,7 @@ function readCodebuddyDescription(pluginName) {
 /**
  * Assemble a single plugin's CodeBuddy tree under <destRoot>/<name>-codebuddy/.
  *
- * @param {string} pluginName  e.g. 'dotnet-work' | 'loop-workflow'
+ * @param {string} pluginName  e.g. 'dotnet-work' | 'agentic-workflow'
  * @param {string} destRoot    absolute path; plugin goes into <destRoot>/<name>-codebuddy/
  * @param {object} [opts]
  * @param {boolean} [opts.dryRun=false]  if true, log actions but write nothing

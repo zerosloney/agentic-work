@@ -9,24 +9,31 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
 - **Platform manifests** live at the plugin root:
   - `.zcode-plugin/plugin.json`
   - `.codebuddy-plugin/plugin.json`
-- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** for ZCode.
+  - `.trae-plugin/plugin.json`
+  - `.qoder-plugin/plugin.json`
+  - `.qwen-plugin/qwen-extension.json`
+- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** for ZCode（ZCode 直接使用根 `agents/`，无需单独子目录）。
 - **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。每个平台有独立的 agents 目录：
   ```
-  plugins/<name>/agents-zcode/<agent-name>.md      ← ZCode 版本
-  plugins/<name>/agents-codebuddy/<agent-name>.md  ← CodeBuddy 版本
-  plugins/<name>/agents-trae/<agent-name>.md       ← Trae 版本（示例）
+  plugins/<name>/zcode/agents/             ← ZCode 版本（嵌套 permission，单 source of truth）
+  plugins/<name>/codebuddy/agents/         ← CodeBuddy 版本（permissionMode 单值）
+  plugins/<name>/trae/agents/              ← Trae 版本（嵌套 permission + platform: trae）
+  plugins/<name>/qoder/agents/             ← Qoder 版本（permissionMode 单值）
+  plugins/<name>/qwencode/agents/          ← Qwen Code 版本（approvalMode + tools 允许列表）
   ```
   各平台的 manifest（`.zcode-plugin/plugin.json`、`.codebuddy-plugin/plugin.json` 等）通过 `"agents"` 字段指向对应的目录。Body 内容应保持一致，仅 frontmatter 不同。每个非 ZCode 平台的 agent 文件开头需加 HTML 注释注明同步要求。
 
-Permission mapping for codebuddy `permissionMode` (single-value enum):
+Permission mapping for codebuddy/qoder `permissionMode` (single-value enum):
 
-| Source root `permission:` | codebuddy `permissionMode` |
-|---------------------------|----------------------------|
-| `edit: allow` (full)      | `acceptEdits`              |
+| Source root `permission:` | codebuddy/qoder `permissionMode` |
+|---------------------------|----------------------------------|
+| `edit: allow` (full)      | `acceptEdits`                    |
 | `edit: deny` + bash allow-list (orchestrator) | `default` |
-| `edit: deny` + read-only  | `plan`                     |
+| `edit: deny` + read-only  | `plan`                           |
 
-Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a known trade-off documented per file.
+Trae 使用嵌套 `permission:` 块（同 ZCode），通过 `platform: trae` 标记识别。
+Qwen Code 使用 `approvalMode`（`auto-edit`/`default`/`plan`/`yolo`/`bubble`）+ `tools` 允许列表。
+Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalMode`; this is a known trade-off documented per file。
 
 ## dotnet-work
 
@@ -49,16 +56,16 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 
 跨 skill 协作（已内建调用点）：`dotnet-csharp-developer` Step 4b 调 `dotnet-code-review`；`winforms-dev-flow` Step 0a/2 调 `database-explorer` 查 schema。
 
-## loop-workflow
+## agentic-workflow
 
 - Current published scope: **coding + ralph domains** (6 agents + 5 commands).
-- ZCode agents live at `plugins/loop-workflow/agents-zcode/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory.
-- CodeBuddy agents live at `plugins/loop-workflow/agents-codebuddy/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
-- Shared commands live at `plugins/loop-workflow/commands/`.
+- ZCode agents live at `plugins/agentic-workflow/agents-zcode/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory.
+- CodeBuddy agents live at `plugins/agentic-workflow/agents-codebuddy/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
+- Shared commands live at `plugins/agentic-workflow/commands/`.
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
-- Templates source files (`loop-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
+- Templates source files (`agentic-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
 - To add a new agent: create a file per platform that needs it — `agents-zcode/<name>.md`、`agents-codebuddy/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
-- To add a new command: create `plugins/loop-workflow/commands/<name>.md`.
+- To add a new command: create `plugins/agentic-workflow/commands/<name>.md`.
 
 ## Skills
 
@@ -68,7 +75,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`; this is a
 plugins/<name>/skills/<skill-name>/SKILL.md
 ```
 
-当前 loop-workflow 的 skills：
+当前 agentic-workflow 的 skills：
 
 | Skill | 用途 | 被谁引用 |
 |-------|------|---------|
@@ -79,7 +86,7 @@ plugins/<name>/skills/<skill-name>/SKILL.md
 
 事件驱动自动化，写在 `hooks/hooks.json` + `hooks/scripts/*.js`。
 
-当前 loop-workflow 的 hooks：
+当前 agentic-workflow 的 hooks：
 
 | Hook | 事件 | 脚本 | 作用 |
 |------|------|------|------|
@@ -93,7 +100,7 @@ Hook 脚本遵循 stdin/stdout 契约：stdin 读 JSON，stdout 输出结果，�
 
 ZCode 支持用户在设置界面配置插件参数，无需改文件。
 
-当前 loop-workflow 的 userConfig：
+当前 agentic-workflow 的 userConfig：
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
@@ -105,17 +112,22 @@ ZCode 支持用户在设置界面配置插件参数，无需改文件。
 
 - Each `scripts/install-<platform>.js` accepts: `--plugin <name>`, `--uninstall`, `--dry-run`.
 - They MUST be idempotent: re-running install replaces existing content.
-- Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode).
-- Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/` or `plugins/<name>/.zcode-plugin/`.
-- For CodeBuddy, the install script copies the `agents-codebuddy/` directory (as referenced by `.codebuddy-plugin/plugin.json`'s `"agents"` field) instead of the root `agents/`.
+- Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode/trae/qoder).
+- Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/`, `plugins/<name>/.zcode-plugin/`, `plugins/<name>/.trae-plugin/`, or `plugins/<name>/.qoder-plugin/`.
+- 所有平台安装目标统一为 `agents/`（平台根目录）。
+- 源目录为 `<platform>/agents/`，安装时通过 RENAME_MAP 展平为 `agents/`。
+- CodeBuddy manifest 指向 `codebuddy/agents`，materialize 时 overlay 到 `agents/`。
 
 ## Verification
 
-Before committing, run all three dry-runs:
+Before committing, run all dry-runs:
 
 ```sh
 node scripts/install-codebuddy.js --dry-run
 node scripts/install-zcode.js --dry-run
+node scripts/install-trae.js --dry-run
+node scripts/install-qoder.js --dry-run
+node scripts/install-qwencode.js --dry-run
 node scripts/materialize-codebuddy.js --dry-run
 ```
 
@@ -142,10 +154,10 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 ## Versioning
 
-- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry) are derived from it.
+- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `.trae-plugin/plugin.json`, `.qoder-plugin/plugin.json`, `.qwen-plugin/qwen-extension.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry) are derived from it.
 - **Bump with one command**: `node scripts/bump-version.js --plugin <name> --set <new-version>` updates the manifest and propagates to all sites. Without `--set`, the script syncs all sites to match the manifest (idempotent).
 - **Check in CI**: `node scripts/bump-version.js --all --check` exits non-zero on drift. Run before committing.
-- **Install scripts** (`install-zcode.js`, `install-codebuddy.js`) read the version from the manifest at runtime via `lib/plugin-version.js` — never hardcode `PLUGIN_VERSION`.
+- **Install scripts** (`install-zcode.js`, `install-codebuddy.js`, `install-trae.js`, `install-qoder.js`, `install-qwencode.js`) read the version from the manifest at runtime via `lib/plugin-version.js` — never hardcode `PLUGIN_VERSION`.
 - Bump the version on **any** skill content change (new rule, breaking SKILL.md rewrite, new reference file). Patch (0.1.0 → 0.1.1) for fixes/minor additions; minor (0.1.x → 0.2.0) for new features; major (0.x → 1.0.0) only when declaring stable.
 - `0.x` = early development (current: `0.1.0`). `1.0.0+` = declared stable. Do not declare `1.0.0` while known integrity gaps exist.
 
@@ -153,4 +165,4 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 The `agentic-work` marketplace is used for CodeBuddy installation. Each repo uses its own marketplace name to avoid conflicts — `caveman4cn` uses `master0071`, agentic-work uses `agentic-work`.
 
-- Both CodeBuddy and ZCode `source` paths point at `./plugins/<name>/`. Each platform's manifest (`.codebuddy-plugin/plugin.json` / `.zcode-plugin/plugin.json`) directs the platform to the correct `agents` directory (root `agents/` for ZCode, `agents-codebuddy/` for CodeBuddy when frontmatter differs).
+- Both CodeBuddy and ZCode `source` paths point at `./plugins/<name>/`. 所有平台 manifest `"agents"` 字段指向 `<platform>/agents`，安装时统一展平为 `agents/`。

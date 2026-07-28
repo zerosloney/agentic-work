@@ -1,0 +1,6 @@
+{
+  "name": "agentic-workflow-qwen",
+  "version": "0.1.0",
+  "contextFileName": "QWEN.md",
+  "excludeTools": []
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// validate-state.js — Validate loop-workflow state JSON against schema
+// validate-state.js — Validate agentic-workflow state JSON against schema
 //
 // Usage:
 //   node scripts/validate-state.js <state-file>

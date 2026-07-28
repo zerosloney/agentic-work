@@ -1,6 +1,6 @@
 {
   "name": "dotnet-work-codebuddy",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": ".NET development skills for CodeBuddy (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
   "category": "development",
   "skills": [

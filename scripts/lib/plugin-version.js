@@ -18,7 +18,7 @@ const { REPO_ROOT } = require('./materialize');
  * Read the version string from a plugin's codebuddy manifest.
  * That manifest is the single source of truth for the plugin version.
  *
- * @param {string} pluginName  e.g. 'dotnet-work' | 'loop-workflow'
+ * @param {string} pluginName  e.g. 'dotnet-work' | 'agentic-workflow'
  * @returns {string}  semver version, e.g. '0.1.0'
  * @throws  if manifest missing or has no version field
  */
@@ -83,7 +83,43 @@ function collectVersionSites(pluginName) {
     });
   }
 
-  // 3. SKILL.md files (YAML frontmatter `version: X.Y.Z`)
+  // 3. .trae-plugin/plugin.json (should match)
+  const traeManifest = path.join(REPO_ROOT, 'plugins', pluginName, '.trae-plugin', 'plugin.json');
+  if (fs.existsSync(traeManifest)) {
+    const v = JSON.parse(fs.readFileSync(traeManifest, 'utf-8')).version;
+    sites.push({
+      file: path.join('plugins', pluginName, '.trae-plugin', 'plugin.json'),
+      current: v,
+      pattern: 'json-manifest',
+      isSource: false,
+    });
+  }
+
+  // 4. .qoder-plugin/plugin.json (should match)
+  const qoderManifest = path.join(REPO_ROOT, 'plugins', pluginName, '.qoder-plugin', 'plugin.json');
+  if (fs.existsSync(qoderManifest)) {
+    const v = JSON.parse(fs.readFileSync(qoderManifest, 'utf-8')).version;
+    sites.push({
+      file: path.join('plugins', pluginName, '.qoder-plugin', 'plugin.json'),
+      current: v,
+      pattern: 'json-manifest',
+      isSource: false,
+    });
+  }
+
+  // 5. .qwen-plugin/qwen-extension.json (should match)
+  const qwenManifest = path.join(REPO_ROOT, 'plugins', pluginName, '.qwen-plugin', 'qwen-extension.json');
+  if (fs.existsSync(qwenManifest)) {
+    const v = JSON.parse(fs.readFileSync(qwenManifest, 'utf-8')).version;
+    sites.push({
+      file: path.join('plugins', pluginName, '.qwen-plugin', 'qwen-extension.json'),
+      current: v,
+      pattern: 'json-manifest',
+      isSource: false,
+    });
+  }
+
+  // 6. SKILL.md files (YAML frontmatter `version: X.Y.Z`)
   const skillsDir = path.join(REPO_ROOT, 'plugins', pluginName, 'skills');
   if (fs.existsSync(skillsDir)) {
     for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
@@ -101,7 +137,7 @@ function collectVersionSites(pluginName) {
     }
   }
 
-  // 4. marketplace.json (the root .codebuddy-plugin/marketplace.json)
+  // 7. marketplace.json (the root .codebuddy-plugin/marketplace.json)
   const marketplaceFile = path.join(REPO_ROOT, '.codebuddy-plugin', 'marketplace.json');
   if (fs.existsSync(marketplaceFile)) {
     const marketplace = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));

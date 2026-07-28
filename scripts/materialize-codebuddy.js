@@ -26,7 +26,7 @@ const {
   materializePlugin,
 } = require('./lib/materialize');
 
-const PLUGINS = ['dotnet-work', 'loop-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow'];
 const DIST_ROOT = path.join(REPO_ROOT, 'dist', 'codebuddy');
 
 function parseArgs(argv) {
@@ -35,7 +35,7 @@ function parseArgs(argv) {
     if (argv[i] === '--plugin') {
       const next = argv[i + 1];
       if (!next || next.startsWith('--')) {
-        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        console.error('Error: --plugin requires a value (dotnet-work | agentic-workflow)');
         process.exit(2);
       }
       args.plugin = next;

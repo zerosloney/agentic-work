@@ -21,7 +21,7 @@ const path = require('path');
 const { REPO_ROOT } = require('./lib/materialize');
 const { getPluginVersion, collectVersionSites } = require('./lib/plugin-version');
 
-const PLUGINS = ['dotnet-work', 'loop-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow'];
 
 function parseArgs(argv) {
   const args = { plugin: null, all: false, check: false, set: null };
@@ -74,6 +74,9 @@ function setManifestVersion(pluginName, newVersion) {
   const files = [
     path.join('plugins', pluginName, '.codebuddy-plugin', 'plugin.json'),
     path.join('plugins', pluginName, '.zcode-plugin', 'plugin.json'),
+    path.join('plugins', pluginName, '.trae-plugin', 'plugin.json'),
+    path.join('plugins', pluginName, '.qoder-plugin', 'plugin.json'),
+    path.join('plugins', pluginName, '.qwen-plugin', 'qwen-extension.json'),
   ];
   for (const rel of files) {
     const abs = path.join(REPO_ROOT, rel);

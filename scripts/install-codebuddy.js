@@ -29,7 +29,7 @@ const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'agentic-work';
-const PLUGINS = ['dotnet-work', 'loop-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -37,7 +37,7 @@ function parseArgs(argv) {
     if (argv[i] === '--plugin') {
       const next = argv[i + 1];
       if (!next || next.startsWith('--')) {
-        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        console.error('Error: --plugin requires a value (dotnet-work | agentic-workflow)');
         process.exit(2);
       }
       args.plugin = next;

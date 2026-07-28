@@ -1,6 +1,6 @@
 {
   "name": "agentic-work",
-  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for CodeBuddy.",
+  "description": "Agentic-work plugins (dotnet-work + agentic-workflow) for CodeBuddy.",
   "owner": {
     "name": "master0071",
     "email": "zerosloney@users.noreply.github.com"
@@ -9,7 +9,7 @@
     {
       "name": "dotnet-work-codebuddy",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for CodeBuddy.",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "source": "./plugins/dotnet-work",
       "category": "development",
       "author": {
@@ -25,10 +25,10 @@
       ]
     },
     {
-      "name": "loop-workflow-codebuddy",
+      "name": "agentic-workflow-codebuddy",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for CodeBuddy.",
       "version": "0.1.0",
-      "source": "./plugins/loop-workflow",
+      "source": "./plugins/agentic-workflow",
       "category": "workflow",
       "author": {
         "name": "master0071",

@@ -1,7 +1,7 @@
 {
-  "name": "loop-workflow-zcode",
+  "name": "agentic-workflow-trae",
   "version": "0.1.0",
-  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
+  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Trae.",
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"
@@ -11,5 +11,5 @@
   "license": "MIT",
   "keywords": ["workflow", "loop", "ralph", "orchestration"],
   "commands": "commands",
-  "agents": "agents"
+  "agents": "trae/agents"
 }

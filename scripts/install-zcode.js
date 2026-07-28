@@ -21,8 +21,10 @@ const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
-const PLUGINS = ['dotnet-work', 'loop-workflow'];
-const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'agents', 'scripts'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'zcode/agents', 'scripts'];
+// Source subdir → destination dirname (when they differ)
+const RENAME_MAP = { 'zcode/agents': 'agents' };
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -30,7 +32,7 @@ function parseArgs(argv) {
     if (argv[i] === '--plugin') {
       const next = argv[i + 1];
       if (!next || next.startsWith('--')) {
-        console.error('Error: --plugin requires a value (dotnet-work | loop-workflow)');
+        console.error('Error: --plugin requires a value (dotnet-work | agentic-workflow)');
         process.exit(2);
       }
       args.plugin = next;
@@ -71,7 +73,7 @@ function installPlugin(pluginName, args) {
     if (sub === '.zcode-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(destDir, sub);
+    const subDest = path.join(destDir, RENAME_MAP[sub] || sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
