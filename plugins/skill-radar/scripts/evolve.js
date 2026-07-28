@@ -15,6 +15,9 @@
 
 const path = require('path');
 const fs = require('fs');
+const { inferSkill } = require(path.join(__dirname, 'lib', 'infer-skill.js'));
+const { categorizeError } = require(path.join(__dirname, 'lib', 'categorize-error.js'));
+const { loadJSONL } = require(path.join(__dirname, 'lib', 'load-jsonl.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
@@ -43,71 +46,40 @@ function getDirs(args) {
   };
 }
 
-// ─── load data ────────────────────────────────────────────────────
-
-function loadJSONL(dir, daysLimit) {
-  if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.jsonl'));
-  const entries = [];
-  const cutoff = daysLimit ? Date.now() - daysLimit * 86400000 : 0;
-
-  for (const file of files) {
-    if (daysLimit) {
-      const fileDate = new Date(file.replace('.jsonl', '')).getTime();
-      if (fileDate < cutoff - 86400000) continue;
-    }
-    const lines = fs.readFileSync(path.join(dir, file), 'utf-8').split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const entry = JSON.parse(line);
-        if (!daysLimit || new Date(entry.ts).getTime() >= cutoff) {
-          entries.push(entry);
-        }
-      } catch {
-        // skip
-      }
-    }
-  }
-  return entries;
-}
-
-// ─── skill inference ──────────────────────────────────────────────
-// Heuristic: map tool + input context to likely skill.
-
-function inferSkill(toolName, toolInput) {
-  if (!toolInput) return null;
-
-  const inputStr = JSON.stringify(toolInput).toLowerCase();
-
-  // Bash command patterns
-  if (toolName === 'Bash') {
-    if (/(dotnet|nuget|\.csproj|\.sln|c#)/.test(inputStr)) return 'dotnet-csharp-developer';
-    if (/(sql|mysql|postgres|sqlite|database|query)/.test(inputStr)) return 'database-explorer';
-    if (/(git|commit|push|pull|branch)/.test(inputStr)) return null; // general, no skill
-    if (/(npm|node|yarn|webpack)/.test(inputStr)) return null;
-    return null;
-  }
-
-  // Edit/Write file patterns
-  if (toolName === 'Edit' || toolName === 'Write') {
-    const fp = (toolInput.file_path || '').toLowerCase();
-    if (/\.cs$/.test(fp) || /\.csproj$/.test(fp) || /\.sln$/.test(fp)) return 'dotnet-csharp-developer';
-    if (/\.sql$/.test(fp)) return 'database-explorer';
-    if (/winforms|devexpress|\.designer\.cs/.test(fp)) return 'winforms-dev-flow';
-    if (/\.md$/.test(fp)) return null; // docs, no skill
-    return null;
-  }
-
-  return null;
-}
-
 // ─── failure analysis ─────────────────────────────────────────────
 
-function analyzeFailures(traces) {
+// Prefer the skill tagged at trace time (e.skill); fall back to inference
+// for historical traces written before trace-time tagging existed.
+function skillOf(trace) {
+  if (trace.skill) return trace.skill;
+  return inferSkill(trace.tool_name, trace.tool_input);
+}
+
+function analyzeFailures(traces, signals) {
   const toolStats = {};
   const errorPatterns = {};
   const skillErrors = {};
+
+  // Count negative Stop signals per skill. A signal's skill is not known at
+  // capture time, so attribute by session: find which skill(s) that session
+  // used most. We approximate by attributing each negative signal to every
+  // skill active in its session (rare — most sessions are single-skill).
+  const sessionSkills = {};
+  for (const t of traces) {
+    const sk = skillOf(t);
+    if (!sk || !t.session_id) continue;
+    if (!sessionSkills[t.session_id]) sessionSkills[t.session_id] = new Set();
+    sessionSkills[t.session_id].add(sk);
+  }
+  const skillSignals = {};
+  for (const s of signals) {
+    if (!s.signal_type) continue; // only negative
+    const skills = sessionSkills[s.session_id];
+    if (!skills) continue;
+    for (const sk of skills) {
+      skillSignals[sk] = (skillSignals[sk] || 0) + 1;
+    }
+  }
 
   for (const t of traces) {
     const tool = t.tool_name || 'unknown';
@@ -127,7 +99,7 @@ function analyzeFailures(traces) {
       errorPatterns[pattern] = (errorPatterns[pattern] || 0) + 1;
 
       // Skill mapping
-      const skill = inferSkill(t.tool_name, t.tool_input);
+      const skill = skillOf(t);
       if (skill) {
         if (!skillErrors[skill]) skillErrors[skill] = { total: 0, failures: 0, patterns: {} };
         skillErrors[skill].total++;
@@ -136,7 +108,7 @@ function analyzeFailures(traces) {
       }
     } else {
       // Also count skill on success (for rate calculation)
-      const skill = inferSkill(t.tool_name, t.tool_input);
+      const skill = skillOf(t);
       if (skill) {
         if (!skillErrors[skill]) skillErrors[skill] = { total: 0, failures: 0, patterns: {} };
         skillErrors[skill].total++;
@@ -144,18 +116,13 @@ function analyzeFailures(traces) {
     }
   }
 
-  return { toolStats, errorPatterns, skillErrors };
-}
+  // Attach signal counts to each skill bucket
+  for (const [skill, count] of Object.entries(skillSignals)) {
+    if (!skillErrors[skill]) skillErrors[skill] = { total: 0, failures: 0, patterns: {} };
+    skillErrors[skill].negative_signals = count;
+  }
 
-function categorizeError(msg) {
-  const lower = msg.toLowerCase();
-  if (/permission denied|access denied|eacces/.test(lower)) return 'permission';
-  if (/not found|enoent|does not exist|no such file/.test(lower)) return 'not_found';
-  if (/timeout|etimedout/.test(lower)) return 'timeout';
-  if (/syntax|parse|unexpected|invalid/.test(lower)) return 'syntax';
-  if (/connection|econnrefused|network/.test(lower)) return 'connection';
-  if (/memory|heap|out of memory/.test(lower)) return 'resource';
-  return 'other';
+  return { toolStats, errorPatterns, skillErrors };
 }
 
 // ─── recommendation engine ────────────────────────────────────────
@@ -197,14 +164,19 @@ function generateRecommendations(analysis, threshold) {
     if (rate < threshold) continue;
 
     const topPattern = Object.entries(data.patterns).sort((a, b) => b[1] - a[1])[0];
+    const signals = data.negative_signals || 0;
+    const signalNote = signals > 0
+      ? ` ${signals} negative Stop signal(s) — sessions ended with unresolved issues.`
+      : '';
     recs.push({
       scope: 'skill',
       target: skill,
       severity: rate > 0.5 ? 'high' : 'medium',
       failure_rate: +rate.toFixed(3),
       total_failures: data.failures,
+      negative_signals: signals,
       dominant_pattern: topPattern ? topPattern[0] : 'unknown',
-      recommendation: `Skill "${skill}" has ${(rate * 100).toFixed(0)}% failure rate. ${topPattern ? `Add pre-check for "${topPattern[0]}" errors in skill instructions.` : 'Review skill prompt for robustness.'}`,
+      recommendation: `Skill "${skill}" has ${(rate * 100).toFixed(0)}% failure rate. ${topPattern ? `Add pre-check for "${topPattern[0]}" errors in skill instructions.` : 'Review skill prompt for robustness.'}${signalNote}`,
     });
   }
 
@@ -270,7 +242,7 @@ function main() {
   const traces = loadJSONL(dirs.traces, args.days);
   const signals = loadJSONL(dirs.signals, args.days);
 
-  const analysis = analyzeFailures(traces);
+  const analysis = analyzeFailures(traces, signals);
   const recs = generateRecommendations(analysis, args.threshold);
 
   if (args.json) {
