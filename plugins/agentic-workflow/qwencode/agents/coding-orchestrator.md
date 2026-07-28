@@ -58,7 +58,7 @@ low | medium | high
 .loop-cli/state/...
 ```
 
-**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`_shared/field-map.md`](_shared/field-map.md) "Coding Pipeline" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/coding-pipeline.json`。
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`../_shared/field-map.md`](../_shared/field-map.md) "Coding Pipeline" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/coding-pipeline.json`。
 
 缺少 `任务` 或 `声明边界` 时，输出 `verdict="REJECT"`、`scope_drift="WARN"`。
 
@@ -115,7 +115,7 @@ low | medium | high
 
 ## 任务复杂度评估与拆分
 
-完整规则见共享文档 [`_shared/decomposition.md`](_shared/decomposition.md)。coding 域专属约束：
+完整规则见共享文档 [`../_shared/decomposition.md`](../_shared/decomposition.md)。coding 域专属约束：
 
 - **预算 ≤ 6**（`MAX_CYCLES=8 × 0.75`，留 retry buffer）。
 - **拆分边界不得跨越 forbidden_scope**：任一子任务的 hard_scope 若触及 forbidden_scope → 立即停止拆分并询问用户，与 scope drift 零容忍铁律一致。

@@ -20,7 +20,7 @@ const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.qoder', 'plugins');
 const PLUGINS = ['dotnet-work', 'agentic-workflow'];
-const SUBDIRS = ['.qoder-plugin', 'skills', 'commands', 'qoder/agents', 'scripts'];
+const SUBDIRS = ['.qoder-plugin', 'skills', 'commands', 'qoder/agents', '_shared', 'scripts'];
 // Source subdir → destination dirname (when they differ)
 const RENAME_MAP = { 'qoder/agents': 'agents' };
 

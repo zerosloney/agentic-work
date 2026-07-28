@@ -22,7 +22,7 @@ const { getPluginVersion } = require('./lib/plugin-version');
 const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar', 'graph-workflow'];
-const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'zcode/agents', 'hooks', 'scripts'];
+const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'zcode/agents', 'hooks', '_shared', 'scripts'];
 // Source subdir → destination dirname (when they differ)
 const RENAME_MAP = { 'zcode/agents': 'agents' };
 

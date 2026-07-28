@@ -119,6 +119,18 @@ function installPlugin(pluginName, args) {
     }
   }
 
+  // 5b. Copy _shared (optional cross-agent reference docs, e.g. agentic-workflow)
+  const sharedSrc = path.join(src, '_shared');
+  if (fs.existsSync(sharedSrc)) {
+    const sharedDest = path.join(destDir, '_shared');
+    if (!args.dryRun) {
+      copyDirRecursive(sharedSrc, sharedDest);
+      console.log('  copied: _shared/');
+    } else {
+      console.log(`  would copy: ${sharedSrc} → ${sharedDest}`);
+    }
+  }
+
   // 6. Copy scripts
   const scriptsSrc = path.join(src, 'scripts');
   if (fs.existsSync(scriptsSrc)) {

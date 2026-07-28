@@ -4,7 +4,6 @@ name: ralph-orchestrator
 description: Ralph 主控 Agent：TaskList 编排，背压熔断门禁决定停止。
 permissionMode: default
 ---
-
 <!--
   codebuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
   body 必须与 ../agents/ralph-orchestrator.md 保持一致。如修改 body，请同时更新两侧。
@@ -27,10 +26,9 @@ permissionMode: default
 - MAX_CYCLES = 10（>10 轮未 DONE 强制停止）。若状态文件 `max_iterations > 0`，则 `MAX_CYCLES = max_iterations`。
 - STALL_MAX = 3（连续 3 轮状态签名无变化 → STALL）
 - 失败计数达到 max_failures → 立即 ESCALATE（默认 max_failures=3）
-
 ## 任务复杂度评估与拆分
 
-完整规则见共享文档 [`../agents/_shared/decomposition.md`](../agents/_shared/decomposition.md)。ralph 域专属约束：
+完整规则见共享文档 [`../_shared/decomposition.md`](../_shared/decomposition.md)。ralph 域专属约束：
 
 - **预算 ≤ 8**（`MAX_CYCLES=10 × 0.8`，留 retry buffer）。
 - **依赖链深度 > 3** 判据仅 graph 模式生效；loop 模式跳过此项。
@@ -57,7 +55,7 @@ consecutive_failures: N
 .loop-cli/state/...
 ```
 
-**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`../agents/_shared/field-map.md`](../agents/_shared/field-map.md) "Ralph Pipeline / Ralph Graph" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/ralph-pipeline.json` 或 `node scripts/validate-state.js .loop-cli/state/ralph-graph.json`。
+**字段映射**：每个 `=== X ===` 段落必须可追溯到 state JSON 字段或标记为"派生"。详见 [`../_shared/field-map.md`](../_shared/field-map.md) "Ralph Pipeline / Ralph Graph" 表格。校验命令：`node scripts/validate-state.js .loop-cli/state/ralph-pipeline.json` 或 `node scripts/validate-state.js .loop-cli/state/ralph-graph.json`。
 
 缺少 `目标` 或 `任务拓扑` 时，输出 `action="REJECT"`、`reason="missing_input"`。
 
