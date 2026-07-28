@@ -101,18 +101,13 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 
 ## Skills
 
-可复用的工作说明，每个 skill 是一个目录 + `SKILL.md`。Agent 通过 frontmatter 的 `skills` 字段自动加载。
+可复用的工作说明，每个 skill 是一个目录 + `SKILL.md`。
 
 ```
 plugins/<name>/skills/<skill-name>/SKILL.md
 ```
 
-当前 agentic-workflow 的 skills：
-
-| Skill | 用途 | 被谁引用 |
-|-------|------|---------|
-| `scope-drift-detector` | 检测 diff 是否越界 | reviewer, worker, orchestrator |
-| `root-cause-grouper` | 把多个 issue 归并到同一根因组 | builder, reviewer, orchestrator |
+agentic-workflow 当前无独立 skill。此前的 `scope-drift-detector` 与 `root-cause-grouper` 已删除——两者的规则（scope drift 检测的三级判定 PASS/WARN/FAIL、根因分组修复铁律）已直接内联在对应 agent body（`coding-reviewer` 的 scope drift 检测步骤、`coding-builder` 的"根因分组修复"章节），SKILL.md 是重复副本，无任何 agent/command 引用，构成冗余。删除以保持单一事实源。
 
 ## Hooks
 
