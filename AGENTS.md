@@ -60,7 +60,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 ## agentic-workflow
 
 - Current published scope: **coding + ralph domains** (6 agents + 5 commands).
-- ZCode agents live at `plugins/agentic-workflow/zcode/agents/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory. Cross-agent reference docs live at `zcode/agents/_shared/` (`decomposition.md`, `field-map.md`).
+- ZCode agents live at `plugins/agentic-workflow/zcode/agents/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory. Cross-agent reference docs live at plugin-root `_shared/` (`decomposition.md`, `field-map.md`), referenced by all platforms' orchestrators via `../_shared/`.
 - CodeBuddy agents live at `plugins/agentic-workflow/codebuddy/agents/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
 - Shared commands live at `plugins/agentic-workflow/commands/`.
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
