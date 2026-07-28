@@ -3,7 +3,7 @@ name: dotnet-code-review
 description: |
   C#/.NET 代码审查，基于 Roslyn（AST + Semantic + Project）+ dotnet build/format + 离线 CVE 库。
   6 维度覆盖：安全（OWASP Top 10 / CWE 映射）、性能、可维护性、可测试性、最佳实践/可靠性、架构（与 `references/dimensions-coverage.md` 对齐）。
-  187 条自研规则（AST 153 + 语义 34）+ NetAnalyzers CAxxxx（~500 条）动态注入。
+  175 条自研规则（AST 153 + 语义 22）+ NetAnalyzers CAxxxx（~500 条）动态注入。
   两阶段 Triage→Verify 协议 + Agent 误报反馈闭环（.dotnet-review/agent-verdicts.json）+
   SARIF 输出（GitHub Code Scanning）+ 自动修复（9 条规则）。
   Agent 通过 subprocess 调用 scripts/review.py，用户不接触 CLI。
@@ -387,7 +387,7 @@ Summary
 | 无 CVE 数据库 | `--cve-check` 返回 `db_present=false`，标记"未扫描"而非"安全" |
 | 覆盖率文件缺失 | 跳过覆盖率检查，Summary 中说明 |
 | 指定文件模式 (`--files`) | build/format 层自动跳过（无 csproj），这是 AST 级审查，非完整审查 |
-| .NET Framework 项目 | 使用 `--legacy-compat` 标志：跳过 SDK 6+ 门槛 + 自动跳过 Build/Format 层。AST（153 条规则）、语义（34 条）、项目（跨文件/架构）分析仍完整运行。由 `winforms-dev-flow` skill 自动调用 |
+| .NET Framework 项目 | 使用 `--legacy-compat` 标志：跳过 SDK 6+ 门槛 + 自动跳过 Build/Format 层。AST（153 条规则）、语义（22 条）、项目（跨文件/架构）分析仍完整运行。由 `winforms-dev-flow` skill 自动调用 |
 
 ### 5.3 没有问题时
 
@@ -438,7 +438,7 @@ Summary
 
 | 测试 | 断言 |
 |------|------|
-| `tests/test_count_rules.py` | SKILL 声明的规则数（AST 153 + 语义 34 = 187）与代码实际发射数一致 |
+| `tests/test_count_rules.py` | SKILL 声明的规则数（AST 153 + 语义 22 = 175）与代码实际发射数一致 |
 | `tests/test_dimensions_coverage.py` | dimensions-coverage.md 实际有 6 个维度 section + 序号连续 + SKILL 声明「6 维度」 |
 | `tests/test_owasp_mapping.py` | owasp-mapping.md 覆盖 A01-A10 完整 + 每条有规则覆盖 section |
 | `tests/test_cross_skill_consistency.py` | 与 dotnet-csharp-developer 的 5 条核心 C# 实践口径同向（async/可空/CancellationToken/EF 实体/DI） |
@@ -455,7 +455,7 @@ python -m pytest tests/ -v
 **历史 drift（已全部修复）**：
 
 - ~~维度名分歧~~：SKILL.md description 已对齐 `dimensions-coverage.md` 的实际 6 维度（性能/可维护性/可测试性/安全/最佳实践·可靠性/架构）。
-- ~~可空盲区~~：`best-practices-catalog.md` §六 已补充可空引用类型章节（`SEM_NULLABLE_NULL_INIT` / `SEM_NULLFORGIVING`），与 `dotnet-csharp-developer` Constraints #2 对齐；`count_rules.py` 正则已修复（漏计的描述性 `SEM_*` 现计入，规则总数 175 → 187）。
+- ~~可空盲区~~：`best-practices-catalog.md` §六 已补充可空引用类型章节（`SEM_NULLABLE_NULL_INIT` / `SEM_NULLFORGIVING`），与 `dotnet-csharp-developer` Constraints #2 对齐；`count_rules.py` 正则已修复（漏计的描述性 `SEM_*` 现计入，规则总数 175（AST 153 + 语义 22））。
 
 ---
 
