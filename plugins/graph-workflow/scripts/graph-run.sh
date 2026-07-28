@@ -162,6 +162,7 @@ while [ "$iter" -lt "$MAX_ITER" ]; do
   else
     echo "  [graph-orchestrator] 等待图编排者执行..."
     echo "  [graph-orchestrator] 状态文件: $STATE"
+    final_reason="HANDBACK: 已初始化图任务并交由图编排者驱动(脚本不自动 spawn 编排者进程,需外部 agent 读 $STATE 执行)"
     break
   fi
 

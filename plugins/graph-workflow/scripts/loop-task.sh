@@ -104,6 +104,7 @@ while [ "$iter" -lt "$MAX_ITER" ]; do
     echo "  [orchestrator] 等待编排者执行闭环..."
     echo "  [orchestrator] 状态文件: $STATE"
     echo "  [orchestrator] 请读取 $STATE 并按 orchestrator 职责执行"
+    final_reason="HANDBACK: 已初始化并交由编排者驱动(脚本不自动 spawn 编排者进程,需外部 agent 读 $STATE 执行)"
     break
   fi
 

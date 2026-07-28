@@ -10,6 +10,8 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── Minimal schema check (subset of state-schema.json required fields) ───
+// SYNC: 以下枚举与 scripts/state-schema.json 的 enum 保持一致。schema 改 enum 时必须同步此处,
+// 否则 hook 会用旧值误拒合法状态写入。drift 风险已知;动态读取 schema 见 G-008 待办。
 const REQUIRED_FIELDS = ['version', 'task_id', 'task_type', 'iteration', 'phase', 'status', 'goal_met', 'progress_delta', 'review'];
 const VALID_STATUSES = ['pending', 'pass', 'fail', 'blocked', 'stalled', 'done'];
 const VALID_PHASES = ['init', 'orchestrate', 'exec', 'verify', 'review', 'fix', 'done', 'aborted'];
