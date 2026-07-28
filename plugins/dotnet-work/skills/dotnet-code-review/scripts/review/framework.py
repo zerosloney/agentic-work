@@ -317,14 +317,5 @@ def filter_rules_for_framework(
         if project_type == "test" and rule_id in TEST_PROJECT_RELAXED_RULES:
             continue
 
-        # Adjust severity for test projects
-        rule_copy = dict(rule)
-        if project_type == "test" and rule_id in TEST_PROJECT_RELAXED_RULES:
-            # Lower severity by one level
-            if rule_copy.get("severity") == "warning":
-                rule_copy["severity"] = "info"
-            elif rule_copy.get("severity") == "error":
-                rule_copy["severity"] = "warning"
-
-        filtered.append(rule_copy)
+        filtered.append(rule)
     return filtered

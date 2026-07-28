@@ -118,4 +118,4 @@ MI = max(0, min(100, (171 − 5.2·ln(V) − 0.23·CC − 16.2·ln(LOC)) × 100 
 ## 九、去重
 
 - **位置去重**：`file:line:rule` 相同保留更严重者（`dedup_issues`）
-- **层间抑制**：regex 与 AST 同 file:line 命中同概念时，AST（`source in {ast, semantic}`）权威，regex 抑制（`suppress_builtin_overlap`，映射见 `LAYER_SUPPRESSION_MAP`）
+- **层间抑制**：AST 与 semantic 同 file:line 命中同概念时，semantic（类型信息）权威，AST 抑制（`analyzer/triage.suppress_ast_semantic_overlap`）。历史 regex 层已废弃，无需概念级抑制。
