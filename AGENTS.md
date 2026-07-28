@@ -60,12 +60,12 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 ## agentic-workflow
 
 - Current published scope: **coding + ralph domains** (6 agents + 5 commands).
-- ZCode agents live at `plugins/agentic-workflow/agents-zcode/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory.
-- CodeBuddy agents live at `plugins/agentic-workflow/agents-codebuddy/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
+- ZCode agents live at `plugins/agentic-workflow/zcode/agents/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory. Cross-agent reference docs live at `zcode/agents/_shared/` (`decomposition.md`, `field-map.md`).
+- CodeBuddy agents live at `plugins/agentic-workflow/codebuddy/agents/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
 - Shared commands live at `plugins/agentic-workflow/commands/`.
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
 - Templates source files (`agentic-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
-- To add a new agent: create a file per platform that needs it — `agents-zcode/<name>.md`、`agents-codebuddy/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
+- To add a new agent: create a file per platform that needs it — `zcode/agents/<name>.md`、`codebuddy/agents/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
 - To add a new command: create `plugins/agentic-workflow/commands/<name>.md`.
 
 ## skill-radar
