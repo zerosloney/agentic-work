@@ -127,13 +127,15 @@ Hook 脚本遵循 stdin/stdout 契约：stdin 读 JSON 工具载荷，stderr 输
 
 ZCode 支持用户在设置界面配置插件参数，无需改文件。
 
-当前 agentic-workflow 的 userConfig：
+agentic-workflow 当前**未使用** ZCode userConfig。此前的表格（`max_cycles` / `risk_level` / `auto_escalate`）与实现脱节，已删除。这三个参数的实际实现路径：
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `max_cycles` | number | 10 | 覆盖默认最大轮次限制 |
-| `risk_level` | string | medium | 默认风险等级 |
-| `auto_escalate` | boolean | true | 达到失败阈值时自动上报 |
+| 参数 | 实际实现 |
+|------|----------|
+| 最大轮次 | agent 硬编码（coding `MAX_CYCLES=8`、ralph `MAX_CYCLES=10`），且 command 的运行时参数 `max_iterations > 0` 可覆盖（见 `coding-pipeline.md` / `ralph-pipeline.md` 的状态初始化） |
+| 风险等级 | `risk_level` 由 orchestrator 通过 prompt 注入给 reviewer（coding-reviewer 有 `risk_level=low` lite mode / `risk_level=high` 高风险加强分支），来源是 command 调用上下文，非持久化配置 |
+| 自动上报 | `auto_escalate` 无对应逻辑，ESCALATE 停止条件由 `fail_history` 达 `max_failures` 触发（硬编码），非可配置 |
+
+若未来要让这些参数真正可配置，需：zcode manifest 加 `userConfig` 块（type/title/default）+ agent 读取配置注入路径（ZCode userConfig 注入机制需先验证，仓库内无实例可参考）。
 
 ## Install scripts
 
