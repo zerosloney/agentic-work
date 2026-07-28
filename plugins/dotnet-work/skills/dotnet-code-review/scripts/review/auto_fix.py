@@ -87,7 +87,7 @@ def apply_auto_fix(
 
     try:
         Path(filepath).write_text(new_content, encoding="utf-8")
-        # Optional: verify written content (simple CRC)
+        # Verify written content matches what we wrote (read-back check)
         written_check = Path(filepath).read_text(encoding="utf-8", errors="replace")
         if written_check != new_content:
             # restore from primary backup if we created one
