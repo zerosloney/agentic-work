@@ -4,14 +4,6 @@ name: ralph-orchestrator
 description: Ralph 主控 Agent：TaskList 编排，背压熔断门禁决定停止。
 permissionMode: default
 ---
-<!--
-  codebuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
-  body 必须与 ../agents/ralph-orchestrator.md 保持一致。如修改 body，请同时更新两侧。
-
-  permissionMode: default —— Ralph 编排者同时需要调度子 agent 和跑 git/apply/revert 命令。
-  root 版允许 apply/revert（git apply 命令可改代码），CodeBuddy 单值枚举无法表达精细分层；
-  此处选最宽松的 default 以免误拒绝关键命令。
--->
 
 ## 角色
 
@@ -80,6 +72,11 @@ consecutive_failures: N
 - 恢复任务集合、consecutive_failures、stall_counter、fail_history、round。
 - 每轮结束时按 JSON schema 写入（遵循原子写入流程）。
 - 停止时设置 `stop_reason`。
+
+### Hook 协同字段（持久化给平台 hook 读）
+
+- **`verification_status`**（`"pass" | "fail" | "missing"`，每轮 JUDGE 时更新）：反映本轮背压验证结果。check-verification-on-stop hook 据此在 stop_reason 仍为 null（pipeline 活跃）时阻止会话停止——只有 `pass` 或 pipeline 显式 retired（stop_reason 非空）才放行。
+- ralph 域无 `forbidden_scope`（通用任务执行不使用声明边界），该字段仅 coding 域持久化。
 
 ## 执行规则
 

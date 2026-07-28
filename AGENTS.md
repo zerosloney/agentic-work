@@ -118,8 +118,8 @@ agentic-workflow 当前无独立 skill。此前的 `scope-drift-detector` 与 `r
 | Hook | 事件 | 脚本 | 状态 | 作用 |
 |------|------|------|------|------|
 | `validate-state-write` | PreToolUse (Write\|Edit) | `hooks/validate-state-write.js` | ✅ 已实现 | 写入 `.loop-cli/state/*.json` 前做廉价前置校验：JSON 可解析、`version` ∈ {1,2}、该 version 的必填顶层字段存在。失败退出 2 拒绝写入；非 state 文件 / Edit 片段 / 内部错误 fail-open 退出 0。**非完整 schema**——orchestrator 写完后仍须跑 `node scripts/validate-state.js <file>` 做权威校验。 |
-| `block-forbidden-scope` | PreToolUse (Write\|Edit) | — | ❌ 未实现 | 设计意图：禁止修改 forbidden_scope 内文件。**未落地根因**：forbidden_scope 是 orchestrator 注入给 builder 的运行时 prompt 文本约定（`=== 声明边界 ===` 段），不持久化在磁盘，hook 作为独立进程读不到当前会话的 scope。升级路径：若要落地，需在 state JSON 新增 `forbidden_scope` 字段并由 orchestrator 持久化，hook 读取后比对 `tool_input.file_path`。当前由 builder/reviewer agent 的文本约定门禁承担（`forbidden_scope 一行不碰`）。 |
-| `check-verification-on-stop` | Stop | — | ❌ 未实现 | 设计意图：验证未通过时阻止停止。**未落地根因**：verification 状态（验证脚本是否跑过、是否 pass）活在 orchestrator 的 prompt 内存里，state JSON 无对应字段，hook 无法读取。升级路径：需扩展 state schema 新增 `verification_status` 字段并由 orchestrator 持久化。当前由 orchestrator 的"零证据禁令"文本门禁承担（detected_stack 非空但验证脚本 MISSING 时禁止 DONE）。 |
+| `block-forbidden-scope` | PreToolUse (Write\|Edit) | `hooks/block-forbidden-scope.js` | ✅ 已实现 | 读取所有 `.loop-cli/state/*.json` 的 `forbidden_scope`（string[] glob），拦截任何 Write/Edit 的 `file_path` 命中 pattern 的写入（exit 2）。glob 语义：`dir/*` 目录前缀、`*.ext` 扩展名、`**/x/*` 深度通配、精确路径。无活跃 pipeline 或无 forbidden_scope 字段时 fail-open。**前提**：orchestrator 初始化时把声明边界的 forbidden_scope 持久化到 state（仅 coding 域，ralph 域无声明边界）。 |
+| `check-verification-on-stop` | Stop | `hooks/check-verification-on-stop.js` | ✅ 已实现 | 读取所有活跃 pipeline（`stop_reason` 为 null）的 `verification_status`，非 `pass` 则阻止会话停止（exit 2）。pipeline 显式 retired（stop_reason 非空）不 gate。**前提**：orchestrator 每轮 JUDGE 时更新 `verification_status`（null=未验证 / pass / fail / missing）。 |
 
 Hook 脚本遵循 stdin/stdout 契约：stdin 读 JSON 工具载荷，stderr 输出诊断，退出码 0=允许、2=拒绝。参考实现见 `plugins/graph-workflow/hooks/validate-state-write.js`（graph 域 state 校验，同模式）。
 

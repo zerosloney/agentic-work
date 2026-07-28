@@ -101,6 +101,11 @@ consecutive_failures: N
 - 每轮结束时按 JSON schema 写入（遵循原子写入流程）。
 - 停止时设置 `stop_reason`。
 
+### Hook 协同字段（持久化给平台 hook 读）
+
+- **`verification_status`**（`"pass" | "fail" | "missing"`，每轮 JUDGE 时更新）：反映本轮背压验证结果。check-verification-on-stop hook 据此在 stop_reason 仍为 null（pipeline 活跃）时阻止会话停止——只有 `pass` 或 pipeline 显式 retired（stop_reason 非空）才放行。
+- ralph 域无 `forbidden_scope`（通用任务执行不使用声明边界），该字段仅 coding 域持久化。
+
 ## 执行规则
 
 ### 任务拓扑驱动

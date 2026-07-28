@@ -9,7 +9,7 @@ state 路径：`.loop-cli/state/coding-pipeline.json`
 | 注入段落 | 来源 | 必填？ |
 |---------|------|--------|
 | `=== 当前任务 ===` | `tasks[task_id]` | 是（DELEGATE 时） |
-| `=== 声明边界 ===` | 用户声明（运行期确定） | 是 |
+| `=== 声明边界 ===` | 用户声明（运行期确定）；其中 forbidden_scope 持久化到 `forbidden_scope` 字段供 hook 强制 | 是 |
 | `=== Baseline ===` | 用户声明（git_ref/git_status_snapshot/fingerprint/none） | 是 |
 | `=== 项目脚本 ===` | 用户/项目探测 | 是 |
 | `=== Risk Level ===` | 派生（每轮评估） | 否 |
@@ -17,8 +17,15 @@ state 路径：`.loop-cli/state/coding-pipeline.json`
 | `=== Detected Stack ===` | 派生（项目探测） | 否 |
 | `=== Scripts Gap ===` | 派生（脚本探测） | 否 |
 | `=== 本轮 diff ===` | 派生（git diff vs baseline） | 是（reviewer） |
-| `=== 执行者检查结果 ===` | builder 输出 JSON（不持久化） | 是（reviewer） |
+| `=== 执行者检查结果 ===` | builder 输出 JSON；其验证结论持久化到 `verification_status` 供 hook 门禁 | 是（reviewer） |
 | `=== prior_cycles_summary ===` | `prior_cycles_summary` | 否 |
+
+Hook 协同字段（持久化给平台 hook 读，非注入段落）：
+
+| 字段 | 写入时机 | 消费者 |
+|------|----------|--------|
+| `forbidden_scope` | orchestrator 初始化时从声明边界写入一次（仅 coding 域） | `hooks/block-forbidden-scope.js`（PreToolUse 拦截越界 Write/Edit） |
+| `verification_status` | orchestrator 每轮 JUDGE 时更新 | `hooks/check-verification-on-stop.js`（Stop 门禁，活跃 pipeline 未 pass 则阻止） |
 
 ## Ralph Pipeline (version=1)
 

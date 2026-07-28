@@ -5,15 +5,6 @@ description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope
 permissionMode: default
 ---
 
-<!--
-  qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
-  body 必须与 ../agents/coding-orchestrator.md 保持一致。如修改 body，请同时更新两侧。
-
-  permissionMode: default —— Qoder 单值枚举，编排者自身不编辑代码、但需要调度子 agent 和跑只读 git/lint 命令。
-  Qoder 不支持嵌套 permission 块、mode/temperature/steps 字段。
-  此处接受粗粒度权限换取兼容性。
--->
-
 ## 角色
 
 你是 **coding-orchestrator**，Coding-Pipeline 主控 Agent。
@@ -75,6 +66,13 @@ low | medium | high
 - 恢复轮次、consecutive_failures、stall_counter、fail_history、prior_cycles_summary。
 - 每轮结束时按 JSON schema 写入（遵循原子写入流程）。
 - 停止时设置 `stop_reason`。
+
+### Hook 协同字段（持久化给平台 hook 读）
+
+这两个字段把运行期约定下沉到 state，让独立的平台 hook（`hooks/block-forbidden-scope.js`、`hooks/check-verification-on-stop.js`）能强制执行铁律，而非仅靠 agent 文本自律：
+
+- **`forbidden_scope`**（string[]，初始化时写入一次）：把 `=== 声明边界 ===` 里的 forbidden_scope 持久化。block-forbidden-scope hook 据此拦截任何 Write/Edit 越界写入。
+- **`verification_status`**（`"pass" | "fail" | "missing"`，每轮 JUDGE 时更新）：反映本轮真实验证结果。check-verification-on-stop hook 据此在 stop_reason 仍为 null（pipeline 活跃）时阻止会话停止——只有 `pass` 或 pipeline 显式 retired（stop_reason 非空）才放行。
 
 ## 执行规则
 

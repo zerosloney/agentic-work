@@ -51,7 +51,8 @@ JSON 格式（version=2 表示图模式，读取时兼容 v1 的线性格式）�
     { "node_id": "t1", "round": 1, "reason": "<失败原因>" }
   ],
   "round": 0,
-  "stop_reason": null
+  "stop_reason": null,
+  "verification_status": null   // null | "pass" | "fail" | "missing"；每轮 JUDGE 时更新，供 check-verification-on-stop hook 门禁
 }
 ```
 

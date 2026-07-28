@@ -51,6 +51,13 @@ const fieldsV1 = {
   stop_reason: v => v === null || typeof v === 'string' ? null : `stop_reason must be null or string, got ${typeof v}`,
   prior_cycles_summary: opt(v => typeof v === 'string' ? null : `prior_cycles_summary must be string, got ${typeof v}`),
   critical_checkpoints: opt(v => Array.isArray(v) ? null : `critical_checkpoints must be array, got ${typeof v}`),
+  // forbidden_scope: persisted by orchestrator at init so block-forbidden-scope
+  // hook (separate process) can enforce the declared boundary. Optional for
+  // backward compat with state files written before this field existed.
+  forbidden_scope: opt(v => Array.isArray(v) && v.every(x => typeof x === 'string') ? null : `forbidden_scope must be string array, got ${typeof v}`),
+  // verification_status: persisted by orchestrator each round so
+  // check-verification-on-stop hook can block stop when verification not passed.
+  verification_status: opt(v => v === null || ['pass', 'fail', 'missing'].includes(v) ? null : `verification_status must be null|pass|fail|missing, got ${JSON.stringify(v)}`),
 };
 
 const fieldsV2 = {
@@ -66,6 +73,8 @@ const fieldsV2 = {
   fail_history: fieldsV1.fail_history,
   round: fieldsV1.round,
   stop_reason: fieldsV1.stop_reason,
+  forbidden_scope: fieldsV1.forbidden_scope,
+  verification_status: fieldsV1.verification_status,
 };
 
 const taskFieldsV1 = {

@@ -45,7 +45,9 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
   "prior_cycles_summary": "",
   "critical_checkpoints": [
     { "id": "<checkpoint id>", "description": "<人类可读描述>", "passed": false }
-  ]
+  ],
+  "forbidden_scope": ["<禁止触碰的文件/目录 glob，初始化时从声明边界持久化，供 block-forbidden-scope hook 强制>"],
+  "verification_status": null   // null | "pass" | "fail" | "missing"；每轮 JUDGE 时更新，供 check-verification-on-stop hook 门禁
 }
 ```
 

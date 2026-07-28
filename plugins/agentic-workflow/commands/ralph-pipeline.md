@@ -40,7 +40,8 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
     { "task_id": "t1", "round": 1, "reason": "<失败原因>" }
   ],
   "round": 0,
-  "stop_reason": null
+  "stop_reason": null,
+  "verification_status": null   // null | "pass" | "fail" | "missing"；每轮 JUDGE 时更新，供 check-verification-on-stop hook 门禁
 }
 ```
 
