@@ -52,7 +52,7 @@ metadata:
 | 三层架构 + 命名规范 | `references/three-tier-mvp.md` |
 | 项目指纹扫描 | **权威**：`python scripts/scan_project.py --root "<项目根>"`（脚本为准，PowerShell 命令仅作降级）。**降级条件**：Python 不可用或脚本失败时，用 `references/project-fingerprint.md §0.2` 的 PowerShell glance 命令（与脚本同源，修改时需同步两处） |
 | 失败案例排查 | `references/failure-modes.md` |
-| Entity/字段缺失，需连库查 schema | 让用户直接粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
+| Entity/字段缺失，需连库查 schema | **首选** `python skill://database-explorer/scripts/db_tool.py explore --semantic <关键词> --format json-compact` 找表，再 `explore --object-type column --table <表名> --detail full` 拉列定义；DB 不可达 / 用户拒绝连库时回退到让用户粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
 | 增量编辑现有窗体（加列/加按钮/修改 Designer） | `scripts/incremental_designer.py`（VisibleIndex 自动计算 + 代码生成） |
 | 全新窗体 InitializeComponent 草稿生成 | `scripts/designer_generator.py`（4 家族 × 3 场景模板引擎） |
 | MSBuild 编译验证命令模板 | `references/msbuild-commands.md` |
@@ -88,10 +88,10 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 |---|--------|----------|----------|
 |---|--------|----------|----------|
 | 1 | **业务名 / 窗体名** | `PartsManagement` / `Frm_PartsList` | 用户描述或菜单/模块名 |
-| 2 | **Entity 或字段来源** | `Entity.PartInfo` / 表名 / 字段清单 | 现有 Entity、DB schema、用户提供字段 |
+| 2 | **Entity 或字段来源** | `Entity.PartInfo` / 表名 / 字段清单 | 现有 Entity / DB schema（**首选走 database-explorer** skill 连库查）/ 用户提供字段 |
 | 3 | **项目根 + 目标目录** | `.sln` 所在目录 + 业务模块目录 | 用户指定；无法推断时问 |
 | 4 | **构建入口** | `.sln` / `.csproj` + Configuration/Platform | 优先项目现有配置；多候选时问 |
-| 5 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，让用户直接粘贴字段定义，不阻塞 |
+| 5 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，**首选 database-explorer**（`python skill://database-explorer/scripts/db_tool.py ...`）；DB 不可达 / 用户拒绝连库时回退到让用户直接粘贴字段定义，不阻塞 |
 
 缺少 1/2/3 时先问用户；**缺少 4（构建入口）时阻断，不进入 Step 1**。无法确认 `.sln` / `.csproj` 路径及 Configuration/Platform，Step 5b MSBuild 验证无法执行，交付物不可验证。
 
@@ -168,7 +168,19 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 
 ### Step 2. 数据驱动布局
 
-1. 读 `Entity.{实体类}` 的字段定义
+1. 确认字段清单来源（按以下优先级）：
+   - **P0**：现有 `Entity.{实体类}` 已存在 → 直接读
+   - **P1**：Entity 缺失但项目有可连 DB → 调用 **database-explorer** skill 查 schema：
+     ```bash
+     # 1. 找表（按业务关键词，自带列名预览 + complete 标记，省 token）
+     python skill://database-explorer/scripts/db_tool.py \
+       explore --semantic "<业务关键词>" --format json-compact
+     # 2. 列定义（仅对单张目标表，detail full，按 token 节约硬规则）
+     python skill://database-explorer/scripts/db_tool.py \
+       explore --object-type column --table "<表名>" --detail full --format json-compact
+     ```
+     把结果整理成 字段名 / 类型 / NULL / 长度 / 默认值 清单
+   - **P2**：DB 不可达 / 用户拒绝连库 → 用户粘贴 `Entity.{实体类}` 字段定义或表 schema，对应案例 2/3 fallback
 2. 按字段类型和数量决定布局：
    - 字段少（≤8）且为表单录入 → `LayoutControl` 表单
    - 字段多、列表展示 → `GridControl` + `GridView`
@@ -397,7 +409,18 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 - **NEED_REFERENCE（无参照）**→ 对应 **案例 3**:让用户给路径;若不能则按 `three-tier-mvp.md` 逐项确认，不臆造
 - **NEED_DBHELP（DBHelp/连接名未知）**→ 对应 **案例 1**:扫不到 DBHelp 实例名或连接名时，让用户从候选列中选
 - **STUCK（未知控件）**→ 对应 **案例 7**:降级为 `GridControl` + 单列 `GridView`;告知「最小化布局,列配置后续补」,并加载 `designer-patterns.md` §5 通用坑位
-- **NEED_ENTITY（字段不明）**→ 对应 **案例 2**:不臆造,让用户提供 `Entity.{实体类}` 字段定义;或连 DB 查 schema(案例 3)
+- **NEED_ENTITY（字段不明）**→ 对应 **案例 2**：不臆造，按以下优先级获取字段：
+  1. **首选**：调用 **database-explorer** skill 连库查 schema：
+     ```bash
+     # a. 找表（关键词/表名都支持；优先 --semantic，省 token）
+     python skill://database-explorer/scripts/db_tool.py \
+       explore --semantic "<表名或业务关键词>" --format json-compact
+     # b. 拉单表列定义（detail full 仅限即将写代码的目标表）
+     python skill://database-explorer/scripts/db_tool.py \
+       explore --object-type column --table "<表名>" --detail full --format json-compact
+     ```
+  2. 回退：DB 不可达 / 用户拒绝连库 → 让用户提供 `Entity.{实体类}` 字段定义或表 schema（对应 **案例 3**）
+  - **NEED_DBHELP**（DBHelp/连接名未知）→ **案例 1** 的 fallback 同样适用：先用 `database-explorer` 的 `list`/`use` 查已有连接，没匹配再问用户 server/db/user/pwd
 
 ## Examples
 
