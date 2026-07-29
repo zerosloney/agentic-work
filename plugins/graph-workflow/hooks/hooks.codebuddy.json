@@ -1,0 +1,17 @@
+{
+  "description": "Graph Workflow — state write validation hook (CodeBuddy). Same node script as the ZCode variant (hooks.zcode.json); CodeBuddy runs command hooks via Git Bash on Windows, exit 2 + stderr blocks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CODEBUDDY_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

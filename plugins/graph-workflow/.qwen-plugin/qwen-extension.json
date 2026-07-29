@@ -1,0 +1,10 @@
+{
+  "name": "graph-workflow-qwen",
+  "version": "0.1.1",
+  "description": "Graph Workflow — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作) for Qwen Code.",
+  "contextFileName": "QWEN.md",
+  "excludeTools": [],
+  "hooks": "hooks/hooks.qwencode.json",
+  "agents": "agents",
+  "commands": "commands"
+}

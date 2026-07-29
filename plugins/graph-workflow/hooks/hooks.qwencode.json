@@ -1,0 +1,16 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "WriteFile|Edit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+          "name": "validate-state-write",
+          "description": "Pre-validate loop-state JSON writes (parseable + version + required fields); exit 2 blocks",
+          "timeout": 10000
+        }
+      ]
+    }
+  ]
+}

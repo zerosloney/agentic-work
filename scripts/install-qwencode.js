@@ -19,7 +19,7 @@ const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
 
 const EXTENSION_DIR = joinHome('.qwen', 'extensions');
-const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };

@@ -27,7 +27,7 @@ const { getPluginVersion } = require('./lib/plugin-version');
 const PLUGIN_DIR = joinHome('.trae', 'plugins');
 // Global hooks config per https://docs.trae.cn/ide_hook-configuration-reference (CN edition)
 const HOOKS_FILE = joinHome('.trae-cn', 'hooks.json');
-const PLUGINS = ['dotnet-work', 'agentic-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow'];
 const SUBDIRS = ['.trae-plugin', 'skills', 'commands', 'trae/agents', '_shared', 'scripts'];
 // Source subdir → destination dirname (when they differ)
 const RENAME_MAP = { 'trae/agents': 'agents' };

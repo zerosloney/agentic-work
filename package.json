@@ -1,7 +1,7 @@
 {
   "name": "@master0071/agentic-work",
   "version": "0.1.0",
-  "description": "Agentic-work plugins (dotnet-work + graph-workflow) for codebuddy and zcode.",
+  "description": "Agentic-work plugins (dotnet-work + agentic-workflow + graph-workflow + skill-radar) for ZCode, CodeBuddy, Trae, Qoder, Qwen Code.",
   "license": "MIT",
   "author": {
     "name": "master0071",
@@ -22,6 +22,7 @@
     "install:zcode": "node ./scripts/install-zcode.js",
     "install:all": "node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js",
     "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run",
+    "verify:agents": "node ./scripts/verify-agent-sync.js",
     "validate-state": "node ./scripts/validate-state.js"
   },
   "files": [

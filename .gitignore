@@ -18,6 +18,9 @@ obj/
 bin/
 reports/
 
+# 审查报告(放插件目录也忽略,避免 REVIEW-*.md 入库)
+REVIEW-*.md
+
 # materialize-codebuddy.js 输出物(可随时重建,install 脚本不依赖它)
 dist/
 

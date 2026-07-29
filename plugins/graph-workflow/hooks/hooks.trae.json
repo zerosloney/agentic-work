@@ -1,0 +1,18 @@
+{
+  "description": "Graph Workflow — state write validation hook (Trae). TEMPLATE, not loaded by Trae directly: Trae has no plugin-level hooks, so install-trae.js substitutes ${TRAE_PLUGIN_ROOT} with the installed plugin root at install time (Trae itself performs no variable substitution) and merges the hooks map into the global ~/.trae-cn/hooks.json (own entries identified by the 'graph-workflow-trae' path marker). Trae runs command hooks in the system default shell (PowerShell on Windows); exit 2 + stderr blocks. timeout is in seconds.",
+  "version": 1,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,13 +1,24 @@
 <!-- sync: 与 zcode/agents/graph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
-<!--
-  CodeBuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
-  body 必须与 zcode/agents/graph-orchestrator.md 保持一致。如修改 body，请同时更新两侧。
--->
 ---
 name: graph-workflow-graph-orchestrator
-description: "图编排者Agent(Graph 闭环决策层,档位 B)——读 state.graph 拓扑并按边路由,委派图节点的 executor/reviewer/fixer 跑串行闭环,判 __done__/__abort__ 写状态。仅作为图的执行器,不决定图拓扑。"
-tools: Bash, Read, Glob, Grep
-permissionMode: plan
+platform: trae
+description: Graph Engineering 图编排者(档位 B)——读 state.graph 拓扑并按边路由,用 Agent 工具委派图节点的 executor/reviewer/fixer 跑串行闭环,判 __done__/__abort__ 写状态。仅作为图的执行器,不决定图拓扑。
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+  read: allow
+  glob: allow
+  task:
+    "*": deny
+    "graph-workflow-executor": allow
+    "graph-workflow-reviewer": allow
+    "graph-workflow-fixer": allow
 ---
 
 # graph-orchestrator

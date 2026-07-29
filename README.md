@@ -1,29 +1,43 @@
 # @master0071/agentic-work
 
-Agentic-work plugins for **CodeBuddy** and **ZCode**.
+Multi-platform AI-coding plugins for **ZCode, CodeBuddy, Trae, Qoder, Qwen Code**. Each plugin ships as a set of agents, skills, commands, and hooks. Platform manifests adapt frontmatter to each host; shared content (agent/skill/command bodies) stays the single source of truth.
 
 ## Plugins
 
-| Plugin          | Description                                                                                       | Type    |
-|-----------------|---------------------------------------------------------------------------------------------------|---------|
-| `dotnet-work`   | .NET development skills: database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow | skills  |
-| `graph-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands |
+| Plugin | Type | ZCode | CodeBuddy | Trae | Qoder | Qwen |
+|--------|------|:-----:|:---------:|:----:|:-----:|:----:|
+| `dotnet-work` | skills (C# / WinForms / .NET review / DB explore) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `agentic-workflow` | agents + commands (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `graph-workflow` | agents + commands (Loop + Graph Engineering, unattended) | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `skill-radar` | hooks (skill observability: trace → aggregate → score → evolve) | ✓ | ✓ | — | — | — |
+
+Coverage reflects what the install scripts actually register. `skill-radar` is ZCode + CodeBuddy only for now (Trae/Qoder/Qwen install not yet wired — tracked as a known gap).
+
+## Per-plugin docs
+
+- `plugins/dotnet-work/` — skill routing matrix and cross-skill collaboration (see `AGENTS.md` "dotnet-work").
+- `plugins/agentic-workflow/` — orchestrator/worker/reviewer agents + pipeline commands.
+- `plugins/graph-workflow/README.md` — Loop vs Graph entry points, three-role collaboration, hard-constraint model.
+- `plugins/skill-radar/README.md` — four phases (tracing / aggregation / scoring / evolution) + data layout.
 
 ## Installation
 
 ### From source (this repo)
 
 ```sh
-# Install all platforms
+# ZCode + CodeBuddy only (scripted npm entry)
 npm run install:all
 
-# Or per-platform
-npm run install:codebuddy    # copies to ~/.codebuddy/plugins/<name>-codebuddy/
-npm run install:zcode        # copies to ~/.zcode/cli/plugins/cache/master0071/<name>-zcode/
+# Per-platform (all five hosts)
+node scripts/install-zcode.js
+node scripts/install-codebuddy.js
+node scripts/install-trae.js
+node scripts/install-qoder.js
+node scripts/install-qwencode.js
 
-# Per-plugin flag
+# Per-plugin flag (any platform script)
 node scripts/install-zcode.js --plugin dotnet-work
-node scripts/install-zcode.js --plugin graph-workflow
+node scripts/install-qoder.js --plugin agentic-workflow
 
 # Dry-run (preview without writing)
 node scripts/install-zcode.js --dry-run
@@ -32,60 +46,75 @@ node scripts/install-zcode.js --dry-run
 node scripts/install-zcode.js --uninstall
 ```
 
-### Single-plugin scope
+> Note: `install-trae/qoder/qwencode` install **`dotnet-work` + `agentic-workflow` + `graph-workflow`** (the three full-coverage plugins). `skill-radar` is not registered there yet.
+
+### From npm
 
 ```sh
 npm install -g @master0071/agentic-work
-```
 
-Then invoke the per-platform wrappers installed by `@master0071/agentic-work`:
-
-```sh
 agentic-work-codebuddy     # installs for CodeBuddy
 agentic-work-zcode         # installs for ZCode
 ```
 
-(`agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`.)
+(`agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`. Trae/Qoder/Qwen still need a direct `node scripts/install-<platform>.js` call.)
+
+## Verification
+
+Before committing, run all dry-runs (all must exit 0):
+
+```sh
+node scripts/install-codebuddy.js --dry-run
+node scripts/install-zcode.js --dry-run
+node scripts/install-trae.js --dry-run
+node scripts/install-qoder.js --dry-run
+node scripts/install-qwencode.js --dry-run
+node scripts/materialize-codebuddy.js --dry-run
+```
+
+Version sync check (`.codebuddy-plugin/plugin.json` version is authoritative):
+
+```sh
+node scripts/bump-version.js --all --check    # exits non-zero on drift
+```
+
+State-file validation (agentic-workflow + graph-workflow):
+
+```sh
+node scripts/validate-state.js .loop-cli/state/coding-pipeline.json
+```
 
 ## Marketplace
 
-Both plugins ship under the `master0071` marketplace for CodeBuddy and ZCode:
+Plugins ship under a per-host marketplace:
 
-- CodeBuddy: `~/.codebuddy/plugins/.codebuddy-plugin/marketplace.json`
-- ZCode: `~/.zcode/cli/plugins/marketplaces/master0071/marketplace.json`
+- CodeBuddy: `agentic-work` marketplace → `~/.codebuddy/plugins/.codebuddy-plugin/marketplace.json`
+- ZCode: `master0071` marketplace → `~/.zcode/cli/plugins/marketplaces/master0071/marketplace.json`
 
-## Cross-platform content equality
+(Each repo uses its own marketplace name to avoid conflicts.)
 
-Each plugin's `skills/`, `agents/`, `commands/` live at the **plugin root** and are the single source of truth. Platform subdirs (`codebuddy/`, `zcode/`) contain only their platform manifest. Install scripts copy from the shared location, so content stays consistent by definition.
+## Cross-platform content model
+
+Each plugin's `skills/`, `agents/`, `commands/` live at the **plugin root** as the single source of truth. Per-platform subtrees hold **platform-specific copies with adapted frontmatter** (ZCode nested `permission:` / CodeBuddy flat `permissionMode` / Trae `platform: trae` / Qoder `permissionMode` / Qwen Code `approvalMode` + `tools`). Agent **bodies must stay identical** across platforms — only frontmatter differs. Install scripts copy from the platform subtree and flatten `agents/` to the install root.
 
 ## Repository structure
 
 ```
 agentic-work/
 ├── package.json                          # @master0071/agentic-work
-├── marketplace.json                      # zcode marketplace
-├── .codebuddy-plugin/marketplace.json    # codebuddy marketplace
+├── marketplace.json                      # ZCode marketplace (master0071)
+├── .codebuddy-plugin/marketplace.json    # CodeBuddy marketplace (agentic-work)
+├── AGENTS.md                             # layout invariants, per-plugin rules, hook contracts
 ├── plugins/
-│   ├── dotnet-work/
-│   │   ├── codebuddy/
-│   │   │   └── .codebuddy-plugin/plugin.json
-│   │   ├── zcode/
-│   │   │   └── .zcode-plugin/plugin.json
-│   │   └── skills/                       # ← single source of truth
-│   │       ├── database-explorer/
-│   │       ├── dotnet-code-review/
-│   │       ├── dotnet-csharp-developer/
-│   │       └── winforms-dev-flow/
-│   └── graph-workflow/
-│       ├── codebuddy/
-│       │   └── .codebuddy-plugin/plugin.json
-│       ├── zcode/
-│       │   └── .zcode-plugin/plugin.json
-│       ├── agents/                       # ← single source of truth
-│       └── commands/                     # ← single source of truth
+│   ├── dotnet-work/                      # 4 skills, 5-platform manifests
+│   ├── agentic-workflow/                 # 6 agents + 5 commands + hooks, 5 platforms
+│   ├── graph-workflow/                   # 5 agents + 3 commands + state scripts, ZCode+CodeBuddy
+│   └── skill-radar/                      # tracing hooks + 4 analysis scripts, ZCode+CodeBuddy
 └── scripts/
-    ├── install-codebuddy.js
-    └── install-zcode.js
+    ├── install-{codebuddy,zcode,trae,qoder,qwencode}.js
+    ├── materialize-codebuddy.js
+    ├── validate-state.js
+    └── bump-version.js
 ```
 
 ## License

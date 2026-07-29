@@ -36,6 +36,29 @@ Trae 使用嵌套 `permission:` 块（同 ZCode），通过 `platform: trae` 标
 Qwen Code 使用 `approvalMode`（`auto-edit`/`default`/`plan`/`yolo`/`bubble`）+ `tools` 允许列表。
 Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalMode`; this is a known trade-off documented per file。
 
+## 选择哪个 workflow 插件
+
+仓库有两个编排插件，都做 execute→review→fix 循环，但**约束模型与适用场景不同**。按场景选：
+
+| 场景 | 选 | 原因 |
+|------|----|------|
+| 交互式编码，你在 loop 里盯着 | **agentic-workflow**（`/coding-pipeline`、`/ralph-pipeline`） | agent 自驱，单会话多轮，hook 门禁拦截危险写，你可中途介入 |
+| 无人值守长任务，挂机跑 | **graph-workflow**（`/loop-task`、`/graph-task`） | 外层 shell 脚本硬约束（MAX_ITER/BUDGET_S/STALL_LIMIT），每轮 spawn 新 agent，进程级隔离 |
+| 固定 exec→review→fix 流程 | graph-workflow `/loop-task` | 单节点自环，流程固定 |
+| 自定义节点拓扑（多分支/条件路由/串行多阶段） | graph-workflow `/graph-task` + `--graph` | 声明式图编排 |
+
+**架构差异（决定选型）**：
+
+| 维度 | agentic-workflow | graph-workflow |
+|------|------------------|----------------|
+| 循环驱动 | agent 自驱（单会话内多轮委派） | 外层脚本（`loop-task.sh`/`graph-run.sh`）每轮 spawn |
+| 约束执行者 | agent 内 `MAX_CYCLES` + hook 门禁 | 外层脚本 `MAX_ITER`/`BUDGET_S`/`STALL_LIMIT`/`VERIFY_CMD` |
+| 状态路径 | `.loop-cli/state/*.json` | `scripts/loop-state/task-*.json` + `.loop-marker` |
+| 隔离粒度 | 会话内（共享上下文） | 进程级（每轮 fresh agent，状态全靠 state 文件） |
+| 入口 | command 直接委派 orchestrator agent | command 调 `bash scripts/*.sh`，脚本驱动 |
+
+**不要混用**：两者状态 schema 不兼容（version=1 各自定义，路径不同），同一任务不要交叉使用。需要复盘两者产物分别用各自的 state 目录。
+
 ## dotnet-work
 
 - Source: previously `donet-work/` (renamed, typo fixed).
@@ -107,7 +130,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 ## graph-workflow
 
 - **Purpose**: Loop Engineering + Graph Engineering 双档位闭环 — 外层脚本硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD) + 内层三角色(executor/reviewer/fixer)协作,无人值守长任务。
-- **ZCode + CodeBuddy** 已支持;Trae/Qoder/QwenCode 未支持(install 脚本 PLUGINS 未登记,且缺三平台 manifest + agents,见 REVIEW G-002)。
+- **五平台已支持**: ZCode + CodeBuddy + Trae + Qoder + Qwen Code。三角色 agents 各平台 frontmatter 适配（ZCode/Trae 嵌套 `permission:`、CodeBuddy/Qoder flat `permissionMode`、Qwen Code `approvalMode` + `tools`），body 一致。install-trae/qoder/qwencode.js 的 PLUGINS 已登记 graph-workflow。
 - **两个入口命令**:`commands/loop-task.md`(Loop Engineering,固定 exec→review→fix 循环,状态 version=1)、`commands/graph-task.md`(Graph Engineering 档位 B,声明式图拓扑,默认图等价 loop-task,状态 version=2)。两档位跨版本不兼容(旧状态读到不匹配 version 拒绝续跑,防漂移)。
 - **三角色 agents**(ZCode 嵌套 `permission:` / CodeBuddy flat `permissionMode`,body 一致仅 frontmatter 不同):
   - `orchestrator`(`permissionMode: plan`) — 决策层,读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer,不直接写业务代码。`graph-orchestrator` 变体按 `state.graph` 拓扑 + `statectl graph-next` 边路由执行。
@@ -207,6 +230,18 @@ node scripts/validate-state.js .loop-cli/state/ralph-graph.json
 ```
 
 Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, duplicate ids, circular `depends_on`) on failure. Use `--loop <file>` or `--graph <file>` to disambiguate when `version` is missing.
+
+## Agent body sync
+
+Each agent ships as per-platform copies under `<plugin>/<platform>/agents/`. Frontmatter differs per platform; **bodies must be identical** (ZCode is the baseline). Check before committing:
+
+```sh
+node scripts/verify-agent-sync.js                 # check all plugins, exit 1 on drift
+node scripts/verify-agent-sync.js --plugin graph-workflow
+node scripts/verify-agent-sync.js --fix           # overwrite non-zcode bodies from zcode baseline
+```
+
+The script strips frontmatter + platform sync comments and compares normalized body hashes. On drift it lists agent, platform, and file path. `--fix` preserves each platform's own frontmatter and replaces only the body — run it only after editing the zcode baseline. Also exposed as `npm run verify:agents`.
 
 ## Shared documents
 

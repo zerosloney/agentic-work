@@ -1,7 +1,7 @@
 {
-  "name": "graph-workflow-codebuddy",
+  "name": "graph-workflow-trae",
   "version": "0.1.1",
-  "description": "Graph Workflow — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作)",
+  "description": "Graph Workflow — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作) for Trae.",
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"
@@ -16,7 +16,6 @@
     "orchestration"
   ],
   "commands": "commands",
-  "agents": "codebuddy/agents",
-  "hooks": "hooks/hooks.codebuddy.json",
-  "category": "workflow"
+  "agents": "trae/agents",
+  "hooks": "hooks/hooks.trae.json"
 }

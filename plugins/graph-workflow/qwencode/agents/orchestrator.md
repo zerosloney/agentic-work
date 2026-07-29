@@ -1,13 +1,21 @@
 <!-- sync: 与 zcode/agents/orchestrator.md 保持同步，仅 frontmatter 不同 -->
 <!--
-  CodeBuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
+  Qwen Code 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 列表）。
   body 必须与 zcode/agents/orchestrator.md 保持一致。如修改 body，请同时更新两侧。
+  已知 trade-off：approvalMode 单值无法表达 ZCode 版的 bash 白名单，命令红线仅靠 body 约束。
 -->
 ---
 name: graph-workflow-orchestrator
 description: "编排者Agent(Loop 闭环决策层)——读状态拆步骤,委派子代理(executor/reviewer/fixer)跑内层闭环,判 DONE 写状态。只读业务代码,不直接执行产出。"
-tools: Bash, Read, Glob, Grep
-permissionMode: plan
+model: inherit
+approvalMode: default
+tools:
+  - read_file
+  - read_many_files
+  - glob
+  - grep_search
+  - list_directory
+  - task
 ---
 
 # orchestrator
