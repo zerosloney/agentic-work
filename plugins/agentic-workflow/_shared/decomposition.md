@@ -26,8 +26,7 @@
 
 ## 引用方
 
-- `agents/coding-orchestrator.md` — coding 域（MAX_CYCLES=8，预算 ≤6）
-- `agents/ralph-orchestrator.md` — ralph 域（MAX_CYCLES=10，预算 ≤8，含 graph 模式依赖链深度判据）
-- `commands/coding-pipeline.md` — 初始化步骤 4
-- `commands/ralph-pipeline.md` — 初始化步骤 4
-- `commands/ralph-graph.md` — 初始化步骤 4
+- **直接**：`zcode/agents/coding-orchestrator.md`（body 经 `../_shared/` 引入）— coding 域（MAX_CYCLES=8,预算 ≤6）
+- **直接**：`zcode/agents/ralph-orchestrator.md`（body 经 `../_shared/` 引入）— ralph 域（MAX_CYCLES=10,预算 ≤8,含 graph 模式依赖链深度判据）
+
+> **间接**：`commands/coding-pipeline.md` / `commands/ralph-pipeline.md` / `commands/ralph-graph.md` 在初始化步骤 4 通过 orchestrator agent body 间接引用本文件（`commands/` 自身不写文件路径,委派到 orchestrator 后由其 body 加载）。

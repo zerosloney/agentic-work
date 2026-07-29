@@ -102,10 +102,16 @@ graph-workflow/
 |------|------|
 | ZCode | ✅ |
 | CodeBuddy | ✅ |
-| Trae | ❌(install 脚本未登记,见 REVIEW G-002) |
-| Qoder | ❌(同上) |
-| Qwen Code | ❌(同上) |
+| Trae | ✅(`scripts/install-trae.js` 已登记 `graph-workflow`,幂等合并到 `~/.trae-cn/hooks.json`) |
+| Qoder | ✅(`scripts/install-qoder.js` 已登记,`qodercli plugins install <dir>` 激活) |
+| Qwen Code | ✅(`scripts/install-qwencode.js` 已登记,选择性拷贝 `*.js` + `hooks.qwencode.json`) |
 
 ## 已知缺口
 
-详见 `REVIEW-<date>.md`。主要:三平台支持缺失、marketplace 未登记、AGENTS.md 未登记。
+| Issue | 状态 |
+|-------|------|
+| Qwen orchestrator/graph-orchestrator 缺 `run_shell_command` | ✅ 已修复（orchestrator/graph-orchestrator tools 列表已加 shell） |
+| Qwen reviewer `approvalMode: plan` + 只读 → 跑不了测试,零证据禁令卡死 | ✅ 已修复（reviewer 改 `approvalMode: default` + 加 `run_shell_command`） |
+| codebuddy executor/fixer `permissionMode: auto-edit` 非标准值 | ✅ 已修复（改 `acceptEdits` 与 ZCode `edit: allow` 映射表一致） |
+| codebuddy/qoder orchestrator/graph-orchestrator/reviewer `permissionMode: plan` 与 AGENTS.md 映射表不符 | ✅ 已修复（统一改 `default` 与 ZCode `edit: deny + bash 允许列表` 映射一致） |
+| graph-workflow Qwen manifest `"agents": "agents"` 装饰性（install-qwencode.js 硬编码 `qwencode/agents`） | 已记录（qwen 扩展约定,不在本文档范围内修复） |

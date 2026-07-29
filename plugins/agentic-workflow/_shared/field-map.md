@@ -55,11 +55,10 @@ state 路径：`.loop-cli/state/ralph-graph.json`
 
 ## 引用方
 
-- `agents/coding-orchestrator.md`
-- `agents/ralph-orchestrator.md`
-- `commands/coding-pipeline.md`
-- `commands/ralph-pipeline.md`
-- `commands/ralph-graph.md`
+- **直接**：`zcode/agents/coding-orchestrator.md`（body `=== X ===` 段落按上表注入,经 `../_shared/` 引用）
+- **直接**：`zcode/agents/ralph-orchestrator.md`（同上,含 graph 模式节点版本）
+
+> **间接**：`commands/coding-pipeline.md` / `commands/ralph-pipeline.md` / `commands/ralph-graph.md` 经 orchestrator agent body 间接消费本映射（commands 自身不读 `_shared/`）。
 
 ## 校验
 

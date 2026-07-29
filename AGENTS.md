@@ -13,16 +13,22 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
   - `.qoder-plugin/plugin.json`
   - `.qwen-plugin/qwen-extension.json`
 - 各平台 manifest 字段按各自 schema 要求，允许不一致（如 `author`、`description`、`keywords` 等字段在不同平台 manifest 中可有不同子集）。
-- Content inside `skills/`, `agents/`, `commands/` at the plugin root is the **single source of truth** for ZCode（ZCode 直接使用根 `agents/`，无需单独子目录）。
 - **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。每个平台有独立的 agents 目录：
   ```
-  plugins/<name>/zcode/agents/             ← ZCode 版本（嵌套 permission，单 source of truth）
+  plugins/<name>/zcode/agents/             ← ZCode 基准（嵌套 permission）
   plugins/<name>/codebuddy/agents/         ← CodeBuddy 版本（permissionMode 单值）
   plugins/<name>/trae/agents/              ← Trae 版本（嵌套 permission + platform: trae）
   plugins/<name>/qoder/agents/             ← Qoder 版本（permissionMode 单值）
   plugins/<name>/qwencode/agents/          ← Qwen Code 版本（approvalMode + tools 允许列表）
   ```
-  各平台的 manifest（`.zcode-plugin/plugin.json`、`.codebuddy-plugin/plugin.json` 等）通过 `"agents"` 字段指向对应的目录。Body 内容应保持一致，仅 frontmatter 不同。每个非 ZCode 平台的 agent 文件开头需加 HTML 注释注明同步要求。
+  body 内容应保持一致，仅 frontmatter 不同。每个非 ZCode 平台的 agent 文件开头需加 HTML 注释注明同步要求。**ZCode 的 `<platform>/agents/` 是安装步骤（`install-zcode.js`）通过 RENAME_MAP 展平到安装目录 `agents/`，不是源仓库直接存在 `agents/` 目录**。
+
+  各平台 manifest 的 `"agents"` 字段指向约定（按平台 loader 决定）：
+  | 平台 | `"agents"` 字段形态 | 指向 | 备注 |
+  |------|---------------------|------|------|
+  | ZCode / Trae / CodeBuddy | 字符串（源目录路径） | `<platform>/agents` | 安装时按 RENAME_MAP 展平到 `<dest>/agents/`；manifest 在源仓库形态，安装目录 loader 按平台约定解析 |
+  | Qoder | 字符串数组（文件路径） | `["./qoder/agents/*.md", ...]` | `install-qoder.js:115-132` 在安装时改写为 `["./agents/*.md", ...]` |
+  | Qwen Code | 字符串 `"agents"` | 装饰性，指向 post-install 扁平目录 | `install-qwencode.js:87` 硬编码源为 `qwencode/agents`，loader 容忍 manifest 字段不匹配 |
 
 Permission mapping for codebuddy/qoder `permissionMode` (single-value enum):
 
@@ -64,12 +70,12 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - Source: previously `donet-work/` (renamed, typo fixed).
 - 4 skills: `database-explorer`, `dotnet-code-review`, `dotnet-csharp-developer`, `winforms-dev-flow`.
 - Shared skills live at `plugins/dotnet-work/skills/<skill-name>/`.
-- Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
+- **Platform manifests (5 平台)** at plugin root: `.codebuddy-plugin/` (version 权威源), `.zcode-plugin/`, `.trae-plugin/`, `.qoder-plugin/`, `.qwen-plugin/qwen-extension.json`。dotnet-work 是 **skill-only** plugin,无 agents/commands 目录,qwen manifest 不应声明 `agents`/`commands` 字段。
 - When adding a new skill: create `<skill-name>/SKILL.md` + `references/` + `scripts/` under `plugins/dotnet-work/skills/`.
 
 ### Skill 路由
 
-完整路由决策树 + 跨 skill 协作图见 `plugins/dotnet-work/README.md`。主诉求→主 skill 速查：
+主诉求→主 skill 速查（详见 `plugins/dotnet-work/README.md`):
 
 | 用户说 | 主 skill |
 |--------|---------|
@@ -78,7 +84,9 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 | "连数据库/查表/SQL/导出" | `database-explorer` |
 | "WinForms/DevExpress/窗体" | `winforms-dev-flow` |
 
-跨 skill 协作（已内建调用点）：`dotnet-csharp-developer` Step 4b 调 `dotnet-code-review`；`winforms-dev-flow` Step 0a/2 调 `database-explorer` 查 schema。
+跨 skill 协作（已内建调用点）：
+- `dotnet-csharp-developer` Step 4b → 调 `dotnet-code-review` 做自审（通过 `scripts/review_orchestrator.py`）
+- `winforms-dev-flow` Step 0a/2 → 调 `database-explorer` 查表 schema 生成数据绑定（通过 `python skill://database-explorer/scripts/db_tool.py explore ...`）
 
 ## agentic-workflow
 
@@ -105,7 +113,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
   - `log-invocation.js` — PostToolUse + PostToolUseFailure: append JSONL trace (with `skill` tag via `infer-skill.js`).
   - `stop-signal.js` — Stop: detect negative signal in last assistant message, append to `signals/<date>.jsonl`.
   - `observe.sh` — CodeBuddy wrapper: dispatches `session-start`/`post-tool-use[-failure]`/`stop` to the matching Node script; normalizes kebab-case event args to canonical schema names; **所有分支统一传 `--platform codebuddy`**（三个 hook 脚本据此输出 `hookSpecificOutput` 格式，缺省仍为 ZCode flat `{}`）。
-  - Hook stdin 读取统一走 `scripts/lib/read-stdin.js`（3s 硬超时 + destroy stdin）——平台不关 stdin 也不挂（CodeBuddy cmd→sh→node 链无平台侧 timeout）。
+  - **读 stdin 的 hook**（`log-invocation.js`、`stop-signal.js`）统一走 `scripts/lib/read-stdin.js`（3s 硬超时 + destroy stdin）——平台不关 stdin 也不挂（CodeBuddy cmd→sh→node 链无平台侧 timeout）。**不读 stdin 的 hook**（`session-start.js`，只写 session.json）无需该 helper。
 - Trace schema:
   ```jsonc
   {
@@ -132,11 +140,11 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - **Purpose**: Loop Engineering + Graph Engineering 双档位闭环 — 外层脚本硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD) + 内层三角色(executor/reviewer/fixer)协作,无人值守长任务。
 - **五平台已支持**: ZCode + CodeBuddy + Trae + Qoder + Qwen Code。三角色 agents 各平台 frontmatter 适配（ZCode/Trae 嵌套 `permission:`、CodeBuddy/Qoder flat `permissionMode`、Qwen Code `approvalMode` + `tools`），body 一致。install-trae/qoder/qwencode.js 的 PLUGINS 已登记 graph-workflow。
 - **两个入口命令**:`commands/loop-task.md`(Loop Engineering,固定 exec→review→fix 循环,状态 version=1)、`commands/graph-task.md`(Graph Engineering 档位 B,声明式图拓扑,默认图等价 loop-task,状态 version=2)。两档位跨版本不兼容(旧状态读到不匹配 version 拒绝续跑,防漂移)。
-- **三角色 agents**(ZCode 嵌套 `permission:` / CodeBuddy flat `permissionMode`,body 一致仅 frontmatter 不同):
-  - `orchestrator`(`permissionMode: plan`) — 决策层,读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer,不直接写业务代码。`graph-orchestrator` 变体按 `state.graph` 拓扑 + `statectl graph-next` 边路由执行。
-  - `executor`(`permissionMode: auto-edit`) — 按 plan 实际执行(写代码/改文件/跑命令),写 `progress_delta`。
-  - `reviewer`(`permissionMode: plan`) — 确定性验证 + 语义审查,写 `status`/`goal_met`/`review`。有"零证据禁令":项目有验证手段但没跑 → 禁止判 pass。
-  - `fixer`(`permissionMode: auto-edit`) — 根因最小修复,修完回 orchestrator 重新委派 reviewer。
+- **三角色 agents**(ZCode/Trae 嵌套 `permission:` / CodeBuddy/Qoder flat `permissionMode` / Qwen Code `approvalMode` + `tools` 允许列表,body 一致仅 frontmatter 不同):
+  - `orchestrator`(`permissionMode: default`) — 决策层,读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer,不直接写业务代码。`graph-orchestrator` 变体按 `state.graph` 拓扑 + `statectl graph-next` 边路由执行。
+  - `executor`(`permissionMode: acceptEdits`) — 按 plan 实际执行(写代码/改文件/跑命令),写 `progress_delta`。
+  - `reviewer`(`permissionMode: default`) — 确定性验证 + 语义审查,写 `status`/`goal_met`/`review`。有"零证据禁令":项目有验证手段但没跑 → 禁止判 pass。
+  - `fixer`(`permissionMode: acceptEdits`) — 根因最小修复,修完回 orchestrator 重新委派 reviewer。
 - **Manifest 单一真源**:`.codebuddy-plugin/plugin.json` version 字段权威;`.zcode-plugin/plugin.json` / 根 `marketplace.json` 条目派生。
 - **Hooks**:
   - `validate-state-write` — PreToolUse (Write|Edit):写 `scripts/loop-state/*.json` 前做廉价前置校验(JSON 可解析 + 必填字段 + enum + version ∈ {1,2})。Edit 片段 / 非 state 文件 / 内部错误 fail-open 退出 0。非完整 schema,写完后仍须跑独立校验脚本。

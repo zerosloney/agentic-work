@@ -11,7 +11,7 @@
 | `database-explorer` | 数据库探索（SQL Server/MySQL/PostgreSQL/KingbaseES/SQLite） | "连数据库/查表/SQL/导出" |
 | `winforms-dev-flow` | WinForms + DevExpress 业务窗体生成（.NET Framework 4.7.2） | "WinForms/DevExpress/窗体" |
 
-完整路由决策树 + 跨 skill 协作图见工作区根 `AGENTS.md` "dotnet-work" 章节。
+完整路由决策树 + 跨 skill 协作图见本 README 下文（『跨 skill 协作』节）。
 
 ## dotnet-csharp-developer
 
