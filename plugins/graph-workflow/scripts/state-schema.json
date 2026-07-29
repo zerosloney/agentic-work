@@ -76,8 +76,7 @@
                 "type": "string",
                 "enum": ["executor", "reviewer", "fixer"],
                 "description": "节点角色(委派给哪个 agent 进程),严格收敛到现有三角色"
-              },
-
+              }
             }
           }
         },

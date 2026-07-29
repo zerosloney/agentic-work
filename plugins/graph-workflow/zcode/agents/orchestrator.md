@@ -24,15 +24,15 @@ description: Loop Engineering 编排者(决策层)——读状态拆步骤,用 A
 
 ```bash
 # 读字段
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get iteration
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get objective
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get status
+bash scripts/statectl.sh "$STATE" get iteration
+bash scripts/statectl.sh "$STATE" get objective
+bash scripts/statectl.sh "$STATE" get status
 
 # 写回本轮结果(patch 只改指定字段,不覆盖其他)
-bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"phase":"orchestrate","progress_delta":0.3,"next_action":"orchestrate"}'
+bash scripts/statectl.sh "$STATE" patch '{"phase":"orchestrate","progress_delta":0.3,"next_action":"orchestrate"}'
 ```
 
-`$SCRIPTS_DIR` 是插件脚本目录路径(由主 skill 传入)。
+`scripts/statectl.sh` 是插件根下的 statectl 脚本(相对项目根路径)。
 
 ## 委派机制(关键)
 
@@ -81,7 +81,7 @@ bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"phase":"orchestrate","progress_d
 - **append 一条 `history`**(跨轮上下文,下轮新进程靠它接上):
   ```bash
   # 第 5 参数 10 = 保留最近 10 条(超出丢弃最早),防跨轮上下文暴涨
-  bash $SCRIPTS_DIR/statectl.sh "$STATE" append history \
+  bash scripts/statectl.sh "$STATE" append history \
     '{"iter":1,"plan":"本轮做了什么","files_touched":["a.ts"],"result":"pass/fail/blocked","next":"下轮该干嘛"}' 10
   ```
 

@@ -19,7 +19,7 @@ description: Loop Engineering 执行者——按编排者给的 plan 实际执�
 编排者委派你时会附带 `$STATE`。状态写回示例:
 
 ```bash
-bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"phase":"exec","progress_delta":0.4,"next_action":"review"}'
+bash scripts/statectl.sh "$STATE" patch '{"phase":"exec","progress_delta":0.4,"next_action":"review"}'
 ```
 
 ## 职责

@@ -18,8 +18,8 @@
       "strict": true
     },
     {
-      "name": "loop-workflow-zcode",
-      "source": "./plugins/loop-workflow",
+      "name": "agentic-workflow-zcode",
+      "source": "./plugins/agentic-workflow",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for ZCode.",
       "version": "0.1.0",
       "homepage": "https://github.com/zerosloney/agentic-work",

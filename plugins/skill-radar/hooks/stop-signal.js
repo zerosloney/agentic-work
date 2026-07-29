@@ -41,9 +41,17 @@ function detectNegativeSignal(message) {
   // Resolution context: agent describes a failure it already fixed.
   // One match suppresses the whole message — quoting a solved failure is
   // not a fresh negative signal.
+  //
+  // Participle patterns require an auxiliary/adverb prefix so negated
+  // forms ("not fixed", "never resolved", "haven't fixed") do NOT
+  // suppress — the word boundary alone can't tell "is fixed" from
+  // "not fixed".
+  const RESOLVED_PARTICIPLES = '(fixed|resolved|solved|corrected|patched)';
   const resolutionPatterns = [
     /\b(now|already|previously)\s+(pass|passes|passed|working|works|succeed)/,
-    /\b(fixed|resolved|solved|corrected|patched)\b/,
+    // Passive/completion: "is fixed", "has been resolved", "got patched",
+    // "now fixed", "finally resolved", "'s corrected".
+    new RegExp(`\\b(has|have|had|is|was|were|been|got|gotten|becomes?|become|'s|'ve|'d|now|finally|already|successfully)\\s+${RESOLVED_PARTICIPLES}\\b`),
     /\bno longer (fails|errors|times out)/,
     /\bafter (the )?fix/,
   ];
@@ -150,7 +158,63 @@ async function main() {
   process.stdout.write(JSON.stringify({}));
 }
 
-main().catch((err) => {
-  process.stderr.write(`[skill-radar] Stop error: ${err.message}\n`);
-  process.stdout.write(JSON.stringify({}));
-});
+// ─── self-check ───────────────────────────────────────────────────
+// Run with `node stop-signal.js --test`. Verifies the participle
+// prefix fix: negated forms must NOT suppress, completion forms MUST.
+
+function selfTest() {
+  const cases = [
+    // [message, expectedSignal]
+    // Negated participles → must NOT suppress (signal fires)
+    ['I have not fixed the bug yet', 'error_indicator'],  // contains "not" but also no error pattern → actually returns null. Let me pick real ones.
+  ];
+  // Re-define cases carefully against the actual patterns.
+  const testCases = [
+    // Completion contexts → suppress (null)
+    ['The build is fixed now', null],
+    ['This has been resolved', null],
+    ['Issue got patched in v2', null],
+    ['It was corrected by the reviewer', null],
+    ['The bug is now fixed', null],
+    ['Everything is finally resolved', null],
+    ['The test now passes', null],
+    ['no longer fails', null],
+    ['after the fix everything works', null],
+    ["it's been resolved", null],
+
+    // Negated participles → must NOT suppress (signal fires on error pattern)
+    ['I have not fixed it, build still failed', 'error_indicator'],
+    ['never resolved: permission denied', 'error_indicator'],
+    ["haven't fixed the timeout error", 'error_indicator'],
+
+    // Error patterns without resolution → fire
+    ['the deploy failed', 'error_indicator'],
+    ['sorry, unable to connect', 'error_indicator'],  // matches sorry.*unable error pattern first
+    ['we cannot proceed without credentials', 'incompleteness'],
+
+    // Neutral → null
+    ['all done thanks', null],
+  ];
+
+  let pass = 0, fail = 0;
+  for (const [msg, expected] of testCases) {
+    const got = detectNegativeSignal(msg);
+    const ok = got === expected;
+    if (ok) pass++;
+    else {
+      fail++;
+      console.error(`  FAIL: "${msg}" → expected ${expected}, got ${got}`);
+    }
+  }
+  console.error(`stop-signal self-test: ${pass} passed, ${fail} failed`);
+  process.exit(fail === 0 ? 0 : 1);
+}
+
+if (process.argv.includes('--test')) {
+  selfTest();
+} else {
+  main().catch((err) => {
+    process.stderr.write(`[skill-radar] Stop error: ${err.message}\n`);
+    process.stdout.write(JSON.stringify({}));
+  });
+}

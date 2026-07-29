@@ -22,7 +22,7 @@ description: Loop Engineering 修复者——reviewer 未过或提改动时,做�
 编排者委派你时会附带 `$STATE`。状态写回示例:
 
 ```bash
-bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"phase":"fix","progress_delta":0.2,"next_action":"orchestrate"}'
+bash scripts/statectl.sh "$STATE" patch '{"phase":"fix","progress_delta":0.2,"next_action":"orchestrate"}'
 ```
 
 ## 职责

@@ -20,7 +20,7 @@ description: Loop Engineering 审查者——跑测试/编译/静态检查做确
 编排者委派你时会附带 `$STATE`。状态写回示例:
 
 ```bash
-bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"phase":"verify","status":"pass","goal_met":true,"review":"approved","progress_delta":0.3,"metrics":{"tests":"12/12"},"next_action":"done"}'
+bash scripts/statectl.sh "$STATE" patch '{"phase":"verify","status":"pass","goal_met":true,"review":"approved","progress_delta":0.3,"metrics":{"tests":"12/12"},"next_action":"done"}'
 ```
 
 ## 职责

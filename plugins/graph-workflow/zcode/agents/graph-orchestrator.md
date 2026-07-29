@@ -39,12 +39,12 @@ description: Graph Engineering 图编排者(档位 B)——读 state.graph 拓�
 
 ```bash
 # 读字段
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get graph
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get node_states
-bash $SCRIPTS_DIR/statectl.sh "$STATE" get current_node
+bash scripts/statectl.sh "$STATE" get graph
+bash scripts/statectl.sh "$STATE" get node_states
+bash scripts/statectl.sh "$STATE" get current_node
 
 # 写节点状态
-bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status":"done","result":"approved","executed_at":"..."}}}'
+bash scripts/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status":"done","result":"approved","executed_at":"..."}}}'
 ```
 
 ## 委派机制(与 orchestrator 同)
@@ -80,7 +80,7 @@ bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status"
        - 写 current_node = current(让脚本能看到),方便出问题定位
        - patch progress_delta(本节点真实推进)
    3.5 计算下一节点 —— 必须用 statectl:
-       bash $SCRIPTS_DIR/statectl.sh "$STATE" graph-next "<current_id>" "<result>"
+       bash scripts/statectl.sh "$STATE" graph-next "<current_id>" "<result>"
        返回:__done__ / __abort__ / 下一节点 id
    3.6 current = 返回值
 4. 写回外层终态信号:
@@ -88,7 +88,7 @@ bash $SCRIPTS_DIR/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status"
    - 若 current == __abort__:patch status=blocked + blocker=<reason> + goal_met=false + next_action=orchestrate
    - 否则继续中:patch status=fail + next_action=orchestrate(让外层进下一轮)
 5. 写 plan + append history:
-   bash $SCRIPTS_DIR/statectl.sh "$STATE" append history \
+   bash scripts/statectl.sh "$STATE" append history \
      '{"iter":N,"plan":"本轮跑通了哪些节点","nodes_run":["exec-1","review-1"],"result":"pass","next":"下一轮做啥"}' 10
 6. 退出进程(让外层判是否再循环)
 ```
