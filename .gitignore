@@ -20,3 +20,7 @@ reports/
 
 # materialize-codebuddy.js 输出物(可随时重建,install 脚本不依赖它)
 dist/
+
+# nested repo clones (Codex copilot worktrees)
+agentic-work/
+copilot-worktrees/

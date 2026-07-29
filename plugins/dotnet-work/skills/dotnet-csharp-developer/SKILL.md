@@ -1,4 +1,4 @@
----
+﻿---
 name: dotnet-csharp-developer
 description: "用 .NET 8+、ASP.NET Core API、Blazor、Entity Framework Core 编写现代 C#。Clean Architecture 分层、gRPC/SignalR 实时通信、微服务 (Dapr/Orleans/Service Fabric)。优化 .NET 应用，实现企业级模式，确保全面测试。在构建 C# 应用、重构、性能优化或复杂 .NET 解决方案时使用。"
 when_to_use: |
@@ -15,7 +15,7 @@ metadata:
 
 ## 核心理念
 
-**现代 C# 优先**：默认 .NET 8 LTS + C# 12（主构造函数、文件范围命名空间、record、集合表达式、可空引用类型）。专注高性能 Web API、云原生方案、整洁架构。先确认项目实际 TargetFramework，再决定可用语言特性——不假设 .NET 9 / C# 13。
+**先确认框架，再写代码**：读 `.csproj` 的 `<TargetFramework>`，按项目实际版本决定可用 C# 特性（如 .NET 8 可用主构造函数、集合表达式、可空引用类型等）。专注高性能 Web API、云原生方案、整洁架构。不臆造版本，不假设 .NET 9 / C# 13。
 
 ## Constraints（红线）
 

@@ -1,4 +1,4 @@
----
+﻿---
 name: dotnet-code-review
 description: |
   C#/.NET 代码审查，基于 Roslyn（AST + Semantic + Project）+ dotnet build/format + 离线 CVE 库。
@@ -45,12 +45,16 @@ dotnet --version
 - 失败 / < 6.0 → CLI 抛 `ToolMissingError`（exit 4），不返回任何 issues
 - 告知用户安装 .NET SDK 6+（推荐 8.0 LTS）：https://dotnet.microsoft.com/download
 
-### 0.2 C# 分析器预编译
+### 0.2 C# 分析器编译
 
-三个 Roslyn 分析器已预编译（DLL 就绪），无需额外步骤：
+三个 Roslyn 分析器以源文件提供，**首次使用前需编译**（`review.py` 无 DLL 时自动走 `dotnet run` 慢路径回退）：
 - `scripts/csharp-ast-analyzer/` — AST 语法树级检测
 - `scripts/csharp-semantic-analyzer/` — 语义模型级检测
 - `scripts/csharp-project-analyzer/` — 跨文件项目级检测
+
+编译命令（在 skill 根目录执行）：
+- Windows: `powershell -File scripts/build-analyzers.ps1`
+- Linux/macOS: `bash scripts/build-analyzers.sh`
 
 ---
 
@@ -383,7 +387,7 @@ Summary
 
 | 场景 | 行为 |
 |------|------|
-| 无 .NET SDK | CLI 硬阻断（exit 4），告知用户安装。**例外**：`--legacy-compat` 模式下只需 `dotnet` CLI 存在即可（不限版本），AST/语义/项目分析器是预编译 DLL，通过 Roslyn AdHocWorkspace 直接分析源码 |
+| 无 .NET SDK | CLI 硬阻断（exit 4），告知用户安装。**例外**：`--legacy-compat` 模式下只需 `dotnet` CLI 存在即可（不限版本），AST/语义/项目分析器编译为 DLL 后通过 Roslyn AdHocWorkspace 直接分析源码 |
 | 无 csproj | build/format 层跳过，Agent 应主动询问目标框架，用 `--target-framework` 覆盖 |
 | 无 CVE 数据库 | `--cve-check` 返回 `db_present=false`，标记"未扫描"而非"安全" |
 | 覆盖率文件缺失 | 跳过覆盖率检查，Summary 中说明 |
@@ -410,7 +414,7 @@ Summary
 | build 失败 | 检查项目是否可编译，告知用户 |
 | 扫描结果为空 | 确认目标目录有 .cs 文件 |
 | 评分低于预期 | 按类别逐项分析，指出占比最高的扣分类别 |
-| `--legacy-compat` 下 AST 分析器返回空 | 检查 `dotnet` CLI 是否在 PATH 中（legacy 模式仍需 `dotnet` 命令来托管预编译 DLL） |
+| `--legacy-compat` 下 AST 分析器返回空 | 检查 `dotnet` CLI 是否在 PATH 中（legacy 模式仍需 `dotnet` 命令来托管编译后的 DLL） |
 
 ---
 

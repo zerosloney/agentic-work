@@ -1,4 +1,4 @@
----
+﻿---
 name: winforms-dev-flow
 description: |
   WinForm + DevExpress 业务窗体生成（.NET Framework 4.7.2）。
@@ -52,7 +52,7 @@ metadata:
 | 三层架构 + 命名规范 | `references/three-tier-mvp.md` |
 | 项目指纹扫描 | **权威**：`python scripts/scan_project.py --root "<项目根>"`（脚本为准，PowerShell 命令仅作降级）。**降级条件**：Python 不可用或脚本失败时，用 `references/project-fingerprint.md §0.2` 的 PowerShell glance 命令（与脚本同源，修改时需同步两处） |
 | 失败案例排查 | `references/failure-modes.md` |
-| Entity/字段缺失，需连库查 schema | **前置**：需在 WorkBuddy 连接器管理启用 `database-explorer` MCP。启用后：`mavis mcp call database-explorer query --sql "SELECT ..."`，连接串从项目 `App.config` 读。**MCP 未连接时 fallback**：让用户直接粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
+| Entity/字段缺失，需连库查 schema | 让用户直接粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
 | 增量编辑现有窗体（加列/加按钮/修改 Designer） | `scripts/incremental_designer.py`（VisibleIndex 自动计算 + 代码生成） |
 | 全新窗体 InitializeComponent 草稿生成 | `scripts/designer_generator.py`（4 家族 × 3 场景模板引擎） |
 | MSBuild 编译验证命令模板 | `references/msbuild-commands.md` |
@@ -91,7 +91,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 | 2 | **Entity 或字段来源** | `Entity.PartInfo` / 表名 / 字段清单 | 现有 Entity、DB schema、用户提供字段 |
 | 3 | **项目根 + 目标目录** | `.sln` 所在目录 + 业务模块目录 | 用户指定；无法推断时问 |
 | 4 | **构建入口** | `.sln` / `.csproj` + Configuration/Platform | 优先项目现有配置；多候选时问 |
-| 5 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失且 App.config 有连接串，可用 `mavis mcp call database-explorer query --sql "SELECT ..."` 连库查 schema。**前置**：需先在 WorkBuddy 启用 `database-explorer` MCP（详见快速查找表）；MCP 未连接时让用户直接粘贴字段定义，不阻塞 |
+| 5 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，让用户直接粘贴字段定义，不阻塞 |
 
 缺少 1/2/3 时先问用户；**缺少 4（构建入口）时阻断，不进入 Step 1**。无法确认 `.sln` / `.csproj` 路径及 Configuration/Platform，Step 5b MSBuild 验证无法执行，交付物不可验证。
 

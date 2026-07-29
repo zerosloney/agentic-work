@@ -1,11 +1,11 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "database-explorer"
 dynamic = ["version"]
-description = "AI Agent 配套的数据库探索 CLI 工具，支持 SQL Server / MySQL / PostgreSQL / SQLite"
+description = "AI Agent 配套的数据库探索 CLI 工具，支持 SQL Server / MySQL / PostgreSQL / KingbaseES(人大金仓) / SQLite"
 requires-python = ">=3.10"
 readme = "SKILL.md"
 license = {text = "MIT"}

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """数据库浏览器 - 统一 CLI 工具
 
 支持 SQL Server / MySQL / PostgreSQL / SQLite 的连接、查询和结构探索。
@@ -23,7 +23,7 @@
     _keyring_security.py   - 密钥链密码管理
 """
 
-__version__ = "0.6.0"
+__version__ = "1.0.0"
 
 import argparse
 import sys

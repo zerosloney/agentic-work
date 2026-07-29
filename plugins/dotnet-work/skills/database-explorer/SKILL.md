@@ -1,4 +1,4 @@
----
+﻿---
 name: database-explorer
 metadata:
   version: 1.0.0
@@ -273,7 +273,6 @@ Agent 通过 subprocess 执行，**没有交互 TTY**，写操作/全表扫描�
 | `references/troubleshooting.md` | 错误处理决策表（追问/自动/放弃） |
 | `references/hot_tables.yaml` | 语义搜索别名配置 |
 | `references/schema_queries.md` | 自定义结构查询 |
-| `CHANGELOG.md` | 版本演进与破坏性变更（升级前必读） |
 | `requirements.txt` | 依赖清单（安装权威源，见 §1） |
 | `scripts/tests/` | 测试套件（改动后跑 `pytest scripts/tests/`） |
 
