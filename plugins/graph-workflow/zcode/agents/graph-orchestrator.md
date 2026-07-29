@@ -1,6 +1,22 @@
 ---
 name: graph-workflow-graph-orchestrator
 description: Graph Engineering 图编排者(档位 B)——读 state.graph 拓扑并按边路由,用 Agent 工具委派图节点的 executor/reviewer/fixer 跑串行闭环,判 __done__/__abort__ 写状态。仅作为图的执行器,不决定图拓扑。
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+  read: allow
+  glob: allow
+  task:
+    "*": deny
+    "graph-workflow-executor": allow
+    "graph-workflow-reviewer": allow
+    "graph-workflow-fixer": allow
 ---
 
 # graph-orchestrator

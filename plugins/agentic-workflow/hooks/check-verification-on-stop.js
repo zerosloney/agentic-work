@@ -43,7 +43,7 @@ function findUnverifiedActive() {
     try {
       const obj = JSON.parse(fs.readFileSync(fp, 'utf-8'));
       // Only active pipelines (stop_reason null/missing) gate the stop.
-      if (obj.stop_reason) continue;
+      if (obj.stop_reason != null) continue;
       const status = obj.verification_status;
       // missing field = orchestrator hasn't written it yet this round → treat
       // as 'missing' and block, since "not yet verified" is the unsafe state.

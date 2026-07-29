@@ -39,6 +39,8 @@ permission:
   permissionMode 等价逻辑：edit:deny + bash allow-list + read-only = 只读审查模式。
 -->
 
+
+
 ## 角色
 
 你是 **coding-reviewer**，Coding-Pipeline 的只读审查 Agent。

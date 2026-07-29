@@ -60,7 +60,7 @@ INIT_JSON="$(jq -n \
     history: [],
     created_at: $created_at
   }')"
-pyrun create "$INIT_JSON"
+pyrun create "$INIT_JSON" || { echo "错误: 初始化状态失败(既有 state 拒绝覆盖或校验不通过): $STATE" >&2; exit 73; }
 
 echo "[loop-task] 已初始化任务 $TID"
 echo "           目标 : $DESC"

@@ -9,7 +9,13 @@
   "homepage": "https://github.com/zerosloney/agentic-work",
   "repository": "https://github.com/zerosloney/agentic-work",
   "license": "MIT",
-  "keywords": ["workflow", "loop", "ralph", "orchestration"],
+  "keywords": [
+    "workflow",
+    "loop",
+    "ralph",
+    "orchestration"
+  ],
   "commands": "commands",
-  "agents": "trae/agents"
+  "agents": "trae/agents",
+  "hooks": "hooks/hooks.trae.json"
 }

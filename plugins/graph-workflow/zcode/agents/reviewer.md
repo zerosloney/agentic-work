@@ -1,6 +1,32 @@
 ---
 name: graph-workflow-reviewer
 description: Loop Engineering 审查者——跑测试/编译/静态检查做确定性验证,叠加语义审查(质量/架构/边界),写回 status/goal_met/review。只读业务代码。
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "cat *": allow
+    "grep *": allow
+    "find *": allow
+    "ls": allow
+    "ls *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git branch*": allow
+    "npm *": allow
+    "pnpm *": allow
+    "npx *": allow
+    "tsx *": allow
+    "tsc*": allow
+    "pytest*": allow
+    "cargo *": allow
+    "go *": allow
+    "make*": allow
+  read: allow
+  glob: allow
 ---
 
 # reviewer

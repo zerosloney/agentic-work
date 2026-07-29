@@ -3,5 +3,8 @@
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qwen Code.",
   "contextFileName": "QWEN.md",
-  "excludeTools": []
+  "excludeTools": [],
+  "hooks": "hooks/hooks.qwencode.json",
+  "agents": "agents",
+  "commands": "commands"
 }

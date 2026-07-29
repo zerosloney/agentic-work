@@ -26,6 +26,38 @@ cleanup_tmp() {
 }
 cleanup_tmp
 
+# 文件锁(mkdir 原子性,跨平台)——只对写命令加锁,防并发 load-modify-save 竞态。
+# 死锁自愈:持锁进程已退出则接管;超时(约 5s)退出 75。
+LOCK_DIR="${STATE}.lock"
+LOCKED=0
+release_lock() {
+  if [ "$LOCKED" = "1" ]; then
+    rm -f "$LOCK_DIR/pid" 2>/dev/null || true
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+    LOCKED=0
+  fi
+}
+acquire_lock() {
+  local tries=0 owner
+  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
+    owner="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
+    if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
+      rm -f "$LOCK_DIR/pid" 2>/dev/null || true
+      rmdir "$LOCK_DIR" 2>/dev/null || true
+      continue
+    fi
+    tries=$((tries+1))
+    if [ "$tries" -ge 50 ]; then
+      echo "错误: 获取状态锁超时: $LOCK_DIR (持锁 pid=${owner:-?})" >&2
+      exit 75
+    fi
+    sleep 0.1
+  done
+  echo "$$" > "$LOCK_DIR/pid"
+  LOCKED=1
+  trap 'release_lock' EXIT INT TERM
+}
+
 load() {
   [ -f "$STATE" ] && [ -s "$STATE" ] || { echo '{}'; return; }
   local content
@@ -33,8 +65,27 @@ load() {
   if [ -n "$content" ]; then echo "$content"; else echo '{}'; fi
 }
 
+# 写前廉价校验(与 validate-state-write hook 语义对齐):enum + 类型。
+# 非完整 schema——权威校验仍靠 node scripts/validate-state.js。
+validate_state_json() {
+  printf '%s' "$1" | jq -e '
+    (if has("version") then (.version == 1 or .version == 2) else true end)
+    and (if has("task_type") then (.task_type | IN("task","graph")) else true end)
+    and (if has("phase") then (.phase | IN("init","orchestrate","exec","verify","review","fix","done","aborted")) else true end)
+    and (if has("status") then (.status | IN("pending","pass","fail","blocked","stalled","done")) else true end)
+    and (if has("review") then (.review | IN("pending","approved","changes_requested")) else true end)
+    and (if has("goal_met") then (.goal_met | type == "boolean") else true end)
+    and (if has("progress_delta") then ((.progress_delta | type == "number") and .progress_delta >= 0 and .progress_delta <= 1) else true end)
+    and (if has("iteration") then ((.iteration | type == "number") and .iteration >= 0) else true end)
+  ' >"$_N" 2>&1
+}
+
 save() {
   local data="$1"
+  if ! validate_state_json "$data"; then
+    echo "错误: 状态校验失败(enum/类型不合法),拒绝写入: $STATE" >&2
+    return 1
+  fi
   local tmp="${STATE}.tmp.$$"
   if printf '%s' "$data" | jq '.' > "$tmp" 2>/dev/null && [ -s "$tmp" ] && jq -e . "$tmp" >/dev/null 2>&1; then
     mv "$tmp" "$STATE" || { rm -f "$tmp" 2>/dev/null || true; }
@@ -44,12 +95,22 @@ save() {
   fi
 }
 
+# 写命令先拿锁,再 load——保证 load-modify-save 全程串行;读命令不加锁。
+case "$CMD" in
+  create|ensure|set|patch|inc|append) acquire_lock ;;
+esac
+
 DATA="$(load)"
 EMPTY_OBJ="{}"
 
 case "$CMD" in
   create)
     CREATE_JSON="${3:-$EMPTY_OBJ}"
+    FORCE="${4:-}"
+    if [ -s "$STATE" ] && [ "$FORCE" != "--force" ]; then
+      echo "错误: 状态文件已存在,拒绝覆盖: $STATE (确需重建请加 --force)" >&2
+      exit 73
+    fi
     save "$(printf '%s' "$CREATE_JSON" | jq -c '.')"
     ;;
   ensure)
@@ -130,6 +191,7 @@ case "$CMD" in
     ;;
   "" | *)
     echo "用法: statectl.sh <state.json> <get|set|patch|inc|lt|ensure|append|graph-next|create> [args]" >&2
+    echo "     create <json> [--force]  —— 既有非空 state 默认拒绝覆盖(exit 73)" >&2
     [ -n "$CMD" ] && echo "未知命令: $CMD" >&2
     exit 64
     ;;

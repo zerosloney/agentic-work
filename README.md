@@ -7,7 +7,7 @@ Agentic-work plugins for **CodeBuddy** and **ZCode**.
 | Plugin          | Description                                                                                       | Type    |
 |-----------------|---------------------------------------------------------------------------------------------------|---------|
 | `dotnet-work`   | .NET development skills: database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow | skills  |
-| `loop-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands |
+| `graph-workflow` | Orchestrated execute-review loops: 6 agents + 3 commands (Coding-Loop + Ralph-Loop/Ralph-Graph)    | agents + commands |
 
 ## Installation
 
@@ -23,7 +23,7 @@ npm run install:zcode        # copies to ~/.zcode/cli/plugins/cache/master0071/<
 
 # Per-plugin flag
 node scripts/install-zcode.js --plugin dotnet-work
-node scripts/install-zcode.js --plugin loop-workflow
+node scripts/install-zcode.js --plugin graph-workflow
 
 # Dry-run (preview without writing)
 node scripts/install-zcode.js --dry-run
@@ -76,7 +76,7 @@ agentic-work/
 │   │       ├── dotnet-code-review/
 │   │       ├── dotnet-csharp-developer/
 │   │       └── winforms-dev-flow/
-│   └── loop-workflow/
+│   └── graph-workflow/
 │       ├── codebuddy/
 │       │   └── .codebuddy-plugin/plugin.json
 │       ├── zcode/

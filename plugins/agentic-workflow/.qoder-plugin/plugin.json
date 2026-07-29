@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qoder.",
   "category": "workflow",
-  "commands": "commands",
-  "agents": "qoder/agents"
+  "commands": "./commands",
+  "agents": [
+    "./qoder/agents/coding-builder.md",
+    "./qoder/agents/coding-orchestrator.md",
+    "./qoder/agents/coding-reviewer.md",
+    "./qoder/agents/ralph-orchestrator.md",
+    "./qoder/agents/ralph-reviewer.md",
+    "./qoder/agents/ralph-worker.md"
+  ],
+  "hooks": "./hooks/hooks.qoder.json"
 }

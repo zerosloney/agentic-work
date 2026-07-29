@@ -69,7 +69,7 @@ function collectForbiddenScopes() {
 function matchesPattern(filePath, pattern) {
   const normalized = filePath.replace(/\\/g, '/');
   const rel = normalized.replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
-  const cleanPattern = pattern.replace(/\\/g, '/').replace(/^\.?\//, '');
+  const cleanPattern = pattern.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
 
   // wildcard patterns (incl. **/x/*) → regex
   if (cleanPattern.includes('*')) {

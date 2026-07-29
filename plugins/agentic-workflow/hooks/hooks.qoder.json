@@ -1,0 +1,33 @@
+{
+  "description": "Agentic Workflow — state write validation, forbidden-scope guard, verification gate (Qoder). Same node scripts as the ZCode variant (hooks.zcode.json). install-qoder.js copies this file to hooks/hooks.json in the install dir, where Qoder auto-discovers it (wrapper format, per https://docs.qoder.com/zh/cli/plugins). ${QODER_PLUGIN_ROOT} is injected as env var (bash) or pre-substituted (PowerShell); timeout unit is seconds; exit 2 + stderr blocks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/block-forbidden-scope.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/check-verification-on-stop.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

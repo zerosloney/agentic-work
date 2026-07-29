@@ -11,6 +11,16 @@
 const path = require('path');
 const fs = require('fs');
 
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
+
+function parseArgs(argv) {
+  const args = { platform: 'zcode' };
+  for (let i = 2; i < argv.length; i++) {
+    if (argv[i] === '--platform') args.platform = argv[++i];
+  }
+  return args;
+}
+
 function getDataDir() {
   const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
   if (envDir) return envDir;
@@ -121,16 +131,30 @@ function readSessionId() {
   }
 }
 
+// Output format: ZCode uses flat {}, CodeBuddy uses hookSpecificOutput.
+function writeOutput(platform) {
+  if (platform === 'codebuddy') {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'Stop',
+        additionalContext: '',
+      },
+    }));
+  } else {
+    process.stdout.write(JSON.stringify({}));
+  }
+}
+
 async function main() {
-  let raw = '';
-  process.stdin.setEncoding('utf-8');
-  for await (const chunk of process.stdin) raw += chunk;
+  const args = parseArgs(process.argv);
+  // Hard timeout: never hang if the platform doesn't close stdin (P1-2).
+  const raw = await readStdin(3000);
 
   let input;
   try {
     input = JSON.parse(raw);
   } catch {
-    process.stdout.write(JSON.stringify({}));
+    writeOutput(args.platform);
     return;
   }
 
@@ -142,6 +166,7 @@ async function main() {
     ts: new Date().toISOString(),
     event: 'Stop',
     session_id: input.session_id || readSessionId(),
+    platform: args.platform,
     signal_type: signal, // null | 'error_indicator' | 'incompleteness'
     message_excerpt: lastMessage ? lastMessage.slice(0, 300) : null,
   };
@@ -155,7 +180,7 @@ async function main() {
   }
 
   // Never block
-  process.stdout.write(JSON.stringify({}));
+  writeOutput(args.platform);
 }
 
 // ─── self-check ───────────────────────────────────────────────────
@@ -215,6 +240,6 @@ if (process.argv.includes('--test')) {
 } else {
   main().catch((err) => {
     process.stderr.write(`[skill-radar] Stop error: ${err.message}\n`);
-    process.stdout.write(JSON.stringify({}));
+    writeOutput(parseArgs(process.argv).platform);
   });
 }

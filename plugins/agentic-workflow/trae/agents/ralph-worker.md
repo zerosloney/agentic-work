@@ -10,6 +10,15 @@ permission:
   edit: allow
   bash:
     "*": allow
+    "git push*": deny
+    "git reset --hard*": deny
+    "git clean*": deny
+    "git rebase*": deny
+    "rm -rf*": deny
+    "rm -fr*": deny
+    "sudo *": deny
+    "dd *": deny
+    "mkfs*": deny
 ---
 
 <!--
@@ -20,6 +29,8 @@ permission:
   Trae 支持 mode/temperature/steps 字段，语义与 ZCode 版相同。
   permissionMode 等价逻辑：edit:allow + bash allow-all = 全权限执行者模式。
 -->
+
+
 
 ## 角色
 
@@ -73,3 +84,4 @@ id, title, accept_criteria
 - 不在 verification FAIL 时伪装 DONE。
 - 不替 Orchestrator 决定是否熔断或停止。
 - 不并行处理 Orchestrator 未委派的任务。
+- 不执行不可逆/外发命令（`git push` / `reset --hard` / `clean` / `rebase`、`rm -rf`、`sudo`、`dd`、`mkfs`）——确需时停止并报告，交人工。

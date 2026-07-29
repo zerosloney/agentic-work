@@ -18,6 +18,7 @@ const fs = require('fs');
 // inferSkill lives under scripts/lib/ (sibling of hooks/). Resolve relative
 // to this file so it works regardless of process cwd.
 const { inferSkill } = require(path.join(__dirname, '..', 'scripts', 'lib', 'infer-skill.js'));
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
@@ -87,9 +88,8 @@ function excerpt(str, max = 500) {
 
 async function main() {
   const args = parseArgs(process.argv);
-  let raw = '';
-  process.stdin.setEncoding('utf-8');
-  for await (const chunk of process.stdin) raw += chunk;
+  // Hard timeout: never hang if the platform doesn't close stdin (P1-2).
+  const raw = await readStdin(3000);
 
   let input;
   try {
@@ -170,5 +170,12 @@ async function main() {
 
 main().catch((err) => {
   process.stderr.write(`[skill-radar] error: ${err.message}\n`);
-  process.stdout.write(JSON.stringify({}));
+  // Match the platform's expected output shape even on the error path.
+  if (parseArgs(process.argv).platform === 'codebuddy') {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: '' },
+    }));
+  } else {
+    process.stdout.write(JSON.stringify({}));
+  }
 });

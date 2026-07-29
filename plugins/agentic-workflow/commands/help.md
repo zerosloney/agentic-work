@@ -18,8 +18,8 @@ description: "Explain Ralph Pipeline / Coding Pipeline plugins and available com
 ```
 
 **Options:**
-- `--max-iterations <n>` — 最大轮次上限（默认 10，超过强制停止）
-- `--completion-promise <text>` — 完成咒语，agent 输出 `<promise>TEXT</promise>` 即判定完成
+- `--max-iterations <n>` — 最大轮次上限（默认 10，硬上限 20：受 orchestrator 步数预算约束，传入 >20 会被钳制为 20 并报告；超过上限强制停止）
+- `--completion-promise <text>` — 完成咒语，agent 在输出末尾独占一行输出 `<promise>TEXT</promise>` 即判定完成
 
 **How it works:**
 1. 拆解请求为 TaskList（带依赖关系）
@@ -40,7 +40,7 @@ description: "Explain Ralph Pipeline / Coding Pipeline plugins and available com
 ```
 
 **Options:**
-- `--max-iterations <n>` — 最大轮次上限（默认 8）
+- `--max-iterations <n>` — 最大轮次上限（默认 8，硬上限 20：受 orchestrator 步数预算约束，传入 >20 会被钳制为 20 并报告）
 - `--completion-promise <text>` — 完成咒语
 
 **Key differences from ralph-pipeline:**
@@ -64,20 +64,23 @@ DAG 路由表驱动的执行审查管道。适用于有明确依赖关系的多�
 
 ---
 
-### /cancel-ralph-pipeline
+### /cancel-pipeline
 
-取消当前活动的 Ralph Pipeline（删除状态文件）。
+取消活跃管道（删除状态文件，同时解除 Stop hook 验证门禁）。覆盖全部三条管道。
 
 **Usage:**
 ```
-/cancel-ralph-pipeline
+/cancel-pipeline            # 取消全部活跃管道
+/cancel-pipeline coding     # 仅 coding-pipeline
+/cancel-pipeline ralph      # 仅 ralph-pipeline
+/cancel-pipeline graph      # 仅 ralph-graph
 ```
 
 ---
 
 ## Completion Promises
 
-agent 输出 `<promise>TEXT</promise>` 标签即可触发完成判定。TEXT 必须与 `--completion-promise` 参数值完全一致。
+agent 在输出**末尾非空行**独占一行输出 `<promise>TEXT</promise>` 标签才触发完成判定。TEXT 必须与 `--completion-promise` 参数值完全一致；嵌在代码块、文件内容或输出中间位置的标签不算（防止任务产出含该文本时误判）。
 
 ## State Files
 

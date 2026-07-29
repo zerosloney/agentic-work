@@ -1,6 +1,37 @@
 ---
 name: graph-workflow-executor
-description: Loop Engineering 执行者——按编排者给的 plan 实际执行改动(写代码/改文件/跑命令),写回 progress_delta。有完整文件读写和 shell 权限。
+description: Loop Engineering 执行者——按编排者给的 plan 实际执行改动(写代码/改文件/跑命令),写回 progress_delta。有完整文件读写权限,bash 受白名单约束。
+permission:
+  edit: allow
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "cat *": allow
+    "grep *": allow
+    "find *": allow
+    "ls": allow
+    "ls *": allow
+    "head *": allow
+    "tail *": allow
+    "wc *": allow
+    "mkdir *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git branch*": allow
+    "git add *": allow
+    "npm *": allow
+    "pnpm *": allow
+    "npx *": allow
+    "tsx *": allow
+    "tsc*": allow
+    "pytest*": allow
+    "cargo *": allow
+    "go *": allow
+    "make*": allow
+  read: allow
+  glob: allow
 ---
 
 # executor

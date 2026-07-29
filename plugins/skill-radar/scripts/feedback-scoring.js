@@ -38,12 +38,16 @@ function parseArgs(argv) {
 
 // ─── paths ────────────────────────────────────────────────────────
 
+function getDataDir(args) {
+  return args.dataDir
+    ? args.dataDir
+    : process.env.ZCODE_PLUGIN_DATA ||
+      process.env.CODEBUDDY_PLUGIN_DATA ||
+      path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
+}
+
 function getTracesDir(args) {
-  if (args.dataDir) return path.join(args.dataDir, 'traces');
-  const base =
-    process.env.ZCODE_PLUGIN_DATA ||
-    path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
-  return path.join(base, 'traces');
+  return path.join(getDataDir(args), 'traces');
 }
 
 // ─── scoring ───────────────────────────────────────────────────────
@@ -245,10 +249,7 @@ function printSummary(scores, threshold) {
 function main() {
   const args = parseArgs(process.argv);
   const tracesDir = getTracesDir(args);
-  const dataDir = args.dataDir
-    ? args.dataDir
-    : process.env.ZCODE_PLUGIN_DATA ||
-      path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
+  const dataDir = getDataDir(args);
   const entries = loadJSONL(tracesDir, args.days);
   const signals = loadJSONL(path.join(dataDir, 'signals'), args.days);
   const scores = computeScores(entries, signals);

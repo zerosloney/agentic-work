@@ -39,6 +39,8 @@ permission:
   permissionMode 等价逻辑：edit:deny + bash allow-list + read-only = 只读审查模式。
 -->
 
+
+
 ## 角色
 
 你是 **ralph-reviewer**，Ralph Pipeline 只读质量阀。复核执行者对单个任务的产出是否满足 accept_criteria，输出可机器路由的 verdict/issues。

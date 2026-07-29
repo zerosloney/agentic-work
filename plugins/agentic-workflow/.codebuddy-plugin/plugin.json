@@ -4,5 +4,6 @@
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
   "category": "workflow",
   "commands": "commands",
-  "agents": "codebuddy/agents"
+  "agents": "codebuddy/agents",
+  "hooks": "hooks/hooks.codebuddy.json"
 }

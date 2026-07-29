@@ -1,6 +1,22 @@
 ---
 name: graph-workflow-orchestrator
 description: Loop Engineering 编排者(决策层)——读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer 跑内层闭环,判 DONE 写状态。只读业务代码,不直接执行产出。
+permission:
+  edit: deny
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+  read: allow
+  glob: allow
+  task:
+    "*": deny
+    "graph-workflow-executor": allow
+    "graph-workflow-reviewer": allow
+    "graph-workflow-fixer": allow
 ---
 
 # orchestrator

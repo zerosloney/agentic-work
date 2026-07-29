@@ -17,5 +17,5 @@
   ],
   "commands": "commands",
   "agents": "zcode/agents",
-  "hooks": "hooks/hooks.json"
+  "hooks": "hooks/hooks.zcode.json"
 }

@@ -1,0 +1,33 @@
+{
+  "description": "Agentic Workflow — state write validation, forbidden-scope guard, verification gate (CodeBuddy). Same node scripts as the ZCode variant (hooks.zcode.json); CodeBuddy runs command hooks via Git Bash on Windows, exit 2 + stderr blocks.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CODEBUDDY_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CODEBUDDY_PLUGIN_ROOT}/hooks/block-forbidden-scope.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CODEBUDDY_PLUGIN_ROOT}/hooks/check-verification-on-stop.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

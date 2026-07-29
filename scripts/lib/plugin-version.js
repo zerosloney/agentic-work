@@ -152,6 +152,21 @@ function collectVersionSites(pluginName) {
     }
   }
 
+  // 8. Root marketplace.json (ZCode marketplace, `<plugin>-zcode` entries)
+  const zcodeMarketplaceFile = path.join(REPO_ROOT, 'marketplace.json');
+  if (fs.existsSync(zcodeMarketplaceFile)) {
+    const marketplace = JSON.parse(fs.readFileSync(zcodeMarketplaceFile, 'utf-8'));
+    const entry = (marketplace.plugins || []).find(p => p.name === `${pluginName}-zcode`);
+    if (entry) {
+      sites.push({
+        file: 'marketplace.json',
+        current: entry.version,
+        pattern: 'marketplace-entry-zcode',
+        isSource: false,
+      });
+    }
+  }
+
   return sites;
 }
 

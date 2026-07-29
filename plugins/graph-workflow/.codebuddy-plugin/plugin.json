@@ -16,5 +16,6 @@
     "orchestration"
   ],
   "commands": "commands",
-  "agents": "codebuddy/agents"
+  "agents": "codebuddy/agents",
+  "category": "workflow"
 }

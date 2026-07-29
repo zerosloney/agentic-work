@@ -14,6 +14,8 @@ permissionMode: plan
   CodeBuddy 单值枚举无法表达。此处接受"全只读"的粗粒度权限。
 -->
 
+
+
 ## 角色
 
 你是 **coding-reviewer**，Coding-Pipeline 的只读审查 Agent。

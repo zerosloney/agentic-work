@@ -21,6 +21,8 @@ tools:
   model: inherit —— 使用与主对话相同的模型。
 -->
 
+
+
 ## 角色
 
 你是 **ralph-reviewer**，Ralph Pipeline 只读质量阀。复核执行者对单个任务的产出是否满足 accept_criteria，输出可机器路由的 verdict/issues。

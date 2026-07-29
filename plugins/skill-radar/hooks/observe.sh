@@ -17,13 +17,13 @@ EVENT_NAME="${1:-unknown}"
 
 case "${EVENT_NAME}" in
   session-start)
-    exec node "${SCRIPT_DIR}/session-start.js"
+    exec node "${SCRIPT_DIR}/session-start.js" --platform codebuddy
     ;;
   post-tool-use|post-tool-use-failure)
     exec node "${SCRIPT_DIR}/log-invocation.js" --event "${EVENT_NAME}" --platform codebuddy
     ;;
   stop)
-    exec node "${SCRIPT_DIR}/stop-signal.js"
+    exec node "${SCRIPT_DIR}/stop-signal.js" --platform codebuddy
     ;;
   *)
     echo "observe.sh: unknown event '${EVENT_NAME}'" >&2

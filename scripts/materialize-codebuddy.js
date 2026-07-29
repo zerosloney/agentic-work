@@ -16,8 +16,10 @@
 // Idempotent: re-running replaces existing output.
 //
 // After editing any shared content (plugins/<name>/) or codebuddy agent
-// overrides (plugins/<name>/codebuddy/agents/), re-run this script and commit
-// the dist/ changes alongside the source changes.
+// overrides (plugins/<name>/codebuddy/agents/), re-run this script if you need
+// a fresh dist/. dist/ is a disposable build artifact (gitignored, never
+// committed) — install-codebuddy.js materializes directly from plugins/ via
+// lib/materialize.js and does not read dist/.
 
 const fs = require('fs');
 const path = require('path');
@@ -26,7 +28,7 @@ const {
   materializePlugin,
 } = require('./lib/materialize');
 
-const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar', 'graph-workflow'];
 const DIST_ROOT = path.join(REPO_ROOT, 'dist', 'codebuddy');
 
 function parseArgs(argv) {

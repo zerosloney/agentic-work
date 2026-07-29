@@ -20,7 +20,7 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 {
   "version": 1,
   "prompt": "<原始 prompt>",
-  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES
+  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES（硬上限 20，超出钳制为 20 并向用户报告）
   "completion_promise": null,
   "outer_iteration": 0,
   "tasks": [
@@ -74,7 +74,7 @@ DONE 必须同时满足：
 3. 把请求拆解为 TaskList，每项严格按 JSON schema 的 `tasks[]` 格式。**检查 `depends_on` 是否存在循环依赖**（如 A→B→C→A），存在则报错并要求用户修正。
 4. **复杂度评估与再拆分**：按 Ralph Orchestrator agent 模板「## 任务复杂度评估与拆分」的判据（accept_criteria > 3 / 跨文件 > 5 或跨模块 > 2）逐项评估，对过大任务原地拆成子任务，`subtask_of` 标注溯源，新 `depends_on` 接入拓扑。核算子任务总数 ≤ 8（`= MAX_CYCLES × 0.8`），超限且无法再拆时输出 `action="HOLD"`、`reason="decomposition_overflow"` 交用户。
 5. 初始化 `consecutive_failures = 0`、`stall_counter = 0`、`round = 0`、`stop_reason = null`。
-6. 设置 `MAX_CYCLES = 10`（超过此轮次仍未 DONE 则强制停止）与 `STALL_MAX = 3`（连续 3 轮任务状态签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step（DELEGATE + WAIT_REVIEW + JUDGE），确保 frontmatter 的 `steps >= MAX_CYCLES × 3`。
+6. 设置 `MAX_CYCLES = 10`（超过此轮次仍未 DONE 则强制停止；若 `max_iterations > 0` 则 `MAX_CYCLES = min(max_iterations, 20)`，20 是步数预算硬上限，发生钳制时向用户报告实际生效值）与 `STALL_MAX = 3`（连续 3 轮任务状态签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step（DELEGATE + WAIT_REVIEW + JUDGE），orchestrator frontmatter 的 `steps: 60` 支撑最多 20 轮（`steps >= MAX_CYCLES × 3` 恒成立）。
 7. 确定背压验证命令（默认沿用领域 backpressure 配置）。
 
 ## 委派机制

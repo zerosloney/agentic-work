@@ -1,6 +1,6 @@
 {
   "name": "master0071",
-  "description": "Agentic-work plugins (dotnet-work + loop-workflow) for ZCode.",
+  "description": "Agentic-work plugins (dotnet-work + agentic-workflow + graph-workflow + skill-radar) for ZCode.",
   "owner": {
     "name": "master0071",
     "url": "https://github.com/zerosloney/agentic-work"
@@ -10,7 +10,7 @@
       "name": "dotnet-work-zcode",
       "source": "./plugins/dotnet-work",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "development",
@@ -26,6 +26,28 @@
       "license": "MIT",
       "category": "workflow",
       "keywords": ["workflow", "loop", "ralph", "coding"],
+      "strict": true
+    },
+    {
+      "name": "graph-workflow-zcode",
+      "source": "./plugins/graph-workflow",
+      "description": "Loop Engineering + Graph Engineering 闭环(外层脚本硬约束 + 内层三角色 Task 协作,双档位:loop-task 单节点自环 / graph-task 声明式图编排) for ZCode.",
+      "version": "0.1.1",
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "category": "workflow",
+      "keywords": ["workflow", "loop", "graph", "orchestration"],
+      "strict": true
+    },
+    {
+      "name": "skill-radar-zcode",
+      "source": "./plugins/skill-radar",
+      "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals for ZCode.",
+      "version": "0.2.0",
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "category": "observability",
+      "keywords": ["observability", "tracing", "skill", "telemetry"],
       "strict": true
     }
   ]

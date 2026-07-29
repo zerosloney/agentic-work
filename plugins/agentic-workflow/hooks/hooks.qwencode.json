@@ -1,0 +1,36 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "WriteFile|Edit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/validate-state-write.js\"",
+          "name": "validate-state-write",
+          "description": "Pre-validate loop-state JSON writes (parseable + version + required fields); exit 2 blocks",
+          "timeout": 10000
+        },
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/block-forbidden-scope.js\"",
+          "name": "block-forbidden-scope",
+          "description": "Block Write/Edit hitting forbidden_scope globs declared in active pipeline state; exit 2 blocks",
+          "timeout": 10000
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check-verification-on-stop.js\"",
+          "name": "check-verification-on-stop",
+          "description": "Block stop while an active pipeline has verification_status != pass; exit 2 blocks",
+          "timeout": 10000
+        }
+      ]
+    }
+  ]
+}

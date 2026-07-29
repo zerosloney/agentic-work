@@ -90,7 +90,7 @@ DONE 必须同时满足：
 5. 初始化 `active_set` 为 `entry_points`（所有无依赖节点）。
 6. 初始化每个节点的 `status = "pending"`、`failures = 0`。
 7. 初始化 `consecutive_failures = 0`、`stall_counter = 0`、`round = 0`、`stop_reason = null`。
-8. 设置 `MAX_CYCLES = 10`（超过此轮次仍未 DONE 则强制停止）与 `STALL_MAX = 3`（连续 3 轮激活节点集签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step（DELEGATE + WAIT_REVIEW + JUDGE），确保 frontmatter 的 `steps >= MAX_CYCLES × 3`。
+8. 设置 `MAX_CYCLES = 10`（超过此轮次仍未 DONE 则强制停止；若 `max_iterations > 0` 则 `MAX_CYCLES = min(max_iterations, 20)`，20 是步数预算硬上限，发生钳制时向用户报告实际生效值）与 `STALL_MAX = 3`（连续 3 轮激活节点集签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step（DELEGATE + WAIT_REVIEW + JUDGE），orchestrator frontmatter 的 `steps: 60` 支撑最多 20 轮（`steps >= MAX_CYCLES × 3` 恒成立）。
 9. 确定背压验证命令（默认沿用领域 backpressure 配置）。
 
 ## 委派机制

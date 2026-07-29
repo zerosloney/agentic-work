@@ -131,6 +131,25 @@ function installPlugin(pluginName, args) {
     }
   }
 
+  // 5c. Copy hooks (selective): Qwen loads the file declared by manifest "hooks" and
+  // may auto-discover hooks/hooks.json — so copy only the JS scripts + the Qwen-format
+  // config, excluding the other platform variants (hooks.zcode.json, hooks.codebuddy.json,
+  // hooks.trae.json, hooks.qoder.json).
+  const hooksSrc = path.join(src, 'hooks');
+  if (fs.existsSync(hooksSrc)) {
+    const hooksDest = path.join(destDir, 'hooks');
+    const entries = fs.readdirSync(hooksSrc).filter(
+      (f) => f.endsWith('.js') || f === 'hooks.qwencode.json'
+    );
+    if (!args.dryRun) {
+      fs.mkdirSync(hooksDest, { recursive: true });
+      for (const f of entries) fs.copyFileSync(path.join(hooksSrc, f), path.join(hooksDest, f));
+      console.log(`  copied: hooks/ (${entries.length} files, ZCode/CodeBuddy configs excluded)`);
+    } else {
+      console.log(`  would copy: ${hooksSrc} → ${hooksDest} (${entries.join(', ')})`);
+    }
+  }
+
   // 6. Copy scripts
   const scriptsSrc = path.join(src, 'scripts');
   if (fs.existsSync(scriptsSrc)) {

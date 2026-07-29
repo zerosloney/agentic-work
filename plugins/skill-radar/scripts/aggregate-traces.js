@@ -43,6 +43,7 @@ function getTracesDir(args) {
   if (args.dataDir) return path.join(args.dataDir, 'traces');
   const base =
     process.env.ZCODE_PLUGIN_DATA ||
+    process.env.CODEBUDDY_PLUGIN_DATA ||
     path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
   return path.join(base, 'traces');
 }

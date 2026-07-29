@@ -20,7 +20,7 @@ JSON 格式（严格按此 schema，version 字段用于检测格式漂移）：
 {
   "version": 1,
   "prompt": "<原始 prompt>",
-  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES
+  "max_iterations": 0,           // 0 = 使用默认值 (coding=8, ralph=10)；>0 则覆盖 MAX_CYCLES（硬上限 20，超出钳制为 20 并向用户报告）
   "completion_promise": null,
   "outer_iteration": 0,
   "tasks": [
@@ -85,7 +85,7 @@ DONE 必须同时满足：
 7. 风险评估（low / medium / high）。
 8. 技术栈推断（detected_stack）。
 9. 初始化 `consecutive_failures = 0`、`stall_counter = 0`、`round = 0`、`stop_reason = null`、`prior_cycles_summary = ""`、`critical_checkpoints = []`（按需在初始化阶段加入硬门禁检查项）。
-10. 设置 `MAX_CYCLES = 8`（超过此轮次仍未 DONE 则强制停止）与 `STALL_MAX = 2`（连续 2 轮任务状态签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step，确保 `steps >= MAX_CYCLES × 3`。
+10. 设置 `MAX_CYCLES = 8`（超过此轮次仍未 DONE 则强制停止；若 `max_iterations > 0` 则 `MAX_CYCLES = min(max_iterations, 20)`，20 是步数预算硬上限，发生钳制时向用户报告实际生效值）与 `STALL_MAX = 2`（连续 2 轮任务状态签名无变化则判 STALL）。二者均为初始化硬上限，不被 `fail_history` 或 `round` 覆盖。每轮约消耗 2-3 个 agentic step，orchestrator frontmatter `steps: 60` 支撑最多 20 轮（`steps >= MAX_CYCLES × 3` 恒成立）。
 
 ## 委派机制
 

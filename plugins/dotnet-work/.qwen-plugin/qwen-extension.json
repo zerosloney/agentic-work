@@ -2,5 +2,8 @@
   "name": "dotnet-work-qwen",
   "version": "1.0.0",
   "contextFileName": "QWEN.md",
-  "excludeTools": []
+  "excludeTools": [],
+  "description": ".NET development skills for Qwen Code (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
+  "agents": "agents",
+  "commands": "commands"
 }

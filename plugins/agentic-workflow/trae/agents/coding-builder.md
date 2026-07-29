@@ -10,6 +10,15 @@ permission:
   edit: allow
   bash:
     "*": allow
+    "git push*": deny
+    "git reset --hard*": deny
+    "git clean*": deny
+    "git rebase*": deny
+    "rm -rf*": deny
+    "rm -fr*": deny
+    "sudo *": deny
+    "dd *": deny
+    "mkfs*": deny
 ---
 
 <!--
@@ -19,6 +28,8 @@ permission:
   platform: trae —— Trae IDE 识别此标记，启用嵌套 permission 块。
   Trae 支持 mode/temperature/steps 字段，语义与 ZCode 版相同。
 -->
+
+
 
 ## 角色
 
@@ -94,3 +105,4 @@ test: ...
 - 不产生 build artifacts。
 - 不把失败"修到能跑过"——失败原样上抛。
 - 不打逐条补丁（必须根因分组）。
+- 不执行不可逆/外发命令（`git push` / `reset --hard` / `clean` / `rebase`、`rm -rf`、`sudo`、`dd`、`mkfs`）——确需时停止并报告，交人工。

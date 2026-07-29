@@ -3,5 +3,5 @@
   "version": "1.0.0",
   "description": ".NET development skills for Qoder (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
   "category": "development",
-  "skills": "skills"
+  "skills": "./skills"
 }

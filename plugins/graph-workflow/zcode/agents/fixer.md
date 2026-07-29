@@ -1,6 +1,37 @@
 ---
 name: graph-workflow-fixer
-description: Loop Engineering 修复者——reviewer 未过或提改动时,做最小必要修复并回到执行。有完整文件读写和 shell 权限。
+description: Loop Engineering 修复者——reviewer 未过或提改动时,做最小必要修复并回到执行。有完整文件读写权限,bash 受白名单约束。
+permission:
+  edit: allow
+  bash:
+    "*": deny
+    "bash scripts/statectl.sh *": allow
+    "cat *": allow
+    "grep *": allow
+    "find *": allow
+    "ls": allow
+    "ls *": allow
+    "head *": allow
+    "tail *": allow
+    "wc *": allow
+    "mkdir *": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git branch*": allow
+    "git add *": allow
+    "npm *": allow
+    "pnpm *": allow
+    "npx *": allow
+    "tsx *": allow
+    "tsc*": allow
+    "pytest*": allow
+    "cargo *": allow
+    "go *": allow
+    "make*": allow
+  read: allow
+  glob: allow
 ---
 
 # fixer

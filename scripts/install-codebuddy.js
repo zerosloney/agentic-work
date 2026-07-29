@@ -91,7 +91,7 @@ function ensureMarketplaceManifest(plugins, dryRun) {
       description: readCodebuddyDescription(pluginName),
       version: PLUGIN_VERSION,
       source: `./${pluginName}-codebuddy`,
-      category: pluginName === 'dotnet-work' ? 'development' : 'workflow',
+      category: ({ 'dotnet-work': 'development', 'skill-radar': 'observability' })[pluginName] || 'workflow',
       author: { name: 'master0071', url: 'https://github.com/zerosloney' },
       homepage: 'https://github.com/zerosloney/agentic-work',
       license: 'MIT'

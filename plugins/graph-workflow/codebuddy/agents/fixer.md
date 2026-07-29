@@ -2,6 +2,7 @@
 <!--
   CodeBuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
   body 必须与 zcode/agents/fixer.md 保持一致。如修改 body，请同时更新两侧。
+  已知 trade-off：permissionMode 单值无法表达 ZCode 版的 bash 白名单，命令红线仅靠 body 约束。
 -->
 ---
 name: graph-workflow-fixer

@@ -2,9 +2,10 @@
 'use strict';
 // validate-state-write.js — PreToolUse hook: validate agentic-workflow state JSON
 //
-// Intercepts Write/Edit on files under .loop-cli/state/. Performs a cheap
+// Intercepts Write on files under .loop-cli/state/. Performs a cheap
 // pre-write check: JSON must parse, top-level `version` must be 1 or 2, and
 // the minimal required fields for that version must be present.
+// Edit fragments pass through (fail open) — see the Edit branch below.
 //
 // This is NOT a full schema check — orchestrators run the authoritative
 // `node scripts/validate-state.js <file>` after writing. The hook's job is to
@@ -84,10 +85,10 @@ async function main() {
     if (input.tool_input && input.tool_input.content) {
       newContent = JSON.parse(input.tool_input.content);
     } else if (input.tool_input && input.tool_input.new_string) {
-      // Edit operation — new_string is a partial fragment, cannot validate
-      // structure. Just confirm it parses as JSON; the CLI validator runs
-      // after the full write.
-      JSON.parse(input.tool_input.new_string);
+      // Edit operation — new_string is a partial fragment. Fragments are
+      // usually not standalone-parseable JSON (e.g. `"round": 3,`), so any
+      // parse check here false-rejects legitimate edits. Fail open; the
+      // orchestrator runs the authoritative CLI validator after the write.
       process.exit(0);
     } else {
       // Cannot determine content — allow (fail open).

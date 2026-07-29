@@ -64,6 +64,8 @@ function installPlugin(pluginName, args) {
   const manifestSrc = path.join(src, '.zcode-plugin', 'plugin.json');
 
   console.log(`\n→ Installing ${installName}`);
+  // Pre-wipe for idempotency: reinstall replaces all content.
+  if (fs.existsSync(destDir)) removeDir(destDir);
   if (!fs.existsSync(src)) {
     console.error(`Error: source not found: ${src}`);
     process.exit(1);
@@ -104,7 +106,7 @@ function installPlugin(pluginName, args) {
       cachePath: destDir.split(path.sep).join('/'),
       version: PLUGIN_VERSION,
       description: `${pluginName} plugin for ZCode`,
-      category: pluginName === 'dotnet-work' ? 'development' : 'workflow'
+      category: ({ 'dotnet-work': 'development', 'skill-radar': 'observability' })[pluginName] || 'workflow'
     };
     const idx = marketplace.plugins.findIndex(p => p.name === installName);
     if (idx >= 0) marketplace.plugins[idx] = entry;

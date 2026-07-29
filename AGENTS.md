@@ -73,15 +73,16 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - **Purpose**: skill observability — tool invocation tracing (Phase 1), aggregation (Phase 2), feedback (Phase 3), evolution (Phase 4).
 - **MVP scope (Phase 1)**: PostToolUse + PostToolUseFailure hooks → JSONL traces. No aggregation, no feedback loop.
 - **ZCode + CodeBuddy** supported. CodeBuddy uses shell wrapper (`run-hook.cmd` + `observe.sh`) with `CLAUDE_PLUGIN_ROOT` env var and `hookSpecificOutput` output format. Other platforms (Trae/Qoder/Qwen) marked `unsupported` until verified.
-- Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.json"`.
+- Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.zcode.json"`.
 - Storage: data dir resolved in order `ZCODE_PLUGIN_DATA` → `CODEBUDDY_PLUGIN_DATA` → `~/.skill-radar/`. Traces at `<data-dir>/traces/<YYYY-MM-DD>.jsonl`, signals at `<data-dir>/signals/<YYYY-MM-DD>.jsonl`, session at `<data-dir>/session.json`.
 - Session correlation: `SessionStart` generates uuid → `<data-dir>/session.json`; `log-invocation.js` reads it. CodeBuddy routes `session-start` → `session-start.js` via `observe.sh` dispatch (not `log-invocation.js`).
 - Manifest: `.codebuddy-plugin/plugin.json` is version source of truth; `.zcode-plugin/plugin.json` derived.
 - Hooks:
-  - `session-start.js` — SessionStart: generate + persist session_id.
+  - `session-start.js` — SessionStart: generate + persist session_id (原子写 tmp+rename，Windows rename 失败回退直写并清理 tmp)。
   - `log-invocation.js` — PostToolUse + PostToolUseFailure: append JSONL trace (with `skill` tag via `infer-skill.js`).
   - `stop-signal.js` — Stop: detect negative signal in last assistant message, append to `signals/<date>.jsonl`.
-  - `observe.sh` — CodeBuddy wrapper: dispatches `session-start`/`post-tool-use[-failure]`/`stop` to the matching Node script; normalizes kebab-case event args to canonical schema names.
+  - `observe.sh` — CodeBuddy wrapper: dispatches `session-start`/`post-tool-use[-failure]`/`stop` to the matching Node script; normalizes kebab-case event args to canonical schema names; **所有分支统一传 `--platform codebuddy`**（三个 hook 脚本据此输出 `hookSpecificOutput` 格式，缺省仍为 ZCode flat `{}`）。
+  - Hook stdin 读取统一走 `scripts/lib/read-stdin.js`（3s 硬超时 + destroy stdin）——平台不关 stdin 也不挂（CodeBuddy cmd→sh→node 链无平台侧 timeout）。
 - Trace schema:
   ```jsonc
   {
@@ -101,7 +102,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - Phase 2 (aggregation): `plugins/skill-radar/scripts/aggregate-traces.js` — reads JSONL traces, outputs console summary + JSON report. Supports `--days N`, `--json`, `--out <file>`, `--data-dir <path>`. Metrics: invocation count, success/failure rate, avg response size, unique sessions, **top errors grouped by category** (via `categorize-error.js`, so ENOENT on different paths collapses to one `not_found` row with a sample message), daily breakdown, **per-skill breakdown** (count/failure_rate/unique_sessions, grouped by trace-time `skill` tag).
 - Phase 3 (feedback scoring): `plugins/skill-radar/scripts/feedback-scoring.js` — reads traces + Stop signals, computes per-tool, **per-skill**, and per-session scores. Tool/skill score = 1 - failure_rate. Session score = failure-based score minus signal penalty (Stop hook detects error/incompleteness in last assistant message, each negative signal = -0.15 penalty, max -0.3). Stop hook strips code blocks/inline code/blockquotes and suppresses messages with resolution markers ("fixed"/"now passes"/"resolved") to reduce false positives. Supports `--days N`, `--json --out`, `--threshold`. Stop hook: `hooks/stop-signal.js` — writes to `signals/<date>.jsonl`, never blocks.
 - Phase 4 (evolution): `plugins/skill-radar/scripts/evolve.js` — reads traces + signals, identifies high-failure tools/skills, categorizes error patterns (permission/not_found/timeout/syntax/connection/resource/other), generates actionable recommendations. **Consumes Stop signals**: negative signals attributed to skills via session→skill mapping, surfaced as a note in skill recommendations. Skill inference shared via `scripts/lib/infer-skill.js` (single source of truth for trace-time tagging + offline analysis); covers dotnet-csharp-developer, dotnet-code-review, database-explorer, winforms-dev-flow, graph-workflow, agentic-workflow, skill-radar self-edits. Error categorization shared via `scripts/lib/categorize-error.js`; JSONL loading shared via `scripts/lib/load-jsonl.js` (UTC filename-date parsing — fixes local-tz boundary drift). Manual trigger (`node evolve.js`), human reviews before applying. Supports `--days N`, `--json --out`, `--threshold`. Output: per-tool + per-skill recommendations with severity (high/medium), dominant error pattern, negative signal count, and suggested action.
-- Retention: `plugins/skill-radar/scripts/cleanup-traces.js` — deletes traces/signals older than `--prune-days N` (UTC filename-date cutoff). `--dry-run` previews. Shared libs under `scripts/lib/` (`infer-skill.js`, `categorize-error.js`, `load-jsonl.js`).
+- Retention: `plugins/skill-radar/scripts/cleanup-traces.js` — deletes traces/signals older than `--prune-days N` (UTC filename-date cutoff). `--dry-run` previews. Shared libs under `scripts/lib/` (`infer-skill.js`, `categorize-error.js`, `load-jsonl.js`, `read-stdin.js`).
 
 ## graph-workflow
 
@@ -117,10 +118,11 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 - **Hooks**:
   - `validate-state-write` — PreToolUse (Write|Edit):写 `scripts/loop-state/*.json` 前做廉价前置校验(JSON 可解析 + 必填字段 + enum + version ∈ {1,2})。Edit 片段 / 非 state 文件 / 内部错误 fail-open 退出 0。非完整 schema,写完后仍须跑独立校验脚本。
 - **状态 schema**:`plugins/graph-workflow/scripts/state-schema.json` — version=1 单节点自环 / version=2 图编排。字段:task_id/task_type/objective/goal_criteria/iteration/phase/status/goal_met/progress_delta/review/graph/node_states/current_node/history 等。
+- **statectl 防护**:`scripts/statectl.sh` 写命令(create/ensure/set/patch/inc/append)持 mkdir 文件锁(死锁自愈、超时 exit 75)，写前做 enum/类型廉价校验(不合法拒写，非完整 schema，权威校验仍靠 `node scripts/validate-state.js`)；`create` 对既有非空 state 默认拒绝覆盖(exit 73)，重建需显式 `--force`，两入口脚本(loop-task.sh/graph-run.sh)对 create 失败即退。
 - **运行时产物**:`scripts/loop-state/task-*.json` + `.loop-marker` — 已被根 `.gitignore` 忽略(G-003 修复)。勿手动提交。
 - **复盘命令**:`commands/loop-review.md` — 扫描 loop-state 输出汇总(完成/转人工/进行中)。底层脚本 `scripts/loop-review.sh`。
 - **安全红线**:executor/fixer 受 bash 白名单约束(禁止通用解释器裸调用 `node`/`python -e`、不可逆删除、远程推送/历史改写、提权等)。白名单外命令需推进时 → 设 `status:"blocked"` + `blocker` 交人工。
-- **版本**:`0.1.0`(early development)。
+- **版本**:`0.1.1`(early development)。
 
 ## Skills
 
@@ -134,7 +136,15 @@ agentic-workflow 当前无独立 skill。此前的 `scope-drift-detector` 与 `r
 
 ## Hooks
 
-事件驱动自动化，写在 `plugins/<name>/hooks/hooks.json` + `plugins/<name>/hooks/*.js`。ZCode manifest 通过 `"hooks": "hooks/hooks.json"` 字段声明。
+事件驱动自动化，写在 `plugins/<name>/hooks/hooks.<platform>.json` + `plugins/<name>/hooks/*.js`。ZCode manifest 通过 `"hooks": "hooks/hooks.zcode.json"` 字段声明（全部插件已按平台后缀统一命名，仓库源目录不再存在无后缀的 `hooks.json`）。
+
+**平台覆盖**：agentic-workflow 的 hooks 已支持 **ZCode + CodeBuddy + Qwen Code + Trae + Qoder** 全部五平台，同一组 Node 脚本、五份平台配置：
+
+- ZCode：`hooks/hooks.zcode.json`（`type: "process"` + `${ZCODE_PLUGIN_ROOT}`），`.zcode-plugin/plugin.json` 通过 `"hooks": "hooks/hooks.zcode.json"` 声明。
+- CodeBuddy：`hooks/hooks.codebuddy.json`（`type: "command"` + `node "${CODEBUDDY_PLUGIN_ROOT}/hooks/X.js"`），`.codebuddy-plugin/plugin.json` 声明。CodeBuddy 在 Windows 强制用 Git Bash 执行 command hook，Node 脚本直调即可无需 wrapper；退出码 2 + stderr 即阻断（PreToolUse 拦工具 / Stop 拦停止），与脚本既有契约一致。
+- Qwen Code：`hooks/hooks.qwencode.json`（**顶层事件键**，无 `hooks` 包裹层；`type: "command"` + `node "${CLAUDE_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 毫秒），`.qwen-plugin/qwen-extension.json` 通过 `"hooks": "hooks/hooks.qwencode.json"` 声明。要点：file-based hook 文件里**只有 `${CLAUDE_PLUGIN_ROOT}`** 会被替换（`${extensionPath}` 等不生效）；PreToolUse matcher 用 Qwen 工具名 `WriteFile|Edit`；退出码 2 + stderr 阻断，契约同上。`install-qwencode.js` 选择性拷贝 hooks/（仅 `*.js` + `hooks.qwencode.json`），避免其他平台配置变体落入 Qwen 自动发现路径。
+- Trae：`hooks/hooks.trae.json`（**模板**，非直接加载）—— Trae 没有插件级 hooks，只认全局 `~/.trae-cn/hooks.json` / 项目 `.trae/hooks.json`，且命令里无 PLUGIN_ROOT 变量。`install-trae.js` 安装时把模板的 `${TRAE_PLUGIN_ROOT}` 替换为实际安装目录后**幂等合并**进全局 hooks.json（自有条目按 `agentic-workflow-trae` 路径标记识别，重装先剔除再追加，卸载同标记移除）。Trae 在 Windows 默认用 PowerShell 跑 command hook，Node 直调可用；timeout 单位秒；工具名就是 `Write|Edit`；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），Stop 额外有 `loop_limit`（默认5）防无限阻断循环。注意：全局 hook 对本机所有工作区生效，脚本对非 pipeline 项目 fail-open（无 `.loop-cli/state/` 即退 0），不干扰其他项目。
+- Qoder：`hooks/hooks.qoder.json`（**包裹格式** `{ "hooks": ... }` + `node "${QODER_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 秒），`.qoder-plugin/plugin.json` 通过 `"hooks": "hooks/hooks.qoder.json"` 显式声明（manifest 支持覆盖目录约定，同 `agents` 字段机制），仓库源目录可直接 `qodercli plugins install`。`install-qoder.js` 拷贝时额外落一份 `hooks/hooks.json`（目录约定自动发现，双保险；选择性拷贝排除其余四平台变体）。**激活前提**：Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件（`~/.qoder/plugins/` 是注册表+cache，非扫描目录），纯拷贝不生效，须 `qodercli plugins install <dir>` 注册（影响整个插件而非仅 hooks，install-qoder.js 尾注已提示）。工具名就是 `Write|Edit`；`${QODER_PLUGIN_ROOT}` 在 bash 下由 shell 运行时展开、PowerShell 下由 CLI 预替换；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），契约同上。至此**五平台 hook 强制全覆盖**。
 
 当前 agentic-workflow 的 hooks：
 
@@ -167,6 +177,7 @@ agentic-workflow 当前**未使用** ZCode userConfig。此前的表格（`max_c
 - Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode/trae/qoder).
 - Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/`, `plugins/<name>/.zcode-plugin/`, `plugins/<name>/.trae-plugin/`, or `plugins/<name>/.qoder-plugin/`.
 - 所有平台安装目标统一为 `agents/`（平台根目录）。
+- **Qoder 特例**：`install-qoder.js` 的拷贝仅是暂存 —— Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，需 `qodercli plugins install <dir>` 激活（脚本收尾已提示；待修项见 reports/audit-2026-07-29-06.md 后记 P1-Q1）。
 - 源目录为 `<platform>/agents/`，安装时通过 RENAME_MAP 展平为 `agents/`。
 - CodeBuddy manifest 指向 `codebuddy/agents`，materialize 时 overlay 到 `agents/`。
 
@@ -199,19 +210,21 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 ## Shared documents
 
-`agents/_shared/` holds cross-agent reference material (the platforms only scan top-level files in `agents/` and `commands/`, so `_shared/` is safely ignored):
+Plugin-root `_shared/` (e.g. `plugins/agentic-workflow/_shared/`) holds cross-agent reference material (the platforms only scan top-level files in `agents/` and `commands/`, so `_shared/` is safely ignored):
 
-- `agents/_shared/decomposition.md` — task complexity estimation & decomposition rules, referenced by `coding-orchestrator.md`, `ralph-orchestrator.md`, and the three command templates.
-- `agents/_shared/field-map.md` — state JSON field ↔ `=== X ===` injection mapping for each loop variant.
+- `_shared/decomposition.md` — task complexity estimation & decomposition rules, referenced by `coding-orchestrator.md`, `ralph-orchestrator.md`, and the three command templates.
+- `_shared/field-map.md` — state JSON field ↔ `=== X ===` injection mapping for each loop variant.
+
+Orchestrator bodies reference these via `../_shared/` — 这个相对路径以**安装后布局**为准(install/materialize 将 `<platform>/agents/` 展平为根 `agents/`、`_shared/` 拷到根同级，`../_shared/` 正确解析)。仓库内从 `<platform>/agents/` 浏览时断链为已知且可接受，勿改为 `../../_shared/`(会弄断全部五平台安装布局)。
 
 ## Versioning
 
-- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `.trae-plugin/plugin.json`, `.qoder-plugin/plugin.json`, `.qwen-plugin/qwen-extension.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry) are derived from it.
+- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `.trae-plugin/plugin.json`, `.qoder-plugin/plugin.json`, `.qwen-plugin/qwen-extension.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry, root `marketplace.json` `<plugin>-zcode` entry) are derived from it.
 - **Bump with one command**: `node scripts/bump-version.js --plugin <name> --set <new-version>` updates the manifest and propagates to all sites. Without `--set`, the script syncs all sites to match the manifest (idempotent).
 - **Check in CI**: `node scripts/bump-version.js --all --check` exits non-zero on drift. Run before committing.
 - **Install scripts** (`install-zcode.js`, `install-codebuddy.js`, `install-trae.js`, `install-qoder.js`, `install-qwencode.js`) read the version from the manifest at runtime via `lib/plugin-version.js` — never hardcode `PLUGIN_VERSION`.
 - Bump the version on **any** skill content change (new rule, breaking SKILL.md rewrite, new reference file). Patch (0.1.0 → 0.1.1) for fixes/minor additions; minor (0.1.x → 0.2.0) for new features; major (0.x → 1.0.0) only when declaring stable.
-- `0.x` = early development (current: `0.1.0`). `1.0.0+` = declared stable. Do not declare `1.0.0` while known integrity gaps exist.
+- `0.x` = early development. `1.0.0+` = declared stable. Do not declare `1.0.0` while known integrity gaps exist.
 
 ## Marketplace
 

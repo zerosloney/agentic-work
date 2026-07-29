@@ -92,7 +92,7 @@ graph-workflow/
     ├── graph-run.sh       # Graph 入口 + 外层图遍历(version=2)
     ├── loop-helpers.sh    # 共享硬约束 + VCS 抽象
     ├── loop-review.sh     # 复盘汇总
-    ├── statectl.sh        # 状态读写助手(含 graph-next 边路由)
+    ├── statectl.sh        # 状态读写助手(graph-next 边路由;写命令持文件锁+写前 enum 校验;create 默认拒绝覆盖既有 state,重建需 --force)
     └── state-schema.json  # 状态文件 schema
 ```
 
