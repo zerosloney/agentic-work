@@ -16,3 +16,4 @@ loop-state/
 __pycache__/
 obj/
 bin/
+reports/
