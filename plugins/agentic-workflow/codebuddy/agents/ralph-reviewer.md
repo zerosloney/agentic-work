@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: ralph-reviewer
 description: Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。
@@ -7,7 +7,7 @@ permissionMode: plan
 
 <!--
   codebuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
-  body 必须与 ../agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
 
   permissionMode: plan —— 只读审查。CodeBuddy plan 模式禁止写操作。
   root 版允许 test/lint/typecheck 等只读验证命令，CodeBuddy 单值枚举无法表达；

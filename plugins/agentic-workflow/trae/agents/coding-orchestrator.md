@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: coding-orchestrator
 description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。

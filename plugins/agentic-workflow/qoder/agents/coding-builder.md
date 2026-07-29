@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: coding-builder
 description: Coding-Pipeline 受控编码 Builder：声明 scope 内编码、按根因分组修复、真实验证。
@@ -7,7 +7,7 @@ permissionMode: acceptEdits
 
 <!--
   qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
-  body 必须与 ../agents/coding-builder.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/coding-builder.md 保持一致。如修改 body，请同时更新两侧。
 
   permissionMode: acceptEdits —— Qoder 单值枚举，允许编辑和 bash 执行。
   Qoder 不支持嵌套 permission 块、mode/temperature/steps 字段。

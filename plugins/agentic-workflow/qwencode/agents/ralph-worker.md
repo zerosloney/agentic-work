@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: ralph-worker
 description: Ralph Pipeline 执行者：单任务执行、运行验证、原样回报。
@@ -19,7 +19,7 @@ tools:
 
 <!--
   qwencode 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 允许列表）。
-  body 必须与 ../agents/ralph-worker.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/ralph-worker.md 保持一致。如修改 body，请同时更新两侧。
 
   approvalMode: auto-edit —— 工具自动批准，无需提示（全权限执行者模式）。
   tools: 显式允许列表。

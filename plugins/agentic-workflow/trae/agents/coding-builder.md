@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: coding-builder
 description: Coding-Pipeline 受控编码 Builder：声明 scope 内编码、按根因分组修复、真实验证。
@@ -23,7 +23,7 @@ permission:
 
 <!--
   trae 适配版。frontmatter 已转换为 Trae 兼容字段（platform: trae + 嵌套 permission）。
-  body 必须与 ../agents/coding-builder.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/coding-builder.md 保持一致。如修改 body，请同时更新两侧。
 
   platform: trae —— Trae IDE 识别此标记，启用嵌套 permission 块。
   Trae 支持 mode/temperature/steps 字段，语义与 ZCode 版相同。

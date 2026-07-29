@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/coding-reviewer.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/coding-reviewer.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: coding-reviewer
 description: Coding-Pipeline 只读审查 Agent：scope drift 检测、根因归并、verdict 输出。
@@ -7,7 +7,7 @@ permissionMode: plan
 
 <!--
   codebuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
-  body 必须与 ../agents/coding-reviewer.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/coding-reviewer.md 保持一致。如修改 body，请同时更新两侧。
 
   permissionMode: plan —— 只读审查，CodeBuddy 的 plan 模式禁止任何写操作，只允许读和分析。
   root 版使用嵌套 permission 块做精细 bash 白名单（diff/show/lint/typecheck/test 等），

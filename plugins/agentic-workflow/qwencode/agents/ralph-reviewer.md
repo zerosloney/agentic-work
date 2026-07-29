@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: ralph-reviewer
 description: Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。
@@ -14,7 +14,7 @@ tools:
 
 <!--
   qwencode 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 允许列表）。
-  body 必须与 ../agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
+  body 必须与 zcode/agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
 
   approvalMode: plan —— 仅分析模式，代理计划但不执行更改（只读审查）。
   tools: 显式只读工具列表。

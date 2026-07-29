@@ -1,4 +1,4 @@
-<!-- sync: 与 agents/ralph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+﻿<!-- sync: 与 zcode/agents/ralph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
 ---
 name: ralph-orchestrator
 description: Ralph 主控 Agent：TaskList 编排，背压熔断门禁决定停止。
