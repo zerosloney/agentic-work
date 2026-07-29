@@ -8,7 +8,7 @@
 name: graph-workflow-fixer
 description: "修复者Agent(Loop 闭环)——reviewer 未过或提改动时,做最小必要修复并回到执行。有完整文件读写和 shell 权限。"
 tools: Bash, Read, Glob, Grep, Edit, Write
-permissionMode: auto-edit
+permissionMode: acceptEdits
 ---
 
 # fixer

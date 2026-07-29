@@ -7,7 +7,7 @@
 ---
 name: graph-workflow-orchestrator
 description: "编排者Agent(Loop 闭环决策层)——读状态拆步骤,委派子代理(executor/reviewer/fixer)跑内层闭环,判 DONE 写状态。只读业务代码,不直接执行产出。"
-permissionMode: plan
+permissionMode: default
 ---
 
 # orchestrator

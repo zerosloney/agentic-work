@@ -7,7 +7,7 @@
 ---
 name: graph-workflow-graph-orchestrator
 description: "图编排者Agent(Graph 闭环决策层,档位 B)——读 state.graph 拓扑并按边路由,委派图节点的 executor/reviewer/fixer 跑串行闭环,判 __done__/__abort__ 写状态。仅作为图的执行器,不决定图拓扑。"
-permissionMode: plan
+permissionMode: default
 ---
 
 # graph-orchestrator

@@ -15,6 +15,7 @@ tools:
   - glob
   - grep_search
   - list_directory
+  - run_shell_command
   - task
 ---
 

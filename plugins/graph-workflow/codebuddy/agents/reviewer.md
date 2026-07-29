@@ -7,7 +7,7 @@
 name: graph-workflow-reviewer
 description: "审查者Agent(Loop 闭环)——跑测试/编译/静态检查做确定性验证,叠加语义审查(质量/架构/边界),写回 status/goal_met/review。只读业务代码。"
 tools: Bash, Read, Glob, Grep
-permissionMode: plan
+permissionMode: default
 ---
 
 # reviewer

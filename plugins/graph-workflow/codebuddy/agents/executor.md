@@ -8,7 +8,7 @@
 name: graph-workflow-executor
 description: "执行者Agent(Loop 闭环)——按编排者给的 plan 实际执行改动(写代码/改文件/跑命令),写回 progress_delta。有完整文件读写和 shell 权限。"
 tools: Bash, Read, Glob, Grep, Edit, Write
-permissionMode: auto-edit
+permissionMode: acceptEdits
 ---
 
 # executor
