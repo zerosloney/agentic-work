@@ -2,6 +2,12 @@
   "name": "dotnet-work-trae",
   "version": "1.0.0",
   "description": ".NET development skills for Trae (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "network"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"
@@ -9,6 +15,10 @@
   "homepage": "https://github.com/zerosloney/agentic-work",
   "repository": "https://github.com/zerosloney/agentic-work",
   "license": "MIT",
-  "keywords": ["dotnet", "csharp", "skills"],
+  "keywords": [
+    "dotnet",
+    "csharp",
+    "skills"
+  ],
   "skills": "skills"
 }

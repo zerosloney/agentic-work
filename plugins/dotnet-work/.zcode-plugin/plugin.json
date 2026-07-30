@@ -2,6 +2,12 @@
   "name": "dotnet-work-zcode",
   "version": "1.0.0",
   "description": ".NET development skills for ZCode (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "network"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"

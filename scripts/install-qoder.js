@@ -24,7 +24,7 @@ const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.qoder', 'plugins');
-const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow'];
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow', 'skill-radar'];
 const SUBDIRS = ['.qoder-plugin', 'skills', 'commands', 'qoder/agents', '_shared', 'scripts'];
 // Source subdir → destination dirname (when they differ)
 const RENAME_MAP = { 'qoder/agents': 'agents' };

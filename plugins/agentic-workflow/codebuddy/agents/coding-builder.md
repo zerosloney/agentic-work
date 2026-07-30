@@ -1,16 +1,14 @@
-﻿<!-- sync: 与 zcode/agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/coding-builder.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  CodeBuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: coding-builder
-description: Coding-Pipeline 受控编码 Builder：声明 scope 内编码、按根因分组修复、真实验证。
+description: "Coding-Pipeline 受控编码 Builder：声明 scope 内编码、按根因分组修复、真实验证。"
+tools: Bash, Read, Glob, Grep, Edit, Write
 permissionMode: acceptEdits
 ---
-
-<!--
-  codebuddy 适配版。frontmatter 已转换为 CodeBuddy 兼容字段（permissionMode 单值）。
-  body 必须与 zcode/agents/coding-builder.md 保持一致。如修改 body，请同时更新两侧。
--->
-
-
 
 ## 角色
 

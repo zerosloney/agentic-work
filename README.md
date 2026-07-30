@@ -9,9 +9,9 @@ Multi-platform AI-coding plugins for **ZCode, CodeBuddy, Trae, Qoder, Qwen Code*
 | `dotnet-work` | skills (C# / WinForms / .NET review / DB explore) | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `agentic-workflow` | agents + commands (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `graph-workflow` | agents + commands (Loop + Graph Engineering, unattended) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `skill-radar` | hooks (skill observability: trace → aggregate → score → evolve) | ✓ | ✓ | — | — | — |
+| `skill-radar` | hooks (skill observability: trace → aggregate → score → evolve) | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-Coverage reflects what the install scripts actually register. `skill-radar` is ZCode + CodeBuddy only for now (Trae/Qoder/Qwen install not yet wired — tracked as a known gap).
+Coverage reflects what the install scripts actually register. `skill-radar` reached five-platform parity on 2026-07-30 (Trae hooks merge into the project-level `.trae/hooks.json` by default; Qoder auto-discovers the wrapper config as `hooks.json`; Qwen Code uses top-level event keys).
 
 ## Per-plugin docs
 
@@ -46,7 +46,7 @@ node scripts/install-zcode.js --dry-run
 node scripts/install-zcode.js --uninstall
 ```
 
-> Note: `install-trae/qoder/qwencode` install **`dotnet-work` + `agentic-workflow` + `graph-workflow`** (the three full-coverage plugins). `skill-radar` is not registered there yet.
+> Note: `install-trae/qoder/qwencode` install all four plugins including `skill-radar`. Trae hooks are **project-scoped by default** (merged into `<project>/.trae/hooks.json` when a project root is detectable from cwd); pass `--global` to write the machine-wide `~/.trae-cn/hooks.json`, or `--project-only` to fail when no project root is found.
 
 ### From npm
 
@@ -78,10 +78,32 @@ Version sync check (`.codebuddy-plugin/plugin.json` version is authoritative):
 node scripts/bump-version.js --all --check    # exits non-zero on drift
 ```
 
+Manifest / frontmatter / dependency checks (all must exit 0):
+
+```sh
+node scripts/validate-manifest.js                 # schema + capabilities + version consistency
+node scripts/generate-platform-agents.js --check  # agent frontmatter vs derived profiles
+node scripts/resolve-deps.js                      # deps existence / semver / cycles
+```
+
 State-file validation (agentic-workflow + graph-workflow):
 
 ```sh
 node scripts/validate-state.js .loop-cli/state/coding-pipeline.json
+```
+
+State v1→v2 migration (both state families, auto-detected; writes `.bak` first):
+
+```sh
+node scripts/migrate-state.js <state-file> --dry-run   # preview
+node scripts/migrate-state.js <state-file>             # in-place
+```
+
+Secret storage for `sensitive` plugin config (env var → OS keychain):
+
+```sh
+node scripts/lib/secret-store.js set my-plugin.api_key <value>
+node scripts/lib/secret-store.js get my-plugin.api_key
 ```
 
 ## Marketplace

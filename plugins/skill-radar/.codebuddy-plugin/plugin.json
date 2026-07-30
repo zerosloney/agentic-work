@@ -2,6 +2,12 @@
   "name": "skill-radar-codebuddy",
   "version": "0.2.0",
   "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "hooks",
+    "env-access"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"

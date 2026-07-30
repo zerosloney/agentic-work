@@ -2,6 +2,13 @@
   "name": "graph-workflow-qoder",
   "version": "0.1.1",
   "description": "Graph Workflow — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作) for Qoder.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"

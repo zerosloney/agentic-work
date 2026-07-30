@@ -1,0 +1,57 @@
+{
+  "SessionStart": [
+    {
+      "matcher": "startup|resume|clear|compact",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js\" --platform qwencode",
+          "name": "skill-radar-session-start",
+          "description": "Generate and persist a session id for trace correlation; observability-only, never blocks",
+          "timeout": 10000
+        }
+      ]
+    }
+  ],
+  "PostToolUse": [
+    {
+      "matcher": "WriteFile|Edit|Bash|Shell",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform qwencode",
+          "name": "skill-radar-log-invocation",
+          "description": "Append a JSONL trace for this tool invocation; exits 0 on any error",
+          "timeout": 5000
+        }
+      ]
+    }
+  ],
+  "PostToolUseFailure": [
+    {
+      "matcher": "WriteFile|Edit|Bash|Shell",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform qwencode",
+          "name": "skill-radar-log-failure",
+          "description": "Append a JSONL trace for this failed tool invocation; exits 0 on any error",
+          "timeout": 5000
+        }
+      ]
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-signal.js\" --platform qwencode",
+          "name": "skill-radar-stop-signal",
+          "description": "Detect negative signal in the last assistant message and append to signals log; never blocks",
+          "timeout": 5000
+        }
+      ]
+    }
+  ]
+}

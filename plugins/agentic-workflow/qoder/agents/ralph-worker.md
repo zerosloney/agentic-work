@@ -1,19 +1,14 @@
-﻿<!-- sync: 与 zcode/agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: ralph-worker
-description: Ralph Pipeline 执行者：单任务执行、运行验证、原样回报。
+description: "Ralph Pipeline 执行者：单任务执行、运行验证、原样回报。"
+tools: Bash, Read, Glob, Grep, Edit, Write
 permissionMode: acceptEdits
 ---
-
-<!--
-  qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
-  body 必须与 zcode/agents/ralph-worker.md 保持一致。如修改 body，请同时更新两侧。
-
-  permissionMode: acceptEdits —— Qoder 单值枚举，允许编辑和 bash 执行。
-  Qoder 不支持嵌套 permission 块、mode/temperature/steps 字段。
--->
-
-
 
 ## 角色
 

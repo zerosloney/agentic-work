@@ -106,7 +106,14 @@ resolution markers ("fixed", "now passes", "resolved", "no longer fails").
 |----------|--------|-------|
 | ZCode | ✅ | Native `process` hooks, `${ZCODE_PLUGIN_ROOT}` |
 | CodeBuddy | ✅ | Shell wrapper (`run-hook.cmd` + `observe.sh`), `hookSpecificOutput` |
-| Trae / Qoder / Qwen Code | ⚠️ unsupported | Not verified yet |
+| Trae | ✅ | `hooks.trae.json` template; install-trae.js merges into project-level `.trae/hooks.json` by default (`--global` for machine-wide) |
+| Qoder | ✅ | `hooks.qoder.json` wrapper format; install copies it as `hooks/hooks.json` for auto-discovery |
+| Qwen Code | ✅ | `hooks.qwencode.json` top-level event keys, declared via `qwen-extension.json` |
+
+All hook scripts accept `--platform <name>`; non-CodeBuddy platforms emit flat `{}`.
+Skill attribution is two-layered: curated rules + dynamic discovery
+(`scripts/lib/discover-skills.js`) — new `skills/<name>/` directories are
+observed automatically via a cached skill map at `<data-dir>/skill-map.json`.
 
 ## Design constraints
 

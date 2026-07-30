@@ -1,7 +1,11 @@
-﻿<!-- sync: 与 zcode/agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Qwen Code 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 列表）。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: coding-orchestrator
-description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。
+description: "Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。"
 model: inherit
 approvalMode: default
 tools:
@@ -10,6 +14,7 @@ tools:
   - glob
   - grep_search
   - list_directory
+  - run_shell_command
   - task
 ---
 

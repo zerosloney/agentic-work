@@ -1,11 +1,12 @@
-﻿<!-- sync: 与 zcode/agents/ralph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/ralph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Trae 适配版。frontmatter = ZCode 嵌套 permission + platform: trae 标记。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: ralph-orchestrator
-description: Ralph 主控 Agent：TaskList 编排，背压熔断门禁决定停止。
-mode: subagent
-temperature: 0.3
-steps: 60
 platform: trae
+description: Ralph 主控 Agent：TaskList 编排，背压熔断门禁决定停止。
 permission:
   edit: deny
   bash:

@@ -103,7 +103,9 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 
 - **Purpose**: skill observability — tool invocation tracing (Phase 1), aggregation (Phase 2), feedback (Phase 3), evolution (Phase 4).
 - **MVP scope (Phase 1)**: PostToolUse + PostToolUseFailure hooks → JSONL traces. No aggregation, no feedback loop.
-- **ZCode + CodeBuddy** supported. CodeBuddy uses shell wrapper (`run-hook.cmd` + `observe.sh`) with `CLAUDE_PLUGIN_ROOT` env var and `hookSpecificOutput` output format. Other platforms (Trae/Qoder/Qwen) marked `unsupported` until verified.
+- **五平台全覆盖（2026-07-30 补齐）**：ZCode（`process` hooks）+ CodeBuddy（shell wrapper `run-hook.cmd` + `observe.sh`，`hookSpecificOutput` 格式）+ Trae（`hooks.trae.json` 模板，install-trae.js 合并到项目级 `.trae/hooks.json`）+ Qoder（`hooks.qoder.json` 包裹格式，install 时双保险拷贝为 `hooks.json`）+ Qwen Code（`hooks.qwencode.json` 顶层事件键）。三个 Node 脚本统一接 `--platform <name>`；非 CodeBuddy 平台一律输出 flat `{}`。
+- **运行时依赖**：hooks 脚本 `require ../scripts/lib/{infer-skill,read-stdin,discover-skills}.js` —— install 脚本必须拷贝 `scripts/` 目录（trae/qoder/qwencode 均已包含）。
+- **Skill 推断双层架构（P1-7）**：`scripts/lib/infer-skill.js` = curated 规则（手工调优的 bash/扩展名/插件路径模式）+ `scripts/lib/discover-skills.js` 动态发现层（扫描 `plugins/*/skills/<name>/SKILL.md`，自动生成 path 规则 + 全词 bash hints，缓存到 `<data-dir>/skill-map.json`，按插件树 fingerprint 失效）。新 skill 无需改 infer-skill 即可被观测；发现失败静默回退到 curated 规则。
 - Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.zcode.json"`.
 - Storage: data dir resolved in order `ZCODE_PLUGIN_DATA` → `CODEBUDDY_PLUGIN_DATA` → `~/.skill-radar/`. Traces at `<data-dir>/traces/<YYYY-MM-DD>.jsonl`, signals at `<data-dir>/signals/<YYYY-MM-DD>.jsonl`, session at `<data-dir>/session.json`.
 - Session correlation: `SessionStart` generates uuid → `<data-dir>/session.json`; `log-invocation.js` reads it. CodeBuddy routes `session-start` → `session-start.js` via `observe.sh` dispatch (not `log-invocation.js`).
@@ -207,6 +209,7 @@ agentic-workflow 当前**未使用** ZCode userConfig。此前的表格（`max_c
 - They MUST be idempotent: re-running install replaces existing content.
 - Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode/trae/qoder).
 - Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/`, `plugins/<name>/.zcode-plugin/`, `plugins/<name>/.trae-plugin/`, or `plugins/<name>/.qoder-plugin/`.
+- **install-trae.js hooks 作用域（P1-4，2026-07-30 变更）**：默认项目级优先——从 cwd 上溯找到项目根（`.git`/`package.json`/`.trae`）则合并到 `<root>/.trae/hooks.json`；找不到项目根才回退全局 `~/.trae-cn/hooks.json` 并打印警告。`--project-only` 强制项目级（无项目根报错），`--global` 显式写全局。卸载按同一作用域解析移除标记条目。
 - 所有平台安装目标统一为 `agents/`（平台根目录）。
 - **Qoder 特例**：`install-qoder.js` 的拷贝仅是暂存 —— Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，需 `qodercli plugins install <dir>` 激活（脚本收尾已提示；待修项见 reports/audit-2026-07-29-06.md 后记 P1-Q1）。
 - 源目录为 `<platform>/agents/`，安装时通过 RENAME_MAP 展平为 `agents/`。
@@ -226,6 +229,23 @@ node scripts/materialize-codebuddy.js --dry-run
 ```
 
 All must exit 0 without writing any files.
+
+Manifest + platform frontmatter + dependency checks (all must exit 0):
+
+```sh
+node scripts/validate-manifest.js            # plugin.json schema + capabilities + hooks file shape + cross-platform version consistency
+node scripts/generate-platform-agents.js --check   # agent frontmatter drift vs derived profiles
+node scripts/resolve-deps.js                 # dependency existence / semver range / cycle detection
+```
+
+## Repo tooling (added 2026-07-30)
+
+- **`scripts/validate-manifest.js`** (P0-1) — JSON Schema-ish validation of every `.<platform>-plugin/` manifest: name pattern, semver version, component path existence, hooks file shape per platform (qwen = top-level event keys), `capabilities` enum (P1-5), cross-platform version consistency with `.codebuddy-plugin` as authoritative source (P1-1). `--plugin <name>` / `--strict`.
+- **`scripts/migrate-state.js`** (P0-2) — state v1→v2 migration for BOTH state families, auto-detected: graph-workflow `loop-state/task-*.json` (injects DEFAULT_GRAPH, phase→current_node) and agentic-workflow `.loop-cli/state/ralph-pipeline.json` (tasks[]→nodes{} + recomputed active_set). `--dry-run` / `--out` / `--no-backup`; in-place writes a `.bak` first.
+- **`scripts/generate-platform-agents.js`** (P1-2) — declarative platform adapter: derives each zcode agent's permission PROFILE (editor/orchestrator/reviewer) from its nested `permission:` block and generates/validates the four other platforms' frontmatter. `--check` (CI) / `--write` (regenerate; body always taken from zcode baseline, description preserved per platform).
+- **`scripts/resolve-deps.js`** (P1-6) — plugin dependency resolution: spec parsing (`name[@market][@range]`), existence in marketplaces/repo, mini-semver range match (`^ ~ >= <= > < = *`), cross-marketplace allow-list check, cycle detection (three-color DFS). `--plugin` / `--json`.
+- **`scripts/lib/secret-store.js`** (P1-3) — cross-platform secret storage for `sensitive: true` userConfig. Resolution: env var (key uppercased, non-alnum→`_`) → OS keychain (Windows Credential Manager via CredRead/CredWrite P/Invoke; macOS `security`; Linux `secret-tool`). Credential target `agentic-work:<key>`. CLI: `get|set|delete|has <key> [value]`; library: `getSecret/setSecret/deleteSecret`.
+- **`capabilities` 字段约定（P1-5）**：每个 manifest 必须声明，enum：`file-read`/`file-write`/`bash-exec`/`network`/`hooks`/`agents`/`mcp`/`env-access`。validate-manifest 校验；marketplace/宿主可在安装时向用户展示。
 
 ## State validation
 

@@ -1,20 +1,14 @@
-﻿<!-- sync: 与 zcode/agents/coding-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/coding-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: coding-reviewer
-description: Coding-Pipeline 只读审查 Agent：scope drift 检测、根因归并、verdict 输出。
-permissionMode: plan
+description: "Coding-Pipeline 只读审查 Agent：scope drift 检测、根因归并、verdict 输出。"
+tools: Bash, Read, Glob, Grep
+permissionMode: default
 ---
-
-<!--
-  qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
-  body 必须与 zcode/agents/coding-reviewer.md 保持一致。如修改 body，请同时更新两侧。
-
-  permissionMode: plan —— Qoder 单值枚举，只读审查模式（禁止写操作）。
-  Qoder 不支持嵌套 permission 块、mode/temperature/steps 字段。
-  此处接受"全只读"的粗粒度权限。
--->
-
-
 
 ## 角色
 

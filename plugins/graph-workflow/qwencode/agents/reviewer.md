@@ -1,12 +1,11 @@
 <!-- sync: 与 zcode/agents/reviewer.md 保持同步，仅 frontmatter 不同 -->
 <!--
   Qwen Code 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 列表）。
-  body 必须与 zcode/agents/reviewer.md 保持一致。如修改 body，请同时更新两侧。
-  已知 trade-off：approvalMode 单值无法表达 ZCode 版的 bash 白名单，命令红线仅靠 body 约束。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
 -->
 ---
 name: graph-workflow-reviewer
-description: "审查者Agent(Loop 闭环)——跑测试/编译/静态检查做确定性验证,叠加语义审查(质量/架构/边界),写回 status/goal_met/review。只读业务代码。"
+description: "Loop Engineering 审查者——跑测试/编译/静态检查做确定性验证,叠加语义审查(质量/架构/边界),写回 status/goal_met/review。只读业务代码。"
 model: inherit
 approvalMode: default
 tools:

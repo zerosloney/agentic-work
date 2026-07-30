@@ -1,12 +1,11 @@
 <!-- sync: 与 zcode/agents/executor.md 保持同步，仅 frontmatter 不同 -->
 <!--
   Qwen Code 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 列表）。
-  body 必须与 zcode/agents/executor.md 保持一致。如修改 body，请同时更新两侧。
-  已知 trade-off：approvalMode 单值无法表达 ZCode 版的 bash 白名单，命令红线仅靠 body 约束。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
 -->
 ---
 name: graph-workflow-executor
-description: "执行者Agent(Loop 闭环)——按编排者给的 plan 实际执行改动(写代码/改文件/跑命令),写回 progress_delta。有完整文件读写和 shell 权限。"
+description: "Loop Engineering 执行者——按编排者给的 plan 实际执行改动(写代码/改文件/跑命令),写回 progress_delta。有完整文件读写权限,bash 受白名单约束。"
 model: inherit
 approvalMode: auto-edit
 tools:

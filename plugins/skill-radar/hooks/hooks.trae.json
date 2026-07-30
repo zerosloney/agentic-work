@@ -1,0 +1,53 @@
+{
+  "description": "Skill Radar — skill observability hooks (Trae). TEMPLATE, not loaded by Trae directly: Trae has no plugin-level hooks, so install-trae.js substitutes ${TRAE_PLUGIN_ROOT} with the installed plugin root at install time and merges the hooks map into the project-level .trae/hooks.json (preferred, --project-only) or the global ~/.trae-cn/hooks.json (explicit --global only). Own entries are identified by the 'skill-radar-trae' path marker for idempotent re-install and uninstall. Trae runs command hooks in the system default shell (PowerShell on Windows); timeout is in seconds. All hooks are observability-only: they exit 0 on any error and never block, so no Stop loop_limit risk.",
+  "version": 1,
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/session-start.js\" --platform trae",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform trae",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform trae",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/stop-signal.js\" --platform trae",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

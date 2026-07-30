@@ -1,0 +1,52 @@
+{
+  "description": "Skill Radar — skill observability hooks (Qoder). Wrapper format, same Node scripts as the ZCode variant. install-qoder.js copies this file to hooks/hooks.json in the install dir, where Qoder auto-discovers it. ${QODER_PLUGIN_ROOT} is injected as env var (bash) or pre-substituted (PowerShell); timeout unit is seconds. All hooks are observability-only: they exit 0 on any error and never block.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/session-start.js\" --platform qoder",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform qoder",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/log-invocation.js\" --platform qoder",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/stop-signal.js\" --platform qoder",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

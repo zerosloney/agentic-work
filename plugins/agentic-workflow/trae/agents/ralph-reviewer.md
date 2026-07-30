@@ -1,11 +1,12 @@
-﻿<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Trae 适配版。frontmatter = ZCode 嵌套 permission + platform: trae 标记。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: ralph-reviewer
-description: Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。
-mode: subagent
-temperature: 0.1
-steps: 30
 platform: trae
+description: Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。
 permission:
   edit: deny
   bash:
@@ -29,17 +30,6 @@ permission:
     "*": deny
     "*-review": allow
 ---
-
-<!--
-  trae 适配版。frontmatter 已转换为 Trae 兼容字段（platform: trae + 嵌套 permission）。
-  body 必须与 zcode/agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
-
-  platform: trae —— Trae IDE 识别此标记，启用嵌套 permission 块。
-  Trae 支持 mode/temperature/steps 字段，语义与 ZCode 版相同。
-  permissionMode 等价逻辑：edit:deny + bash allow-list + read-only = 只读审查模式。
--->
-
-
 
 ## 角色
 

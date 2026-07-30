@@ -2,6 +2,13 @@
   "name": "agentic-workflow-qwen",
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qwen Code.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
   "contextFileName": "QWEN.md",
   "excludeTools": [],
   "hooks": "hooks/hooks.qwencode.json",

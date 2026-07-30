@@ -15,8 +15,14 @@
 // Hooks: Trae has no plugin-level hooks — only global (~/.trae-cn/hooks.json) or
 // project (.trae/hooks.json) configs, with no plugin-root variable. So when a plugin
 // ships hooks/hooks.trae.json (a template), install renders ${TRAE_PLUGIN_ROOT} to the
-// installed plugin dir and merges the result into the global hooks.json; entries are
+// installed plugin dir and merges the result into a hooks.json; entries are
 // marked by the '<name>-trae' path substring for idempotent re-install and uninstall.
+//
+// Scope selection (P1-4 — project-first, global only on explicit request):
+//   --project-only   merge into <cwd>/.trae/hooks.json (errors if no project root found)
+//   --global         merge into ~/.trae-cn/hooks.json (explicit opt-in; affects ALL workspaces)
+//   (default)        project-level when a project root is detectable from cwd,
+//                    otherwise global with a printed warning.
 
 const fs = require('fs');
 const path = require('path');
@@ -26,14 +32,29 @@ const { getPluginVersion } = require('./lib/plugin-version');
 
 const PLUGIN_DIR = joinHome('.trae', 'plugins');
 // Global hooks config per https://docs.trae.cn/ide_hook-configuration-reference (CN edition)
-const HOOKS_FILE = joinHome('.trae-cn', 'hooks.json');
-const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow'];
+const GLOBAL_HOOKS_FILE = joinHome('.trae-cn', 'hooks.json');
+const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow', 'skill-radar'];
 const SUBDIRS = ['.trae-plugin', 'skills', 'commands', 'trae/agents', '_shared', 'scripts'];
 // Source subdir → destination dirname (when they differ)
 const RENAME_MAP = { 'trae/agents': 'agents' };
 
+// Project root markers, checked upward from cwd.
+const PROJECT_MARKERS = ['.git', 'package.json', '.trae'];
+
+function findProjectRoot(startDir) {
+  let dir = path.resolve(startDir);
+  for (;;) {
+    for (const m of PROJECT_MARKERS) {
+      if (fs.existsSync(path.join(dir, m))) return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
 function parseArgs(argv) {
-  const args = { plugin: null, uninstall: false, dryRun: false };
+  const args = { plugin: null, uninstall: false, dryRun: false, projectOnly: false, global: false };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--plugin') {
       const next = argv[i + 1];
@@ -45,8 +66,30 @@ function parseArgs(argv) {
       i++;
     } else if (argv[i] === '--uninstall') args.uninstall = true;
     else if (argv[i] === '--dry-run') args.dryRun = true;
+    else if (argv[i] === '--project-only') args.projectOnly = true;
+    else if (argv[i] === '--global') args.global = true;
+  }
+  if (args.projectOnly && args.global) {
+    console.error('Error: --project-only and --global are mutually exclusive');
+    process.exit(2);
   }
   return args;
+}
+
+// Resolve which hooks.json to merge into, per the scope flags.
+function resolveHooksTarget(args) {
+  if (args.global) return { file: GLOBAL_HOOKS_FILE, scope: 'global' };
+  const root = findProjectRoot(process.cwd());
+  if (args.projectOnly) {
+    if (!root) {
+      console.error('Error: --project-only given but no project root found from cwd (looked for ' + PROJECT_MARKERS.join(', ') + ')');
+      process.exit(2);
+    }
+    return { file: path.join(root, '.trae', 'hooks.json'), scope: 'project' };
+  }
+  if (root) return { file: path.join(root, '.trae', 'hooks.json'), scope: 'project' };
+  console.warn('⚠️  no project root found from cwd — falling back to GLOBAL hooks (affects all workspaces). Use --project-only from a project dir to avoid this.');
+  return { file: GLOBAL_HOOKS_FILE, scope: 'global' };
 }
 
 function selectPlugins(args) {
@@ -66,9 +109,9 @@ function toPosix(p) {
   return p.split(path.sep).join('/');
 }
 
-function loadGlobalHooks() {
+function loadHooksFile(hooksFile) {
   try {
-    const data = JSON.parse(fs.readFileSync(HOOKS_FILE, 'utf-8'));
+    const data = JSON.parse(fs.readFileSync(hooksFile, 'utf-8'));
     if (!data.hooks || typeof data.hooks !== 'object') data.hooks = {};
     return data;
   } catch {
@@ -87,7 +130,7 @@ function stripOwnHooks(config, marker) {
   return config;
 }
 
-function installHooks(pluginName, destDir, args) {
+function installHooks(pluginName, destDir, args, hooksTarget) {
   const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'hooks.trae.json');
   if (!fs.existsSync(templatePath)) return;
   const marker = `${pluginName}-trae`;
@@ -96,33 +139,33 @@ function installHooks(pluginName, destDir, args) {
     JSON.stringify(template.hooks).split('${TRAE_PLUGIN_ROOT}').join(toPosix(destDir))
   );
   if (args.dryRun) {
-    console.log(`  would merge hooks into: ${HOOKS_FILE} (events: ${Object.keys(rendered).join(', ')}; marker: ${marker})`);
+    console.log(`  would merge hooks into: ${hooksTarget.file} [${hooksTarget.scope}] (events: ${Object.keys(rendered).join(', ')}; marker: ${marker})`);
     return;
   }
-  const config = stripOwnHooks(loadGlobalHooks(), marker);
+  const config = stripOwnHooks(loadHooksFile(hooksTarget.file), marker);
   if (typeof config.version !== 'number') config.version = 1;
   for (const [event, groups] of Object.entries(rendered)) {
     config.hooks[event] = (config.hooks[event] || []).concat(groups);
   }
-  fs.mkdirSync(path.dirname(HOOKS_FILE), { recursive: true });
-  fs.writeFileSync(HOOKS_FILE, JSON.stringify(config, null, 2) + '\n');
-  console.log(`  merged hooks into: ${HOOKS_FILE}`);
+  fs.mkdirSync(path.dirname(hooksTarget.file), { recursive: true });
+  fs.writeFileSync(hooksTarget.file, JSON.stringify(config, null, 2) + '\n');
+  console.log(`  merged hooks into: ${hooksTarget.file} [${hooksTarget.scope}]`);
 }
 
-function uninstallHooks(pluginName, args) {
+function uninstallHooks(pluginName, args, hooksTarget) {
   const marker = `${pluginName}-trae`;
   const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'hooks.trae.json');
-  if (!fs.existsSync(templatePath) || !fs.existsSync(HOOKS_FILE)) return;
+  if (!fs.existsSync(templatePath) || !fs.existsSync(hooksTarget.file)) return;
   if (args.dryRun) {
-    console.log(`  would remove '${marker}' hook entries from: ${HOOKS_FILE}`);
+    console.log(`  would remove '${marker}' hook entries from: ${hooksTarget.file} [${hooksTarget.scope}]`);
     return;
   }
-  const config = stripOwnHooks(loadGlobalHooks(), marker);
-  fs.writeFileSync(HOOKS_FILE, JSON.stringify(config, null, 2) + '\n');
-  console.log(`  removed '${marker}' hook entries from: ${HOOKS_FILE}`);
+  const config = stripOwnHooks(loadHooksFile(hooksTarget.file), marker);
+  fs.writeFileSync(hooksTarget.file, JSON.stringify(config, null, 2) + '\n');
+  console.log(`  removed '${marker}' hook entries from: ${hooksTarget.file} [${hooksTarget.scope}]`);
 }
 
-function installPlugin(pluginName, args) {
+function installPlugin(pluginName, args, hooksTarget) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-trae`;
   const destDir = path.join(PLUGIN_DIR, installName, PLUGIN_VERSION);
@@ -159,7 +202,7 @@ function installPlugin(pluginName, args) {
   }
 
   // Hooks: copy the Node scripts only (platform configs stay in the repo), then
-  // merge the rendered hooks.trae.json template into the global hooks.json.
+  // merge the rendered hooks.trae.json template into the resolved hooks.json.
   const hooksSrc = path.join(src, 'hooks');
   if (fs.existsSync(hooksSrc) && fs.existsSync(path.join(hooksSrc, 'hooks.trae.json'))) {
     const hooksDest = path.join(destDir, 'hooks');
@@ -171,11 +214,11 @@ function installPlugin(pluginName, args) {
     } else {
       console.log(`  would copy: ${hooksSrc} → ${hooksDest} (${scriptsToCopy.join(', ')})`);
     }
-    installHooks(pluginName, destDir, args);
+    installHooks(pluginName, destDir, args, hooksTarget);
   }
 }
 
-function uninstallPlugin(pluginName, args) {
+function uninstallPlugin(pluginName, args, hooksTarget) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-trae`;
   const destDir = path.join(PLUGIN_DIR, installName, PLUGIN_VERSION);
@@ -185,18 +228,20 @@ function uninstallPlugin(pluginName, args) {
     if (!args.dryRun) removeDir(destDir);
     console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${destDir}`);
   }
-  uninstallHooks(pluginName, args);
+  uninstallHooks(pluginName, args, hooksTarget);
 }
 
 function install(args) {
   console.log('Installing agentic-work for Trae...\n');
-  for (const name of selectPlugins(args)) installPlugin(name, args);
+  const hooksTarget = resolveHooksTarget(args);
+  for (const name of selectPlugins(args)) installPlugin(name, args, hooksTarget);
   console.log(args.dryRun ? '\n[dry-run] No files written.' : '\n✅ Installation complete. Restart Trae to take effect.');
 }
 
 function uninstall(args) {
   console.log('Uninstalling agentic-work from Trae...\n');
-  for (const name of selectPlugins(args)) uninstallPlugin(name, args);
+  const hooksTarget = resolveHooksTarget(args);
+  for (const name of selectPlugins(args)) uninstallPlugin(name, args, hooksTarget);
   console.log(args.dryRun ? '\n[dry-run] No files removed.' : '\n✅ Uninstallation complete.');
 }
 

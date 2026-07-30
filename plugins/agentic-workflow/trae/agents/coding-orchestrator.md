@@ -1,11 +1,12 @@
-﻿<!-- sync: 与 zcode/agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/coding-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Trae 适配版。frontmatter = ZCode 嵌套 permission + platform: trae 标记。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: coding-orchestrator
-description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。
-mode: subagent
-temperature: 0.3
-steps: 60
 platform: trae
+description: Coding-Pipeline 主控 Agent：编排 executor/reviewer，按 scope drift 零容忍门禁停止。
 permission:
   edit: deny
   bash:

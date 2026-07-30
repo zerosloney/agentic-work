@@ -1,12 +1,12 @@
 <!-- sync: 与 zcode/agents/orchestrator.md 保持同步，仅 frontmatter 不同 -->
 <!--
   Qoder 适配版。frontmatter 已转换为 Qoder 兼容字段（permissionMode 单值）。
-  body 必须与 zcode/agents/orchestrator.md 保持一致。如修改 body，请同时更新两侧。
-  已知 trade-off：permissionMode 单值无法表达 ZCode 版的 bash 白名单，命令红线仅靠 body 约束。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
 -->
 ---
 name: graph-workflow-orchestrator
-description: "编排者Agent(Loop 闭环决策层)——读状态拆步骤,委派子代理(executor/reviewer/fixer)跑内层闭环,判 DONE 写状态。只读业务代码,不直接执行产出。"
+description: "Loop Engineering 编排者(决策层)——读状态拆步骤,用 Agent 工具委派 executor/reviewer/fixer 跑内层闭环,判 DONE 写状态。只读业务代码,不直接执行产出。"
+tools: Bash, Read, Glob, Grep
 permissionMode: default
 ---
 

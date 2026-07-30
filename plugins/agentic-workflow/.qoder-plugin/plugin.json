@@ -2,6 +2,13 @@
   "name": "agentic-workflow-qoder",
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qoder.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
   "category": "workflow",
   "commands": "./commands",
   "agents": [

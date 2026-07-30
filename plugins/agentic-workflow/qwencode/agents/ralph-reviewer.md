@@ -1,27 +1,21 @@
-﻿<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/ralph-reviewer.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Qwen Code 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 列表）。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: ralph-reviewer
-description: Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。
+description: "Ralph Pipeline 只读质量阀：accept_criteria 复核、verdict 输出。"
 model: inherit
-approvalMode: plan
+approvalMode: default
 tools:
   - read_file
   - read_many_files
   - glob
   - grep_search
   - list_directory
+  - run_shell_command
 ---
-
-<!--
-  qwencode 适配版。frontmatter 已转换为 Qwen Code 兼容字段（approvalMode + tools 允许列表）。
-  body 必须与 zcode/agents/ralph-reviewer.md 保持一致。如修改 body，请同时更新两侧。
-
-  approvalMode: plan —— 仅分析模式，代理计划但不执行更改（只读审查）。
-  tools: 显式只读工具列表。
-  model: inherit —— 使用与主对话相同的模型。
--->
-
-
 
 ## 角色
 

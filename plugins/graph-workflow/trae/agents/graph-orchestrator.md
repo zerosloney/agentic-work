@@ -1,4 +1,8 @@
 <!-- sync: 与 zcode/agents/graph-orchestrator.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Trae 适配版。frontmatter = ZCode 嵌套 permission + platform: trae 标记。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: graph-workflow-graph-orchestrator
 platform: trae

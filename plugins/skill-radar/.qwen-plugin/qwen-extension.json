@@ -1,0 +1,9 @@
+{
+  "name": "skill-radar-qwen",
+  "version": "0.2.0",
+  "description": "Skill observability for Qwen Code — tool invocation tracing, session tracking, and evolution signals.",
+  "capabilities": ["file-read", "file-write", "hooks", "env-access"],
+  "contextFileName": "QWEN.md",
+  "excludeTools": [],
+  "hooks": "hooks/hooks.qwencode.json"
+}

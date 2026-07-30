@@ -2,6 +2,13 @@
   "name": "agentic-workflow-trae",
   "version": "0.1.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Trae.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"

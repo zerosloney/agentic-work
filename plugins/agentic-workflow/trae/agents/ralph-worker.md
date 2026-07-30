@@ -1,11 +1,12 @@
-﻿<!-- sync: 与 zcode/agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
+<!-- sync: 与 zcode/agents/ralph-worker.md 保持同步，仅 frontmatter 不同 -->
+<!--
+  Trae 适配版。frontmatter = ZCode 嵌套 permission + platform: trae 标记。
+  本文件由 scripts/generate-platform-agents.js 生成/校验。修改请改 zcode baseline 后跑 --write。
+-->
 ---
 name: ralph-worker
-description: Ralph Pipeline 执行者：单任务执行、运行验证、原样回报。
-mode: subagent
-temperature: 0.2
-steps: 30
 platform: trae
+description: Ralph Pipeline 执行者：单任务执行、运行验证、原样回报。
 permission:
   edit: allow
   bash:
@@ -20,17 +21,6 @@ permission:
     "dd *": deny
     "mkfs*": deny
 ---
-
-<!--
-  trae 适配版。frontmatter 已转换为 Trae 兼容字段（platform: trae + 嵌套 permission）。
-  body 必须与 zcode/agents/ralph-worker.md 保持一致。如修改 body，请同时更新两侧。
-
-  platform: trae —— Trae IDE 识别此标记，启用嵌套 permission 块。
-  Trae 支持 mode/temperature/steps 字段，语义与 ZCode 版相同。
-  permissionMode 等价逻辑：edit:allow + bash allow-all = 全权限执行者模式。
--->
-
-
 
 ## 角色
 
