@@ -12,6 +12,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -52,19 +53,13 @@ foreach (var file in files)
     }
 }
 
-var output = new
-{
-    tool = "csharp-ast-analyzer",
-    runtime = Environment.Version.ToString(),
-    files_scanned = files.Length,
-    diagnostics
-};
+var output = new AstOutput(
+    tool: "csharp-ast-analyzer",
+    files_scanned: files.Length,
+    diagnostics: diagnostics
+);
 
-Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions
-{
-    WriteIndented = true,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-}));
+Console.WriteLine(JsonSerializer.Serialize(output, AppJsonContext.Default.AstOutput));
 
 return 0;
 
@@ -3239,3 +3234,11 @@ record class AstDiagnostic
     [JsonPropertyName("severity")] public string Severity { get; set; } = "";
     [JsonPropertyName("source_file")] public string File { get; set; } = "";
 }
+
+// ── AOT-safe JSON serialization ──
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(AstOutput))]
+[JsonSerializable(typeof(AstDiagnostic))]
+internal partial class AppJsonContext : JsonSerializerContext { }
+
+record AstOutput(string tool, int files_scanned, List<AstDiagnostic> diagnostics, int contract_version = 1);

@@ -8,6 +8,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -47,8 +48,8 @@ if (files.Count == 0)
     return 1;
 }
 
-var allDiagnostics = new List<Dictionary<string, object>>();
-var allFindings = new List<Dictionary<string, object>>();
+var allDiagnostics = new List<DiagnosticItem>();
+var allFindings = new List<object>();
 
 // ── Phase 1: AST Analysis ──
 if (mode is "ast" or "all")
@@ -67,12 +68,14 @@ if (mode is "ast" or "all")
         }
         catch (Exception ex)
         {
-            allDiagnostics.Add(new Dictionary<string, object>
-            {
-                ["file"] = file, ["line"] = 1, ["severity"] = "info",
-                ["code"] = "PARSE_ERROR", ["message"] = ex.Message,
-                ["source"] = "ast"
-            });
+            allDiagnostics.Add(new DiagnosticItem(
+                code: "PARSE_ERROR",
+                message: ex.Message,
+                line: 1,
+                severity: "info",
+                source_file: file,
+                source: "ast"
+            ));
         }
     }
 }
@@ -99,12 +102,14 @@ if (mode is "semantic" or "all")
     }
     catch (Exception ex)
     {
-        allDiagnostics.Add(new Dictionary<string, object>
-        {
-            ["file"] = "", ["line"] = 0, ["severity"] = "info",
-            ["code"] = "SEM_ERROR", ["message"] = ex.Message,
-            ["source"] = "semantic"
-        });
+        allDiagnostics.Add(new DiagnosticItem(
+            code: "SEM_ERROR",
+            message: ex.Message,
+            line: 0,
+            severity: "info",
+            source_file: "",
+            source: "semantic"
+        ));
     }
 }
 
@@ -118,21 +123,16 @@ if (mode is "project" or "all")
 }
 
 // ── Output ──
-var output = new Dictionary<string, object>
-{
-    ["tool"] = "csharp-unified-analyzer",
-    ["phase"] = mode,
-    ["files_scanned"] = files.Count,
-    ["diagnostics"] = allDiagnostics,
-    ["findings"] = allFindings,
-    ["compilation_error_count"] = 0
-};
+var output = new UnifiedOutput(
+    tool: "csharp-unified-analyzer",
+    phase: mode,
+    files_scanned: files.Count,
+    diagnostics: allDiagnostics.Count > 0 ? allDiagnostics : null,
+    findings: allFindings.Count > 0 ? allFindings : null,
+    compilation_error_count: 0
+);
 
-Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions
-{
-    WriteIndented = true,
-    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-}));
+Console.WriteLine(JsonSerializer.Serialize(output, AppJsonContext.Default.UnifiedOutput));
 return 0;
 
 // ── Helpers ──
@@ -166,7 +166,7 @@ CSharpCompilation? CreateCompilation(List<string> files)
 class AstPatternWalker : CSharpSyntaxWalker
 {
     private readonly string _file;
-    public List<Dictionary<string, object>> Diagnostics { get; } = new();
+    public List<DiagnosticItem> Diagnostics { get; } = new();
 
     public AstPatternWalker(string file) { _file = file; }
 
@@ -284,16 +284,15 @@ class AstPatternWalker : CSharpSyntaxWalker
 
     private void Add(string code, string severity, string category, string message, int? line = null)
     {
-        Diagnostics.Add(new Dictionary<string, object>
-        {
-            ["file"] = _file,
-            ["line"] = line ?? 1,
-            ["code"] = code,
-            ["severity"] = severity,
-            ["category"] = category,
-            ["message"] = message,
-            ["source"] = "ast"
-        });
+        Diagnostics.Add(new DiagnosticItem(
+            code: code,
+            message: message,
+            line: line ?? 1,
+            severity: severity,
+            source_file: _file,
+            source: "ast",
+            category: category
+        ));
     }
 }
 
@@ -303,7 +302,7 @@ class SemanticWalker : CSharpSyntaxWalker
 {
     private readonly string _file;
     private readonly SemanticModel _model;
-    public List<Dictionary<string, object>> Diagnostics { get; } = new();
+    public List<DiagnosticItem> Diagnostics { get; } = new();
 
     public SemanticWalker(string file, SemanticModel model)
     {
@@ -372,16 +371,15 @@ class SemanticWalker : CSharpSyntaxWalker
 
     private void Add(string code, string severity, string category, string message, int line)
     {
-        Diagnostics.Add(new Dictionary<string, object>
-        {
-            ["file"] = _file,
-            ["line"] = line,
-            ["code"] = code,
-            ["severity"] = severity,
-            ["category"] = category,
-            ["message"] = message,
-            ["source"] = "semantic"
-        });
+        Diagnostics.Add(new DiagnosticItem(
+            code: code,
+            message: message,
+            line: line,
+            severity: severity,
+            source_file: _file,
+            source: "semantic",
+            category: category
+        ));
     }
 }
 
@@ -390,7 +388,7 @@ class SemanticWalker : CSharpSyntaxWalker
 class ProjectWalker
 {
     private readonly List<string> _files;
-    public List<Dictionary<string, object>> Findings { get; } = new();
+    public List<object> Findings { get; } = new();
 
     public ProjectWalker(List<string> files) { _files = files; }
 
@@ -446,3 +444,20 @@ class ProjectWalker
         }
     }
 }
+
+// ── AOT-safe JSON serialization ──
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(UnifiedOutput))]
+[JsonSerializable(typeof(DiagnosticItem))]
+internal partial class AppJsonContext : JsonSerializerContext { }
+
+record DiagnosticItem(string code, string message, int line, string severity, string source_file, string? source = null, string? suggestion = null, string? category = null);
+
+record UnifiedOutput(
+    string tool,
+    string phase,
+    int files_scanned,
+    List<DiagnosticItem>? diagnostics,
+    List<object>? findings,
+    int compilation_error_count
+);
