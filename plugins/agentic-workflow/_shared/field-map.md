@@ -69,3 +69,11 @@ node scripts/validate-state.js .loop-cli/state/coding-pipeline.json
 ```
 
 或集成到 orchestrator 的 write 步骤（在 state write 之前自动跑）。
+
+## 注入段落转义规则
+
+Orchestrator 把上下文注入子 agent 时用 `=== X ===\n{content}` 段落标记。如果 `{content}` 本身含裸 `===`（如 markdown 标题、代码块引用、文档片段），注入边界会被破坏——子 agent 可能提前截断或误解析段落。
+
+- **orchestrator 端**：注入前，对 content 中每行做前缀检查；若行首（trim 后）以 `===` 开头，缩进一级（加 `> ` 或 `  ` 前缀），使内容与段落标记不混淆。
+- **worker/reviewer 端**：收到 `=== X ===` 段落后，只读取到下一个 `===` 标记或文件末尾之间的内容；标记本身不作为内容的一部分。
+- **极端情况**：若 content 无法安全转义（如大量 `===` 散布），改为 JSON 结构化注入（query 字段传 `{"section":"X","content":...}`），不拼接文本段落。

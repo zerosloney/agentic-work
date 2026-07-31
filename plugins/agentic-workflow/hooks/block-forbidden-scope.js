@@ -24,6 +24,13 @@ const STATE_DIR = path.join(process.cwd(), '.loop-cli', 'state');
 
 // Collect forbidden_scope patterns from all state files. Returns [] if the
 // state dir is missing or no file declares the field (fail open).
+// intentional-simple: in-process mtime cache. Hook processes are short-lived
+// (one invocation per PreToolUse event), so the cache only benefits repeated
+// calls within a single hook invocation. For the common case (one pipeline,
+// one state file) the savings are one stat+read+parse per call after the
+// first. If N grows large, upgrade to a file-based cache keyed by dir mtime.
+const patternCache = new Map();
+
 function collectForbiddenScopes() {
   const patterns = [];
   let files = [];
@@ -33,12 +40,21 @@ function collectForbiddenScopes() {
     if (!f.endsWith('.json')) continue;
     const fp = path.join(STATE_DIR, f);
     try {
+      const stat = fs.statSync(fp);
+      const cached = patternCache.get(fp);
+      if (cached && cached.mtimeMs === stat.mtimeMs) {
+        patterns.push(...cached.patterns);
+        continue;
+      }
       const obj = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+      const filePatterns = [];
       if (Array.isArray(obj.forbidden_scope)) {
         for (const p of obj.forbidden_scope) {
-          if (typeof p === 'string' && p.length > 0) patterns.push(p);
+          if (typeof p === 'string' && p.length > 0) filePatterns.push(p);
         }
       }
+      patternCache.set(fp, { mtimeMs: stat.mtimeMs, patterns: filePatterns });
+      patterns.push(...filePatterns);
     } catch {
       // unreadable state — skip, don't block (validate-state-write handles bad JSON)
     }

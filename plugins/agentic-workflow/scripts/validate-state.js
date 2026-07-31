@@ -176,6 +176,7 @@ const failHistoryItemFields = {
 function validateFailHistory(history) {
   const errors = [];
   if (!Array.isArray(history)) return errors;
+  if (history.length > 10) errors.push(`fail_history must have at most 10 items, got ${history.length}`);
   for (let i = 0; i < history.length; i++) {
     const item = history[i];
     if (!item || typeof item !== 'object') { errors.push(`fail_history[${i}] must be object`); continue; }
@@ -231,6 +232,7 @@ function main() {
   } else if (version === 2) {
     errors = validate(obj, fieldsV2, 'root');
     if (obj.nodes) errors.push(...validateNodes(obj.nodes));
+    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history));
   }
 
   if (errors.length === 0) {
