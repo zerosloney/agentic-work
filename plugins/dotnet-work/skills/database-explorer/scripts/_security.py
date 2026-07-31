@@ -357,7 +357,17 @@ def check_read_only(sql: str, strict: bool = True) -> tuple[bool, str, str | Non
     首关键字判断基于 :func:`strip_comments`（首关键字不在字符串内）；
     strict 模式下的 DROP/DELETE/TRUNCATE/EXEC 等扫描基于 :func:`strip_strings`
     （剥离字符串字面量，避免 ``SELECT 'drop'`` 被误判）。
+
+    多语句输入（如 ``SELECT 1; DROP TABLE x``）一律视为非只读并返回
+    ``MULTI_STATEMENT``：本函数是单语句检查器，多语句的拆分责任在调用方
+    （:func:`split_statements` 逐条调用，或 :func:`count_statements` 预先拒绝）。
+    旧实现只扫首句，会让 ``SELECT 1; DROP TABLE x`` 因首句只读而通过——
+    此 fail-loud 守卫杜绝未来调用方遗漏多语句处理导致的注入绕过。
     """
+    # fail-loud: 多语句直接判非只读，防止调用方忘做 split/count 守卫
+    if count_statements(sql) > 1:
+        return False, "MULTI_STATEMENT", "多语句 SQL 不被 check_read_only 支持（需调用方先 split_statements 逐条检查）"
+
     stmt = extract_first_statement(sql)
     if not stmt:
         return True, "", None

@@ -596,7 +596,11 @@ class TestBackslashEscapeInStripStrings:
         assert count_statements(sql) == 2
         stmts = split_statements(sql)
         assert stmts == ["SELECT '\\'", "DROP TABLE users"]
-        assert check_read_only(sql, strict=True)[0] is True
+        # check_read_only now rejects multi-statement input (fail-loud, S3):
+        # the whole SQL is an injection payload, not a single read-only query.
+        is_ro, kw, _ = check_read_only(sql, strict=True)
+        assert is_ro is False and kw == "MULTI_STATEMENT"
+        # After splitting, the DROP statement is still detected as write.
         assert check_read_only(stmts[1], strict=True)[0] is False
 
 
