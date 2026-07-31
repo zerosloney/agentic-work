@@ -8,6 +8,7 @@
 //   - all skills/*/SKILL.md (YAML frontmatter)
 //   - .codebuddy-plugin/marketplace.json (the root marketplace entry)
 //   - marketplace.json (root ZCode marketplace, `<plugin>-zcode` entry)
+//   - .qoder-plugin/marketplace.json (root Qoder marketplace, `<plugin>-qoder` entry)
 //
 // Usage:
 //   node scripts/bump-version.js --plugin dotnet-work          # sync all sites from manifest
@@ -180,6 +181,20 @@ function syncMarketplaceZcode(pluginName, newVersion) {
   return true;
 }
 
+/**
+ * Sync version into the root .qoder-plugin/marketplace.json (`<plugin>-qoder` entry).
+ */
+function syncMarketplaceQoder(pluginName, newVersion) {
+  const marketplaceFile = path.join(REPO_ROOT, '.qoder-plugin', 'marketplace.json');
+  if (!fs.existsSync(marketplaceFile)) return false;
+  const data = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
+  const entry = (data.plugins || []).find(p => p.name === `${pluginName}-qoder`);
+  if (!entry || entry.version === newVersion) return false;
+  entry.version = newVersion;
+  fs.writeFileSync(marketplaceFile, JSON.stringify(data, null, 2) + '\n');
+  return true;
+}
+
 function syncPlugin(pluginName, args) {
   console.log(`\n📦 ${pluginName}`);
 
@@ -229,6 +244,10 @@ function syncPlugin(pluginName, args) {
       }
     } else if (site.pattern === 'marketplace-entry-zcode') {
       if (syncMarketplaceZcode(pluginName, version)) {
+        console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
+      }
+    } else if (site.pattern === 'marketplace-entry-qoder') {
+      if (syncMarketplaceQoder(pluginName, version)) {
         console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
       }
     }

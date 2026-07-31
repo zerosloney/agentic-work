@@ -1,0 +1,85 @@
+{
+  "name": "agentic-work",
+  "description": "Agentic-work plugins (dotnet-work + agentic-workflow + skill-radar + graph-workflow) for Qoder.",
+  "owner": {
+    "name": "master0071",
+    "email": "zerosloney@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "dotnet-work-qoder",
+      "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for Qoder.",
+      "version": "1.0.0",
+      "source": "./plugins/dotnet-work",
+      "category": "development",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/zerosloney"
+      },
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "keywords": [
+        "dotnet",
+        "csharp",
+        "development"
+      ]
+    },
+    {
+      "name": "agentic-workflow-qoder",
+      "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qoder.",
+      "version": "0.1.0",
+      "source": "./plugins/agentic-workflow",
+      "category": "workflow",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/zerosloney"
+      },
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "keywords": [
+        "workflow",
+        "loop",
+        "ralph",
+        "coding"
+      ]
+    },
+    {
+      "name": "skill-radar-qoder",
+      "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
+      "version": "0.2.2",
+      "source": "./plugins/skill-radar",
+      "category": "observability",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/zerosloney"
+      },
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "keywords": [
+        "observability",
+        "tracing",
+        "skill",
+        "telemetry"
+      ]
+    },
+    {
+      "name": "graph-workflow-qoder",
+      "description": "Loop Engineering + Graph Engineering 闭环(外层脚本硬约束 + 内层三角色 Task 协作,双档位:loop-task 单节点自环 / graph-task 声明式图编排) for Qoder.",
+      "version": "0.1.1",
+      "source": "./plugins/graph-workflow",
+      "category": "workflow",
+      "author": {
+        "name": "master0071",
+        "url": "https://github.com/zerosloney"
+      },
+      "homepage": "https://github.com/zerosloney/agentic-work",
+      "license": "MIT",
+      "keywords": [
+        "workflow",
+        "loop",
+        "graph",
+        "orchestration"
+      ]
+    }
+  ]
+}

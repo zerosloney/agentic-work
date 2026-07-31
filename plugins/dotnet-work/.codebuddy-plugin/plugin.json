@@ -8,11 +8,5 @@
     "bash-exec",
     "network"
   ],
-  "category": "development",
-  "skills": [
-    "skills/database-explorer",
-    "skills/dotnet-code-review",
-    "skills/dotnet-csharp-developer",
-    "skills/winforms-dev-flow"
-  ]
+  "category": "development"
 }

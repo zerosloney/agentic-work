@@ -167,6 +167,21 @@ function collectVersionSites(pluginName) {
     }
   }
 
+  // 9. Root .qoder-plugin/marketplace.json (`<plugin>-qoder` entries)
+  const qoderMarketplaceFile = path.join(REPO_ROOT, '.qoder-plugin', 'marketplace.json');
+  if (fs.existsSync(qoderMarketplaceFile)) {
+    const marketplace = JSON.parse(fs.readFileSync(qoderMarketplaceFile, 'utf-8'));
+    const entry = (marketplace.plugins || []).find(p => p.name === `${pluginName}-qoder`);
+    if (entry) {
+      sites.push({
+        file: '.qoder-plugin/marketplace.json',
+        current: entry.version,
+        pattern: 'marketplace-entry-qoder',
+        isSource: false,
+      });
+    }
+  }
+
   return sites;
 }
 
