@@ -62,16 +62,25 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_build(project: str, config: str, timeout: int) -> tuple[int, str, str]:
-    """Run dotnet build. Returns (returncode, stdout, stderr)."""
+    """Run dotnet build. Returns (returncode, stdout, stderr).
+
+    Forces invariant (English) culture via /p:InvariantCulture=true so MSBuild
+    diagnostic lines use the stable `error CSxxxx:` / `warning CSxxxx:` format
+    the regex in parse_diagnostics expects. On localized SDKs (zh/ja/...) the
+    output otherwise becomes `错误 CS1061:` and parse_diagnostics silently
+    drops real compile errors.
+    """
     cmd = [
         "dotnet", "build", project,
         "--configuration", config,
         "--no-restore",
         "-nologo",
+        "/p:InvariantCulture=true",
     ]
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace",
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:

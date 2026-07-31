@@ -109,27 +109,47 @@ def _rg(query: str, root: Path, pattern_hint: Optional[str] = None) -> list[str]
 
 
 def _select_string(query: str, root: Path) -> list[str]:
-    """Fallback: use PowerShell Select-String on Windows."""
-    import subprocess
-    ps = f'Get-ChildItem -Recurse -Filter *.cs "{root}" | Select-String -Pattern "{query}" | ForEach-Object {{ $_.Line }}'
+    """Fallback when ripgrep is unavailable: pure-Python regex scan.
+
+    Replaces the previous PowerShell Select-String fallback, which interpolated
+    ``query`` into a PS command string — a command-injection vector when
+    scanning untrusted project files (the .cs content was passed as -Pattern).
+    This version keeps the query as a Python regex (same semantics as the rg
+    path), matches in-memory, and returns lines in the rg-compatible
+    ``"path:line:content"`` shape so ``_file_paths_from_matches`` and
+    ``filter_comments`` work unchanged.
+    """
     try:
-        result = subprocess.run(['powershell', '-NoProfile', '-Command', ps],
-                               capture_output=True, text=True, encoding='utf-8',
-                               errors='replace')
-        return [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
-    except Exception:
+        pattern = re.compile(query)
+    except re.error:
         return []
+    matches: list[str] = []
+    for csfile in read_cs_files(root):
+        try:
+            content = csfile.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        for idx, line in enumerate(content.splitlines(), start=1):
+            if pattern.search(line):
+                matches.append(f"{csfile}:{idx}:{line}")
+    return matches
+
+
+_RG_LINE_RE = re.compile(r'^(?P<path>.*\.cs):(?P<line>\d+):')
 
 
 def _file_paths_from_matches(lines: list[str]) -> set[str]:
-    """Extract unique file paths from ripgrep output (path:line:content format)."""
+    """Extract unique file paths from rg/fallback output (path:line:content).
+
+    Anchors on ``*.cs`` followed by ``:<digits>:`` so colons inside Windows
+    drive letters (``C:``) and inside matched code (``class X : Y``) don't
+    shatter the split.
+    """
     paths = set()
     for ln in lines:
-        parts = ln.split(':')
-        if len(parts) >= 2:
-            path = parts[0]
-            if path.endswith('.cs'):
-                paths.add(path)
+        m = _RG_LINE_RE.match(ln)
+        if m:
+            paths.add(m.group('path'))
     return paths
 
 

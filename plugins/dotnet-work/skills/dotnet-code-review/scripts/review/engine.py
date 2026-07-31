@@ -834,7 +834,8 @@ def run_review(args) -> dict:
     fix_result = None
     if getattr(args, "fix", False) or getattr(args, "fix_dry_run", False):
         fix_result = apply_all_auto_fixes(
-            all_issues, file_codes,
+            all_issues,
+            create_backup=True,
             dry_run=getattr(args, "fix_dry_run", not getattr(args, "fix", False)),
         )
 

@@ -649,9 +649,12 @@ def analyze_format(csproj_path: str, project_root: str) -> list[CodeIssue]:
         return []
 
     try:
+        # Cross-platform temp dir: /tmp on Unix, %TEMP% on Windows.
+        import tempfile
+        report_path = str(Path(tempfile.gettempdir()) / "dotnet-review-format-report.json")
         result = subprocess.run(
             ["dotnet", "format", csproj_path, "--verify-no-changes",
-             "--no-restore", "-nologo", "--report", "/tmp/format-report.json"],
+             "--no-restore", "-nologo", "--report", report_path],
             capture_output=True, text=True, timeout=120, cwd=project_root,
         )
         # Parse format output for style issues

@@ -107,6 +107,7 @@ def apply_auto_fix(
 def apply_all_auto_fixes(
     issues: list,
     create_backup: bool = True,
+    dry_run: bool = False,
 ) -> dict:
     """Apply auto-fixes for all fixable issues.
 
@@ -114,12 +115,16 @@ def apply_all_auto_fixes(
     (.bak) is written per file capturing the TRUE original content — not an
     intermediate state — so multi-rule fixes can be rolled back atomically.
 
+    When ``dry_run=True``, fixes are computed in memory but NO file is written
+    and NO backup is created; the returned ``fixed`` records describe what
+    *would* change. ``files_modified`` is empty in dry-run.
+
     Returns:
         {
             "fixed": [{"file": ..., "rule": ..., "count": ..., "description": ...}, ...],
             "skipped": [{"rule": ..., "reason": "no_fix_available"}],
             "files_modified": [...],
-            "backup_dir": str,
+            "dry_run": bool,
         }
     """
     fixed_records = []
@@ -167,6 +172,20 @@ def apply_all_auto_fixes(
                 skipped.append({"rule": rule_id, "file": filepath, "reason": "pattern_no_match"})
             continue
 
+        # Record what would change regardless of dry_run (so callers see the plan).
+        for rule_id, count, description in per_rule_counts:
+            if count > 0:
+                fixed_records.append({
+                    "file": filepath,
+                    "rule": rule_id,
+                    "count": count,
+                    "description": description,
+                })
+
+        # dry_run: compute the diff but write nothing, back up nothing.
+        if dry_run:
+            continue
+
         # One backup of the TRUE original (not an intermediate state).
         if create_backup:
             backup_path = Path(str(filepath) + ".bak")
@@ -179,20 +198,15 @@ def apply_all_auto_fixes(
             Path(filepath).write_text(content, encoding="utf-8")
         except OSError:
             skipped.append({"file": filepath, "reason": "write_failed"})
+            # Roll back the fixed_records we optimistically recorded above.
+            fixed_records = [r for r in fixed_records if r["file"] != filepath]
             continue
 
         files_modified.add(filepath)
-        for rule_id, count, description in per_rule_counts:
-            if count > 0:
-                fixed_records.append({
-                    "file": filepath,
-                    "rule": rule_id,
-                    "count": count,
-                    "description": description,
-                })
 
     return {
         "fixed": fixed_records,
         "skipped": skipped,
         "files_modified": sorted(files_modified),
+        "dry_run": dry_run,
     }
