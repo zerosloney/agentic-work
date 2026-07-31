@@ -451,7 +451,9 @@ class ProjectWalker
 [JsonSerializable(typeof(DiagnosticItem))]
 internal partial class AppJsonContext : JsonSerializerContext { }
 
-record DiagnosticItem(string code, string message, int line, string severity, string source_file, string? source = null, string? suggestion = null, string? category = null);
+// Output key is "file" to match the Python consumer contract (fetcher.py reads d.get("file")).
+// The C# parameter keeps the name source_file for clarity; only the JSON property name changes.
+record DiagnosticItem(string code, string message, int line, string severity, [property: JsonPropertyName("file")] string source_file, string? source = null, string? suggestion = null, string? category = null);
 
 record UnifiedOutput(
     string tool,

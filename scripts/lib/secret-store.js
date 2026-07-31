@@ -38,6 +38,14 @@ function envNameFor(key) {
   return key.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 }
 
+// Embed a string as a PowerShell single-quoted literal. PS single-quotes are
+// verbatim (no $ expansion, no " parsing); only ' itself needs escaping as ''.
+// Used instead of JSON.stringify (which produces a PS double-quoted string that
+// silently mangles values containing $ or " — e.g. connection strings, tokens).
+function psSingleQuote(s) {
+  return "'" + String(s).replace(/'/g, "''") + "'";
+}
+
 // ─── platform backends ──────────────────────────────────────────
 
 // Windows: Credential Manager via Advapi32 CredRead/CredWrite/CredDelete.
@@ -62,8 +70,8 @@ public struct CREDENTIAL {
   public string TargetAlias; public string UserName;
 }
 '@
-$action = ${JSON.stringify(action)}; $target = ${JSON.stringify('x')}.Replace('x', ''); $target = ${JSON.stringify(target)}
-if ($action -eq 'read') {
+  $action = ${psSingleQuote(action)}; $target = ${psSingleQuote(target)}
+  if ($action -eq 'read') {
   $ptr = [System.IntPtr]::Zero
   if (-not [Win32.Cred]::CredRead($target, 1, 0, [ref]$ptr)) { exit 3 }
   $cred = [System.Runtime.InteropServices.Marshal]::PtrToStructure($ptr, [type][Win32.Cred+CREDENTIAL])
@@ -72,7 +80,7 @@ if ($action -eq 'read') {
   [Console]::Out.Write($pwd)
   exit 0
 } elseif ($action -eq 'write') {
-  $secret = ${JSON.stringify('x')}.Replace('x', ''); $secret = ${JSON.stringify(value || '')}
+  $secret = ${psSingleQuote(value || '')}
   $bytes = [System.Text.Encoding]::Unicode.GetBytes($secret)
   $blob = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($bytes.Length)
   [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $blob, $bytes.Length)

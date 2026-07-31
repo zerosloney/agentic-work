@@ -3232,7 +3232,8 @@ record class AstDiagnostic
     [JsonPropertyName("message")] public string Message { get; set; } = "";
     [JsonPropertyName("line")] public int Line { get; set; }
     [JsonPropertyName("severity")] public string Severity { get; set; } = "";
-    [JsonPropertyName("source_file")] public string File { get; set; } = "";
+    // Output key "file" matches the Python consumer contract (fetcher.py reads d.get("file")).
+    [JsonPropertyName("file")] public string File { get; set; } = "";
 }
 
 // ── AOT-safe JSON serialization ──
