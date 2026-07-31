@@ -167,6 +167,18 @@ _FAMILY_CONFIGS = {
 
 # ─── 字段 → 控件映射 ───────────────────────────────────────────────────────
 
+def _cs_str(value: str) -> str:
+    """Escape a Python string into a safe C# string literal (with quotes).
+
+    Field captions/names come from user input (Entity definitions, DB schema).
+    Without escaping, a value containing ``"`` or ``\\`` (e.g. 尺寸(英寸"))
+    would break the generated Designer.cs compile. Backslash first so the
+    quote-escape backslash isn't itself re-escaped.
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def field_to_column_declaration(field: EntityField, index: int) -> tuple[str, str, str]:
     """返回 (字段声明, 初始化代码, AddRange 引用)。"""
     col_name = f"col{field.name[0].upper()}{field.name[1:]}"
@@ -174,8 +186,8 @@ def field_to_column_declaration(field: EntityField, index: int) -> tuple[str, st
 
     init_lines = [
         f"this.{col_name} = new DevExpress.XtraGrid.Columns.GridColumn();",
-        f"this.{col_name}.Caption = \"{field.caption or field.name}\";",
-        f"this.{col_name}.FieldName = \"{field.name}\";",
+        f"this.{col_name}.Caption = {_cs_str(field.caption or field.name)};",
+        f"this.{col_name}.FieldName = {_cs_str(field.name)};",
     ]
 
     if field.field_type == FieldType.GUID:
@@ -188,11 +200,11 @@ def field_to_column_declaration(field: EntityField, index: int) -> tuple[str, st
     # 类型特定配置
     if field.field_type == FieldType.DATETIME:
         fmt = field.display_format or "yyyy-MM-dd HH:mm"
-        init_lines.append(f"this.{col_name}.DisplayFormat.FormatString = \"{fmt}\";")
+        init_lines.append(f"this.{col_name}.DisplayFormat.FormatString = {_cs_str(fmt)};")
         init_lines.append(f"this.{col_name}.DisplayFormat.FormatType = DevExpress.Utils.FormatType.DateTime;")
     elif field.field_type in (FieldType.INT, FieldType.DECIMAL):
         fmt = field.display_format or "N2"
-        init_lines.append(f"this.{col_name}.DisplayFormat.FormatString = \"{fmt}\";")
+        init_lines.append(f"this.{col_name}.DisplayFormat.FormatString = {_cs_str(fmt)};")
         init_lines.append(f"this.{col_name}.DisplayFormat.FormatType = DevExpress.Utils.FormatType.Numeric;")
         init_lines.append(f"this.{col_name}.AppearanceCell.TextOptions.HAlignment = DevExpress.Utils.HorzAlignment.Far;")
     elif field.field_type == FieldType.BOOL:
@@ -213,7 +225,7 @@ def field_to_layout_item(field: EntityField, idx: int) -> str:
         f"private DevExpress.XtraEditors.LabelControl {label_name};",
         "",
         f"this.{label_name} = new DevExpress.XtraEditors.LabelControl();",
-        f"this.{label_name}.Text = \"{field.caption or field.name}:\";",
+        f"this.{label_name}.Text = {_cs_str((field.caption or field.name) + ':')};",
         f"this.{label_name}.Name = \"{label_name}\";",
         f"this.{ctrl_name} = new DevExpress.XtraEditors.{field.control_type}();",
         f"this.{ctrl_name}.Name = \"{ctrl_name}\";",

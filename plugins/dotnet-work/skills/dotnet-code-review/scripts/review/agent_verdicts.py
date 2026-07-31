@@ -62,18 +62,26 @@ def load_verdicts(project_root: str) -> list[dict]:
 
 
 def save_verdicts(project_root: str, verdicts: list[dict]) -> None:
-    """Save agent verdicts to the project's .dotnet-review directory."""
+    """Save agent verdicts to the project's .dotnet-review directory.
+
+    Degrades gracefully (log + no raise) when the directory is not writable
+    (read-only checkout, sandbox without write perm): losing verdict persistence
+    is preferable to crashing the whole review run.
+    """
     path = _verdicts_path(project_root)
-    path.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "version": 1,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "verdicts": verdicts,
     }
-    path.write_text(
-        json.dumps(data, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError as e:
+        logger.warning("Cannot persist agent verdicts to %s: %s", path, e)
 
 
 def apply_verdicts(

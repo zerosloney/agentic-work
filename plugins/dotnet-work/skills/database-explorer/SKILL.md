@@ -170,6 +170,7 @@ explore --object-type <type> --detail <level> [--schema <s>] [--table <t>] [--pa
 | `learn show` | 查看学习数据摘要（别名、频率、关联） |
 | `learn clear` | 清除所有学习数据 |
 | `learn approve --table <表名>` | 将学习别名提升到 hot_tables.yaml（人工确认后永久生效） |
+| `learn delete --table <表名>` | 删除指定表的学习数据（误学纠正） |
 
 **`query --learn` 模式**：Agent 执行 SQL 时加 `--learn` 标志，自动从 SQL 中提取表名、列名、JOIN 关联、WHERE 枚举值等结构化知识，写入 `~/.database-explorer/query_learned.yaml`。隐私保护：只记录结构信息，不记录实际数据值。
 

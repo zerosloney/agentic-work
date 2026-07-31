@@ -739,7 +739,7 @@ def run_review(args) -> dict:
     layer_counts["perf_hint"] = sum(1 for i in _perf_issues if i.rule == "P021")
 
     # ── Layer 8: NuGet Version Check ──
-    if nuget_packages:
+    if nuget_packages and not getattr(args, "no_nuget_check", False):
         executed_layers.add("nuget")
         nuget_issues = check_nuget_versions(nuget_packages)
         all_issues.extend(nuget_issues)

@@ -41,7 +41,7 @@ def main():
              "first, falls back to full directory scan when no changes found.")
     parser.add_argument("--diff", "-d", help="Git diff base ref (e.g., HEAD)")
     parser.add_argument("--files", "-f", nargs="+", help="Specific .cs files to review")
-    parser.add_argument("--all", "-a", help="Scan entire directory")
+    parser.add_argument("--all", "-a", action="store_true", help="Scan entire directory")
     parser.add_argument(
         "--format",
         choices=["json", "markdown", "compact", "sarif"],

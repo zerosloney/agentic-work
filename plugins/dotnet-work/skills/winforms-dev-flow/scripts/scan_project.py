@@ -175,6 +175,15 @@ def scan_glance(root: Path, subdir: Optional[str] = None) -> dict:
     Returns a dict with scan results.
     """
     target_root = root / subdir if subdir else root
+    # Confine subdir to the root subtree: a relative path like ``../../other``
+    # would otherwise escape the project and scan unrelated directories.
+    root_resolved = root.resolve()
+    try:
+        target_resolved = target_root.resolve()
+        target_resolved.relative_to(root_resolved)
+    except (ValueError, OSError):
+        # Outside root — clamp back to root so we never scan beyond the project.
+        target_root = root
     use_rg = _has_rg()
 
     def grep(query, r=root):

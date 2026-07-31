@@ -203,6 +203,9 @@ def main() -> int:
     parser.add_argument("--reference", type=Path, default=None,
                         help="Reference form .cs file; enables 2 context-aware checks "
                              "(IView contract style + GridStyle code consistency)")
+    parser.add_argument("--json", action="store_true",
+                        help="Emit a JSON summary on stdout for Agent parsing "
+                             "(pass/fail/warnings counts + structured issues)")
     args = parser.parse_args()
 
     root = Path(args.dir)
@@ -236,6 +239,27 @@ def main() -> int:
     check_summary = Counter(i["check"] for i in all_issues)
 
     mode = "5 ctx-free + 2 ctx-aware" if args.reference else "5 context-free"
+
+    # JSON mode: structured summary for Agent consumption (one parseable blob
+    # on stdout) — the prose report below is skipped so stdout stays clean.
+    if args.json:
+        import json as _json
+        print(_json.dumps({
+            "pass": len(failures) == 0,
+            "dir": str(root),
+            "files": len(files),
+            "mode": mode,
+            "summary": {
+                "pass": len(passes),
+                "warn": len(warnings),
+                "fail": len(failures),
+                "checks": dict(check_summary),
+            },
+            "failures": failures,
+            "warnings": warnings,
+        }, ensure_ascii=False))
+        return 1 if failures else 0
+
     print(f"\n{'='*60}")
     print(f"Smoke Test: {root} ({len(files)} files, {mode})")
     if args.reference:
