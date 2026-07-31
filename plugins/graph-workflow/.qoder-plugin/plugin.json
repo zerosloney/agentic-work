@@ -25,11 +25,11 @@
   ],
   "commands": "./commands",
   "agents": [
-    "./qoder/agents/executor.md",
-    "./qoder/agents/fixer.md",
-    "./qoder/agents/reviewer.md",
-    "./qoder/agents/orchestrator.md",
-    "./qoder/agents/graph-orchestrator.md"
+    "./agents/executor.md",
+    "./agents/fixer.md",
+    "./agents/graph-orchestrator.md",
+    "./agents/orchestrator.md",
+    "./agents/reviewer.md"
   ],
-  "hooks": "./hooks/hooks.qoder.json"
+  "hooks": "./hooks/hooks.json"
 }

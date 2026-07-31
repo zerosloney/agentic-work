@@ -11,6 +11,6 @@
   ],
   "category": "workflow",
   "commands": "commands",
-  "agents": "codebuddy/agents",
-  "hooks": "hooks/hooks.codebuddy.json"
+  "agents": "agents",
+  "hooks": "hooks/hooks.json"
 }

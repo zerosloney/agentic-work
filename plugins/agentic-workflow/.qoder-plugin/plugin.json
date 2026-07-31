@@ -12,12 +12,12 @@
   "category": "workflow",
   "commands": "./commands",
   "agents": [
-    "./qoder/agents/coding-builder.md",
-    "./qoder/agents/coding-orchestrator.md",
-    "./qoder/agents/coding-reviewer.md",
-    "./qoder/agents/ralph-orchestrator.md",
-    "./qoder/agents/ralph-reviewer.md",
-    "./qoder/agents/ralph-worker.md"
+    "./agents/coding-builder.md",
+    "./agents/coding-orchestrator.md",
+    "./agents/coding-reviewer.md",
+    "./agents/ralph-orchestrator.md",
+    "./agents/ralph-reviewer.md",
+    "./agents/ralph-worker.md"
   ],
-  "hooks": "./hooks/hooks.qoder.json"
+  "hooks": "./hooks/hooks.json"
 }

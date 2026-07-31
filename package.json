@@ -22,7 +22,6 @@
     "install:zcode": "node ./scripts/install-zcode.js",
     "install:all": "node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js",
     "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run",
-    "verify:agents": "node ./scripts/verify-agent-sync.js",
     "validate-state": "node ./scripts/validate-state.js"
   },
   "files": [

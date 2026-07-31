@@ -17,6 +17,7 @@ const path = require('path');
 const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
+const { deriveAgents } = require('./lib/derive-platform');
 
 const EXTENSION_DIR = joinHome('.qwen', 'extensions');
 const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow', 'skill-radar'];
@@ -83,16 +84,14 @@ function installPlugin(pluginName, args) {
     console.log(`  would copy: ${manifestPath} → ${path.join(destDir, 'qwen-extension.json')}`);
   }
 
-  // 3. Copy agents (Qwen Code expects agents/ directory)
-  const agentsSrc = path.join(src, 'qwencode/agents');
+  // 3. Copy agents (Qwen Code expects agents/ directory) — DERIVED from baseline.
+  // Source agents/ holds the zcode baseline; derive qwencode frontmatter (approvalMode + tools).
+  const agentsSrc = path.join(src, 'agents');
   if (fs.existsSync(agentsSrc)) {
     const agentsDest = path.join(destDir, 'agents');
-    if (!args.dryRun) {
-      copyDirRecursive(agentsSrc, agentsDest);
-      console.log('  copied: agents/');
-    } else {
-      console.log(`  would copy: ${agentsSrc} → ${agentsDest}`);
-    }
+    const n = deriveAgents(agentsSrc, 'qwencode', agentsDest, { dryRun: args.dryRun });
+    if (!args.dryRun) console.log(`  derived: agents/ (${n} files, zcode → qwencode)`);
+    else console.log(`  would derive: ${agentsSrc} → ${agentsDest} (${n} files, zcode → qwencode)`);
   }
 
   // 4. Copy commands
@@ -131,22 +130,22 @@ function installPlugin(pluginName, args) {
     }
   }
 
-  // 5c. Copy hooks (selective): Qwen loads the file declared by manifest "hooks" and
-  // may auto-discover hooks/hooks.json — so copy only the JS scripts + the Qwen-format
-  // config, excluding the other platform variants (hooks.zcode.json, hooks.codebuddy.json,
-  // hooks.trae.json, hooks.qoder.json).
+  // 5c. Copy hooks (selective): Qwen loads the file declared by manifest "hooks"
+  // (hooks/hooks.json) and may auto-discover hooks/hooks.json — so copy the JS scripts
+  // + the Qwen config (flattened from hooks/qwencode/hooks.json to hooks/hooks.json),
+  // excluding the other platform subdirs.
   const hooksSrc = path.join(src, 'hooks');
-  if (fs.existsSync(hooksSrc)) {
+  const qwenHooksConfig = path.join(hooksSrc, 'qwencode', 'hooks.json');
+  if (fs.existsSync(hooksSrc) && fs.existsSync(qwenHooksConfig)) {
     const hooksDest = path.join(destDir, 'hooks');
-    const entries = fs.readdirSync(hooksSrc).filter(
-      (f) => f.endsWith('.js') || f === 'hooks.qwencode.json'
-    );
+    const scripts = fs.readdirSync(hooksSrc).filter((f) => f.endsWith('.js'));
     if (!args.dryRun) {
       fs.mkdirSync(hooksDest, { recursive: true });
-      for (const f of entries) fs.copyFileSync(path.join(hooksSrc, f), path.join(hooksDest, f));
-      console.log(`  copied: hooks/ (${entries.length} files, ZCode/CodeBuddy configs excluded)`);
+      for (const f of scripts) fs.copyFileSync(path.join(hooksSrc, f), path.join(hooksDest, f));
+      fs.copyFileSync(qwenHooksConfig, path.join(hooksDest, 'hooks.json'));
+      console.log(`  copied: hooks/ (${scripts.length} scripts + qwencode/hooks.json → hooks.json)`);
     } else {
-      console.log(`  would copy: ${hooksSrc} → ${hooksDest} (${entries.join(', ')})`);
+      console.log(`  would copy: ${scripts.length} hook scripts + qwencode/hooks.json → hooks/hooks.json`);
     }
   }
 

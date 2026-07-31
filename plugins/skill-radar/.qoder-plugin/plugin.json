@@ -2,7 +2,12 @@
   "name": "skill-radar-qoder",
   "version": "0.2.2",
   "description": "Skill observability for Qoder — tool invocation tracing, session tracking, and evolution signals.",
-  "capabilities": ["file-read", "file-write", "hooks", "env-access"],
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "hooks",
+    "env-access"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"
@@ -17,5 +22,5 @@
     "skill",
     "telemetry"
   ],
-  "hooks": "./hooks/hooks.qoder.json"
+  "hooks": "./hooks/hooks.json"
 }

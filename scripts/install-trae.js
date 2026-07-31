@@ -29,14 +29,13 @@ const path = require('path');
 const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
+const { deriveAgents } = require('./lib/derive-platform');
 
 const PLUGIN_DIR = joinHome('.trae', 'plugins');
 // Global hooks config per https://docs.trae.cn/ide_hook-configuration-reference (CN edition)
 const GLOBAL_HOOKS_FILE = joinHome('.trae-cn', 'hooks.json');
 const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow', 'skill-radar'];
-const SUBDIRS = ['.trae-plugin', 'skills', 'commands', 'trae/agents', '_shared', 'scripts'];
-// Source subdir → destination dirname (when they differ)
-const RENAME_MAP = { 'trae/agents': 'agents' };
+const SUBDIRS = ['skills', 'agents', 'commands', '_shared', 'scripts'];
 
 // Project root markers, checked upward from cwd.
 const PROJECT_MARKERS = ['.git', 'package.json', '.trae'];
@@ -145,7 +144,7 @@ function stripOwnHooks(config, marker) {
 }
 
 function installHooks(pluginName, destDir, args, hooksTarget) {
-  const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'hooks.trae.json');
+  const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'trae', 'hooks.json');
   if (!fs.existsSync(templatePath)) return;
   const marker = `${pluginName}-trae`;
   const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'));
@@ -167,7 +166,7 @@ function installHooks(pluginName, destDir, args, hooksTarget) {
 
 function uninstallHooks(pluginName, args, hooksTarget) {
   const marker = `${pluginName}-trae`;
-  const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'hooks.trae.json');
+  const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'trae', 'hooks.json');
   if (!fs.existsSync(templatePath) || !fs.existsSync(hooksTarget.file)) return;
   if (args.dryRun) {
     console.log(`  would remove '${marker}' hook entries from: ${hooksTarget.file} [${hooksTarget.scope}]`);
@@ -194,16 +193,25 @@ function installPlugin(pluginName, args, hooksTarget) {
   }
 
   for (const sub of SUBDIRS) {
-    if (sub === '.trae-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(destDir, RENAME_MAP[sub] || sub);
+    // agents/ is derived (trae frontmatter), not copied as-is — handle below.
+    if (sub === 'agents') continue;
+    const subDest = path.join(destDir, sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
     } else {
       console.log(`  would copy: ${subSrc} → ${subDest}`);
     }
+  }
+
+  // agents: derive trae frontmatter from baseline (zcode → trae adds platform marker).
+  const agentsSrc = path.join(src, 'agents');
+  if (fs.existsSync(agentsSrc)) {
+    const n = deriveAgents(agentsSrc, 'trae', path.join(destDir, 'agents'), { dryRun: args.dryRun });
+    if (!args.dryRun) console.log(`  derived: agents/ (${n} files, zcode → trae)`);
+    else console.log(`  would derive: agents/ (${n} files, zcode → trae)`);
   }
 
   if (!args.dryRun) {
@@ -215,9 +223,9 @@ function installPlugin(pluginName, args, hooksTarget) {
   }
 
   // Hooks: copy the Node scripts only (platform configs stay in the repo), then
-  // merge the rendered hooks.trae.json template into the resolved hooks.json.
+  // merge the rendered trae/hooks.json template into the resolved hooks.json.
   const hooksSrc = path.join(src, 'hooks');
-  if (fs.existsSync(hooksSrc) && fs.existsSync(path.join(hooksSrc, 'hooks.trae.json'))) {
+  if (fs.existsSync(hooksSrc) && fs.existsSync(path.join(hooksSrc, 'trae', 'hooks.json'))) {
     const hooksDest = path.join(destDir, 'hooks');
     const scriptsToCopy = fs.readdirSync(hooksSrc).filter((f) => f.endsWith('.js'));
     if (!args.dryRun) {

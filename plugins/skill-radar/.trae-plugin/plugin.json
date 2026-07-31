@@ -2,7 +2,12 @@
   "name": "skill-radar-trae",
   "version": "0.2.2",
   "description": "Skill observability for Trae — tool invocation tracing, session tracking, and evolution signals.",
-  "capabilities": ["file-read", "file-write", "hooks", "env-access"],
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "hooks",
+    "env-access"
+  ],
   "author": {
     "name": "master0071",
     "url": "https://github.com/zerosloney"
@@ -16,5 +21,5 @@
     "skill",
     "telemetry"
   ],
-  "hooks": "hooks/hooks.trae.json"
+  "hooks": "hooks/hooks.json"
 }

@@ -22,12 +22,12 @@ const { spawnSync } = require('child_process');
 const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
+const { deriveAgents } = require('./lib/derive-platform');
 
 const PLUGIN_DIR = joinHome('.qoder', 'plugins');
 const PLUGINS = ['dotnet-work', 'agentic-workflow', 'graph-workflow', 'skill-radar'];
-const SUBDIRS = ['.qoder-plugin', 'skills', 'commands', 'qoder/agents', '_shared', 'scripts'];
-// Source subdir → destination dirname (when they differ)
-const RENAME_MAP = { 'qoder/agents': 'agents' };
+// Public source subdirs to copy (manifest copied separately; agents derived below).
+const SUBDIRS = ['skills', 'commands', '_shared', 'scripts'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -109,28 +109,6 @@ function readManifest(pluginName) {
   return JSON.parse(fs.readFileSync(p, 'utf-8'));
 }
 
-// The staged copy flattens qoder/agents → agents/ (RENAME_MAP), so manifest
-// paths like ./qoder/agents/x.md must be rewritten to ./agents/x.md or the
-// staged dir would not survive `qodercli plugins validate`.
-function rewriteManifestPathsForStaged(manifest) {
-  const rewritten = JSON.parse(JSON.stringify(manifest));
-  const fixPath = (v) => {
-    if (typeof v !== 'string') return v;
-    let out = v;
-    for (const [from, to] of Object.entries(RENAME_MAP)) {
-      if (out === `./${from}` || out.startsWith(`./${from}/`)) {
-        out = `./${to}` + out.slice(`./${from}`.length);
-      }
-    }
-    return out;
-  };
-  for (const [key, val] of Object.entries(rewritten)) {
-    if (Array.isArray(val)) rewritten[key] = val.map(fixPath);
-    else rewritten[key] = fixPath(val);
-  }
-  return rewritten;
-}
-
 function installPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-qoder`;
@@ -147,10 +125,9 @@ function installPlugin(pluginName, args) {
   }
 
   for (const sub of SUBDIRS) {
-    if (sub === '.qoder-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(destDir, RENAME_MAP[sub] || sub);
+    const subDest = path.join(destDir, sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
@@ -159,15 +136,22 @@ function installPlugin(pluginName, args) {
     }
   }
 
-  // Hooks (selective): the manifest declares "hooks": "hooks/hooks.qoder.json" (wrapper
+  // agents: derive qoder frontmatter from baseline. qoder manifest declares an
+  // explicit ./agents/*.md array, so derived files land exactly where it points.
+  const agentsSrc = path.join(src, 'agents');
+  if (fs.existsSync(agentsSrc)) {
+    const n = deriveAgents(agentsSrc, 'qoder', path.join(destDir, 'agents'), { dryRun: args.dryRun });
+    if (!args.dryRun) console.log(`  derived: agents/ (${n} files, zcode → qoder)`);
+    else console.log(`  would derive: agents/ (${n} files, zcode → qoder)`);
+  }
+
+  // Hooks (selective): the manifest declares "hooks": "./hooks/hooks.json" (wrapper
   // format { "hooks": ... }, per https://docs.qoder.com/zh/cli/plugins), so the repo
-  // plugin dir is directly installable via `qodercli plugins install`. For the staged
-  // copy, additionally rename it to hooks/hooks.json (Qoder's auto-discovery convention)
-  // as belt-and-braces. Copy only the JS scripts plus the Qoder config — excluding the
-  // other platform variants (hooks.zcode.json, hooks.codebuddy.json, hooks.qwencode.json,
-  // hooks.trae.json).
+  // plugin dir is directly installable via `qodercli plugins install`. Source config
+  // lives at hooks/qoder/hooks.json; copy it to hooks/hooks.json (Qoder auto-discovery)
+  // plus keep hooks/qoder/hooks.json as belt-and-braces. JS scripts are shared at hooks/.
   const hooksSrc = path.join(src, 'hooks');
-  const qoderHooksConfig = path.join(hooksSrc, 'hooks.qoder.json');
+  const qoderHooksConfig = path.join(hooksSrc, 'qoder', 'hooks.json');
   if (fs.existsSync(qoderHooksConfig)) {
     const hooksDest = path.join(destDir, 'hooks');
     const scripts = fs.readdirSync(hooksSrc).filter((f) => f.endsWith('.js'));
@@ -175,24 +159,22 @@ function installPlugin(pluginName, args) {
       fs.mkdirSync(hooksDest, { recursive: true });
       for (const f of scripts) fs.copyFileSync(path.join(hooksSrc, f), path.join(hooksDest, f));
       fs.copyFileSync(qoderHooksConfig, path.join(hooksDest, 'hooks.json'));
-      fs.copyFileSync(qoderHooksConfig, path.join(hooksDest, 'hooks.qoder.json'));
-      console.log(`  copied: hooks/ (${scripts.length} scripts + hooks.qoder.json, also as hooks.json)`);
+      console.log(`  copied: hooks/ (${scripts.length} scripts + qoder/hooks.json → hooks.json)`);
     } else {
-      console.log(`  would copy: ${hooksSrc} → ${hooksDest} (${scripts.join(', ')}, hooks.qoder.json → hooks.json)`);
+      console.log(`  would copy: ${scripts.length} hook scripts + qoder/hooks.json → hooks/hooks.json`);
     }
   }
 
+  // Manifest: source layout is already flattened (agents/ at root, manifest paths
+  // point at ./agents/*.md + ./hooks/hooks.json), so no path rewriting needed.
   if (!args.dryRun) {
     fs.mkdirSync(path.join(destDir, '.qoder-plugin'), { recursive: true });
-    const staged = rewriteManifestPathsForStaged(readManifest(pluginName));
-    fs.writeFileSync(
-      path.join(destDir, '.qoder-plugin', 'plugin.json'),
-      JSON.stringify(staged, null, 2) + '\n'
-    );
-    console.log('  copied: .qoder-plugin/ (manifest paths rewritten for flattened layout)');
+    fs.copyFileSync(manifestSrc, path.join(destDir, '.qoder-plugin', 'plugin.json'));
+    console.log('  copied: .qoder-plugin/');
   } else {
-    console.log(`  would copy: ${manifestSrc} → ${path.join(destDir, '.qoder-plugin', 'plugin.json')} (paths rewritten)`);
+    console.log(`  would copy: ${manifestSrc} → ${path.join(destDir, '.qoder-plugin', 'plugin.json')}`);
   }
+  return destDir;
 }
 
 function uninstallPlugin(pluginName, args) {
@@ -219,14 +201,19 @@ function install(args) {
   const cli = findQoderCli();
   let failed = 0;
   for (const name of selectPlugins(args)) {
-    installPlugin(name, args);
+    const stagedDir = installPlugin(name, args);
     if (!cli) continue;
-    const srcDir = path.join(__dirname, '..', 'plugins', name);
+    // Register the STAGED dir (derived agents + flattened manifest), not the repo
+    // source — the repo source holds a zcode baseline whose frontmatter Qoder
+    // does not understand. The staged tree is the real Qoder-shaped plugin.
+    const registerDir = args.dryRun
+      ? path.join(PLUGIN_DIR, `${name}-qoder`, getPluginVersion(name))
+      : stagedDir;
     if (args.dryRun) {
-      console.log(`  would register: qodercli plugins install ${srcDir}`);
+      console.log(`  would register: qodercli plugins install ${registerDir}`);
     } else {
       console.log('  registering via qodercli...');
-      if (!registerPlugin(cli, srcDir)) failed++;
+      if (!registerPlugin(cli, registerDir)) failed++;
     }
   }
 
@@ -236,11 +223,11 @@ function install(args) {
     console.log('\n✅ Registered via qodercli — run /plugins reload or restart Qoder to activate.');
   } else if (cli) {
     console.log(`\n⚠️  ${failed} plugin(s) failed to register — files are staged; retry manually:\n` +
-      '   qodercli plugins install <repo-plugin-dir>  (then /plugins reload or restart Qoder).');
+      '   qodercli plugins install <staged-plugin-dir>  (then /plugins reload or restart Qoder).');
   } else {
     console.log('\n⚠️  qodercli not found — files staged only. Qoder loads registered plugins exclusively\n' +
       '   (~/.qoder/plugins/installed_plugins_v2.json). Activate with:\n' +
-      '   qodercli plugins install <staged-or-repo-plugin-dir>  (then /plugins reload or restart Qoder).');
+      '   qodercli plugins install <staged-plugin-dir>  (then /plugins reload or restart Qoder).');
   }
 }
 

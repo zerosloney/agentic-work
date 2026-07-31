@@ -11,7 +11,7 @@
   ],
   "contextFileName": "QWEN.md",
   "excludeTools": [],
-  "hooks": "hooks/hooks.qwencode.json",
   "agents": "agents",
-  "commands": "commands"
+  "commands": "commands",
+  "hooks": "hooks/hooks.json"
 }

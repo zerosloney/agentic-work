@@ -12,6 +12,11 @@
 // %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/<version>/
 // and registers in marketplace. Manifest is read from .zcode-plugin/plugin.json
 // at the plugin root.
+//
+// Source layout (post-flatten): a single agents/ baseline with ZCode frontmatter;
+// per-platform agent copies no longer exist. ZCode IS the baseline, so agents/ is
+// copied as-is (no derivation). Hooks: JS shared at hooks/*.js, per-platform config
+// at hooks/zcode/hooks.json — copied into install dir as hooks/hooks.json.
 
 const fs = require('fs');
 const path = require('path');
@@ -22,9 +27,8 @@ const { getPluginVersion } = require('./lib/plugin-version');
 const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
 const PLUGINS = ['dotnet-work', 'agentic-workflow', 'skill-radar', 'graph-workflow'];
-const SUBDIRS = ['.zcode-plugin', 'skills', 'commands', 'zcode/agents', 'hooks', '_shared', 'scripts'];
-// Source subdir → destination dirname (when they differ)
-const RENAME_MAP = { 'zcode/agents': 'agents' };
+// Public source subdirs to copy (manifest copied separately).
+const SUBDIRS = ['skills', 'agents', 'commands', '_shared', 'scripts'];
 
 function parseArgs(argv) {
   const args = { plugin: null, uninstall: false, dryRun: false };
@@ -56,6 +60,24 @@ function removeDir(dir) {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+// Copy hooks: shared *.js + this platform's hooks.json (flattened from hooks/<platform>/hooks.json).
+function copyHooks(src, destDir, platform, args) {
+  const hooksSrc = path.join(src, 'hooks');
+  if (!fs.existsSync(hooksSrc)) return;
+  const platConfig = path.join(hooksSrc, platform, 'hooks.json');
+  if (!fs.existsSync(platConfig)) return; // plugin has no hooks
+  const hooksDest = path.join(destDir, 'hooks');
+  const scripts = fs.readdirSync(hooksSrc).filter((f) => f.endsWith('.js'));
+  if (!args.dryRun) {
+    fs.mkdirSync(hooksDest, { recursive: true });
+    for (const f of scripts) fs.copyFileSync(path.join(hooksSrc, f), path.join(hooksDest, f));
+    fs.copyFileSync(platConfig, path.join(hooksDest, 'hooks.json'));
+    console.log(`  copied: hooks/ (${scripts.length} scripts + ${platform}/hooks.json → hooks.json)`);
+  } else {
+    console.log(`  would copy: ${scripts.length} hook scripts + ${platform}/hooks.json → hooks/hooks.json`);
+  }
+}
+
 function installPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
   const installName = `${pluginName}-zcode`;
@@ -72,10 +94,9 @@ function installPlugin(pluginName, args) {
   }
 
   for (const sub of SUBDIRS) {
-    if (sub === '.zcode-plugin') continue;
     const subSrc = path.join(src, sub);
     if (!fs.existsSync(subSrc)) continue;
-    const subDest = path.join(destDir, RENAME_MAP[sub] || sub);
+    const subDest = path.join(destDir, sub);
     if (!args.dryRun) {
       copyDirRecursive(subSrc, subDest);
       console.log(`  copied: ${sub}/`);
@@ -83,6 +104,8 @@ function installPlugin(pluginName, args) {
       console.log(`  would copy: ${subSrc} → ${subDest}`);
     }
   }
+
+  copyHooks(src, destDir, 'zcode', args);
 
   if (!args.dryRun) {
     fs.mkdirSync(path.join(destDir, '.zcode-plugin'), { recursive: true });

@@ -158,11 +158,12 @@ function validateComponentField(rep, site, pluginRoot, manifest, field, kind, pl
   const v = manifest[field];
   if (v === undefined) return;
   const isArr = Array.isArray(v);
-  // Qwen convention: "agents": "agents" is decorative — it points at the
-  // post-install flattened dir; the real source is qwencode/agents (AGENTS.md).
-  // Validate the source dir instead of the literal path.
-  if (platform === 'qwen' && field === 'agents' && v === 'agents') {
-    checkPathRef(rep, site, pluginRoot, field, 'qwencode/agents');
+  // Hooks path: manifest declares the INSTALL shape (hooks/hooks.json), but the
+  // source holds per-platform configs at hooks/<platform>/hooks.json (flattened by
+  // install scripts). Validate the source platform subdir instead of the literal path.
+  if (field === 'hooks' && typeof v === 'string') {
+    const platDir = platform === 'qwen' ? 'qwencode' : platform;
+    checkPathRef(rep, site, pluginRoot, field, `hooks/${platDir}/hooks.json`);
     return;
   }
   if (kind === 'path') {
@@ -212,20 +213,23 @@ function validateCapabilities(rep, site, manifest) {
 function validateHooksFileShape(rep, site, pluginRoot, manifest, platform) {
   const hooksRef = manifest.hooks;
   if (typeof hooksRef !== 'string') return;
-  const abs = path.join(pluginRoot, hooksRef.replace(/^\.\//, ''));
+  // Source hooks live at hooks/<platform>/hooks.json; manifest declares the install
+  // shape (hooks/hooks.json). Validate the source platform file's JSON shape.
+  const platDir = platform === 'qwen' ? 'qwencode' : platform;
+  const abs = path.join(pluginRoot, 'hooks', platDir, 'hooks.json');
   if (!fs.existsSync(abs)) return; // already reported by checkPathRef
   try {
     const data = JSON.parse(fs.readFileSync(abs, 'utf-8'));
     // Qwen Code uses top-level event keys (no "hooks" wrapper).
     if (platform === 'qwen') {
-      if (data.hooks) rep.warn(site, `qwen hooks file ${hooksRef} uses a "hooks" wrapper; Qwen expects top-level event keys`);
+      if (data.hooks) rep.warn(site, `qwen hooks file (hooks/${platDir}/hooks.json) uses a "hooks" wrapper; Qwen expects top-level event keys`);
       return;
     }
     if (!data.hooks || typeof data.hooks !== 'object') {
-      rep.error(site, `hooks file ${hooksRef}: expected a top-level "hooks" object (${platform} format)`);
+      rep.error(site, `hooks file (hooks/${platDir}/hooks.json): expected a top-level "hooks" object (${platform} format)`);
     }
   } catch (e) {
-    rep.error(site, `hooks file ${hooksRef}: invalid JSON — ${e.message}`);
+    rep.error(site, `hooks file (hooks/${platDir}/hooks.json): invalid JSON — ${e.message}`);
   }
 }
 

@@ -13,22 +13,17 @@ This repo contains plugins for CodeBuddy and ZCode. Follow these rules when maki
   - `.qoder-plugin/plugin.json`
   - `.qwen-plugin/qwen-extension.json`
 - 各平台 manifest 字段按各自 schema 要求，允许不一致（如 `author`、`description`、`keywords` 等字段在不同平台 manifest 中可有不同子集）。
-- **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。每个平台有独立的 agents 目录：
+- **不同平台的 agent frontmatter 可能不兼容**（如 ZCode 支持嵌套 `permission:` 块、`mode`、`temperature`、`steps`，而 CodeBuddy 只认 flat `permissionMode`）。源仓库只保留**一份 baseline**:
   ```
-  plugins/<name>/zcode/agents/             ← ZCode 基准（嵌套 permission）
-  plugins/<name>/codebuddy/agents/         ← CodeBuddy 版本（permissionMode 单值）
-  plugins/<name>/trae/agents/              ← Trae 版本（嵌套 permission + platform: trae）
-  plugins/<name>/qoder/agents/             ← Qoder 版本（permissionMode 单值）
-  plugins/<name>/qwencode/agents/          ← Qwen Code 版本（approvalMode + tools 允许列表）
+  plugins/<name>/agents/*.md             ← 唯一源（ZCode frontmatter 作 baseline）
   ```
-  body 内容应保持一致，仅 frontmatter 不同。每个非 ZCode 平台的 agent 文件开头需加 HTML 注释注明同步要求。**ZCode 的 `<platform>/agents/` 是安装步骤（`install-zcode.js`）通过 RENAME_MAP 展平到安装目录 `agents/`，不是源仓库直接存在 `agents/` 目录**。
+  其余 4 平台的 frontmatter 在**安装时由 `scripts/lib/derive-platform.js` 派生**（从 baseline 的嵌套 `permission:` 推导 PROFILE：editor/orchestrator/reviewer，再按平台模板生成 codebuddy/qoder 的 `permissionMode`、qwencode 的 `approvalMode`+`tools`、trae 的嵌套 permission + `platform: trae` 标记）。源仓库不再存在 `<platform>/agents/` 多份副本（旧设计 55 文件 → 现 11 文件）。Body 始终取自 baseline，派生只换 frontmatter。
 
-  各平台 manifest 的 `"agents"` 字段指向约定（按平台 loader 决定）：
+  各平台 manifest 的 `"agents"` 字段指向**安装形态**（源与安装目录布局一致，均为根 `agents/`）：
   | 平台 | `"agents"` 字段形态 | 指向 | 备注 |
   |------|---------------------|------|------|
-  | ZCode / Trae / CodeBuddy | 字符串（源目录路径） | `<platform>/agents` | 安装时按 RENAME_MAP 展平到 `<dest>/agents/`；manifest 在源仓库形态，安装目录 loader 按平台约定解析 |
-  | Qoder | 字符串数组（文件路径） | `["./qoder/agents/*.md", ...]` | `install-qoder.js:115-132` 在安装时改写为 `["./agents/*.md", ...]` |
-  | Qwen Code | 字符串 `"agents"` | 装饰性，指向 post-install 扁平目录 | `install-qwencode.js:87` 硬编码源为 `qwencode/agents`，loader 容忍 manifest 字段不匹配 |
+  | ZCode / Trae / CodeBuddy / Qwen Code | 字符串 `"agents"` | 根 `agents/` | 安装时 `deriveAgents()` 从 baseline 派生目标平台 frontmatter 写入 `<dest>/agents/` |
+  | Qoder | 字符串数组（文件路径） | `["./agents/*.md", ...]` | Qoder 要求显式列出；源与安装形态一致，无需路径改写 |
 
 Permission mapping for codebuddy/qoder `permissionMode` (single-value enum):
 
@@ -91,22 +86,21 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 ## agentic-workflow
 
 - Current published scope: **coding + ralph domains** (6 agents + 5 commands).
-- ZCode agents live at `plugins/agentic-workflow/zcode/agents/` (with nested `permission:` frontmatter). `.zcode-plugin/plugin.json` points `"agents"` at this directory. Cross-agent reference docs live at plugin-root `_shared/` (`decomposition.md`, `field-map.md`), referenced by all platforms' orchestrators via `../_shared/`.
-- CodeBuddy agents live at `plugins/agentic-workflow/codebuddy/agents/` (with flat `permissionMode` frontmatter). `.codebuddy-plugin/plugin.json` points `"agents"` at this directory.
+- Agents live at `plugins/agentic-workflow/agents/` (single baseline with ZCode nested `permission:` frontmatter). All platform manifests point `"agents"` at `agents/`; other platforms' frontmatter is **derived at install time** by `scripts/lib/derive-platform.js`. Cross-agent reference docs live at plugin-root `_shared/` (`decomposition.md`, `field-map.md`), referenced by all platforms' orchestrators via `../_shared/`.
 - Shared commands live at `plugins/agentic-workflow/commands/`.
 - Platform manifests: `.codebuddy-plugin/plugin.json`, `.zcode-plugin/plugin.json` at the plugin root.
 - Templates source files (`agentic-workflow/templates/{agents,commands}/*.md` with `{{...}}` placeholders) are **not committed** — only the materialized outputs at the plugin root are.
-- To add a new agent: create a file per platform that needs it — `zcode/agents/<name>.md`、`codebuddy/agents/<name>.md` 等。Body 必须一致，仅 frontmatter 按平台适配。
+- To add a new agent: create **one** file `plugins/agentic-workflow/agents/<name>.md` with ZCode frontmatter (nested `permission:` block). 其余 4 平台 frontmatter 由 `scripts/lib/derive-platform.js` 在安装时自动派生，无需手动维护多份。
 - To add a new command: create `plugins/agentic-workflow/commands/<name>.md`.
 
 ## skill-radar
 
 - **Purpose**: skill observability — tool invocation tracing (Phase 1), aggregation (Phase 2), feedback (Phase 3), evolution (Phase 4).
 - **MVP scope (Phase 1)**: PostToolUse + PostToolUseFailure hooks → JSONL traces. No aggregation, no feedback loop.
-- **五平台全覆盖（2026-07-30 补齐）**：ZCode（`process` hooks）+ CodeBuddy（shell wrapper `run-hook.cmd` + `observe.sh`，`hookSpecificOutput` 格式）+ Trae（`hooks.trae.json` 模板，install-trae.js 合并到项目级 `.trae/hooks.json`）+ Qoder（`hooks.qoder.json` 包裹格式，install 时双保险拷贝为 `hooks.json`）+ Qwen Code（`hooks.qwencode.json` 顶层事件键）。三个 Node 脚本统一接 `--platform <name>`；非 CodeBuddy 平台一律输出 flat `{}`。
+- **五平台全覆盖（2026-07-30 补齐）**：ZCode（`process` hooks）+ CodeBuddy（shell wrapper `run-hook.cmd` + `observe.sh`，`hookSpecificOutput` 格式）+ Trae（`hooks/trae/hooks.json` 模板，install-trae.js 合并到项目级 `.trae/hooks.json`）+ Qoder（`hooks/qoder/hooks.json` 包裹格式，install 时展平拷贝为 `hooks.json`）+ Qwen Code（`hooks/qwencode/hooks.json` 顶层事件键）。三个 Node 脚本统一接 `--platform <name>`；非 CodeBuddy 平台一律输出 flat `{}`。
 - **运行时依赖**：hooks 脚本 `require ../scripts/lib/{infer-skill,read-stdin,discover-skills}.js` —— install 脚本必须拷贝 `scripts/` 目录（trae/qoder/qwencode 均已包含）。
 - **Skill 推断双层架构（P1-7）**：`scripts/lib/infer-skill.js` = curated 规则（手工调优的 bash/扩展名/插件路径模式）+ `scripts/lib/discover-skills.js` 动态发现层（扫描 `plugins/*/skills/<name>/SKILL.md`，自动生成 path 规则 + 全词 bash hints，缓存到 `<data-dir>/skill-map.json`，按插件树 fingerprint 失效）。新 skill 无需改 infer-skill 即可被观测；发现失败静默回退到 curated 规则。
-- Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.zcode.json"`.
+- Manifest: `.zcode-plugin/plugin.json` declares `"hooks": "hooks/hooks.json"`（源配置在 `hooks/zcode/hooks.json`，安装时展平）。
 - Storage: data dir resolved in order `ZCODE_PLUGIN_DATA` → `CODEBUDDY_PLUGIN_DATA` → `~/.skill-radar/`. Traces at `<data-dir>/traces/<YYYY-MM-DD>.jsonl`, signals at `<data-dir>/signals/<YYYY-MM-DD>.jsonl`, session at `<data-dir>/session.json`.
 - Session correlation: `SessionStart` generates uuid → `<data-dir>/session.json`; `log-invocation.js` reads it. CodeBuddy routes `session-start` → `session-start.js` via `observe.sh` dispatch (not `log-invocation.js`).
 - Manifest: `.codebuddy-plugin/plugin.json` is version source of truth; `.zcode-plugin/plugin.json` derived.
@@ -169,15 +163,26 @@ agentic-workflow 当前无独立 skill。此前的 `scope-drift-detector` 与 `r
 
 ## Hooks
 
-事件驱动自动化，写在 `plugins/<name>/hooks/hooks.<platform>.json` + `plugins/<name>/hooks/*.js`。ZCode manifest 通过 `"hooks": "hooks/hooks.zcode.json"` 字段声明（全部插件已按平台后缀统一命名，仓库源目录不再存在无后缀的 `hooks.json`）。
+事件驱动自动化，源仓库组织为 `plugins/<name>/hooks/*.js`（**共享脚本**，全平台用同一份）+ `plugins/<name>/hooks/<platform>/hooks.json`（**按平台拆分的配置**，结构各异不可合并）。各平台 manifest 统一声明 `"hooks": "hooks/hooks.json"`——安装时 install 脚本把对应平台的 `hooks/<platform>/hooks.json` 展平拷贝到安装目录 `hooks/hooks.json`（JS 脚本一并拷贝）。
+
+**源布局**（hooks 是唯一按平台拆目录的部分，其余 agents/commands/scripts 均单源）：
+```
+plugins/<name>/hooks/
+  *.js                       ← 共享 Node 脚本（validate-state-write.js 等）
+  zcode/hooks.json           ← 5 份平台配置，结构各异
+  codebuddy/hooks.json
+  trae/hooks.json
+  qoder/hooks.json
+  qwencode/hooks.json
+```
 
 **平台覆盖**：agentic-workflow 的 hooks 已支持 **ZCode + CodeBuddy + Qwen Code + Trae + Qoder** 全部五平台，同一组 Node 脚本、五份平台配置：
 
-- ZCode：`hooks/hooks.zcode.json`（`type: "process"` + `${ZCODE_PLUGIN_ROOT}`），`.zcode-plugin/plugin.json` 通过 `"hooks": "hooks/hooks.zcode.json"` 声明。
-- CodeBuddy：`hooks/hooks.codebuddy.json`（`type: "command"` + `node "${CODEBUDDY_PLUGIN_ROOT}/hooks/X.js"`），`.codebuddy-plugin/plugin.json` 声明。CodeBuddy 在 Windows 强制用 Git Bash 执行 command hook，Node 脚本直调即可无需 wrapper；退出码 2 + stderr 即阻断（PreToolUse 拦工具 / Stop 拦停止），与脚本既有契约一致。
-- Qwen Code：`hooks/hooks.qwencode.json`（**顶层事件键**，无 `hooks` 包裹层；`type: "command"` + `node "${CLAUDE_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 毫秒），`.qwen-plugin/qwen-extension.json` 通过 `"hooks": "hooks/hooks.qwencode.json"` 声明。要点：file-based hook 文件里**只有 `${CLAUDE_PLUGIN_ROOT}`** 会被替换（`${extensionPath}` 等不生效）；PreToolUse matcher 用 Qwen 工具名 `WriteFile|Edit`；退出码 2 + stderr 阻断，契约同上。`install-qwencode.js` 选择性拷贝 hooks/（仅 `*.js` + `hooks.qwencode.json`），避免其他平台配置变体落入 Qwen 自动发现路径。
-- Trae：`hooks/hooks.trae.json`（**模板**，非直接加载）—— Trae 没有插件级 hooks，只认全局 `~/.trae-cn/hooks.json` / 项目 `.trae/hooks.json`，且命令里无 PLUGIN_ROOT 变量。`install-trae.js` 安装时把模板的 `${TRAE_PLUGIN_ROOT}` 替换为实际安装目录后**幂等合并**进全局 hooks.json（自有条目按 `agentic-workflow-trae` 路径标记识别，重装先剔除再追加，卸载同标记移除）。Trae 在 Windows 默认用 PowerShell 跑 command hook，Node 直调可用；timeout 单位秒；工具名就是 `Write|Edit`；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），Stop 额外有 `loop_limit`（默认5）防无限阻断循环。注意：全局 hook 对本机所有工作区生效，脚本对非 pipeline 项目 fail-open（无 `.loop-cli/state/` 即退 0），不干扰其他项目。
-- Qoder：`hooks/hooks.qoder.json`（**包裹格式** `{ "hooks": ... }` + `node "${QODER_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 秒），`.qoder-plugin/plugin.json` 通过 `"hooks": "hooks/hooks.qoder.json"` 显式声明（manifest 支持覆盖目录约定，同 `agents` 字段机制），仓库源目录可直接 `qodercli plugins install`。`install-qoder.js` 拷贝时额外落一份 `hooks/hooks.json`（目录约定自动发现，双保险；选择性拷贝排除其余四平台变体）。**激活前提**：Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件（`~/.qoder/plugins/` 是注册表+cache，非扫描目录），纯拷贝不生效，须 `qodercli plugins install <dir>` 注册（影响整个插件而非仅 hooks，install-qoder.js 尾注已提示）。工具名就是 `Write|Edit`；`${QODER_PLUGIN_ROOT}` 在 bash 下由 shell 运行时展开、PowerShell 下由 CLI 预替换；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），契约同上。至此**五平台 hook 强制全覆盖**。
+- ZCode：`hooks/zcode/hooks.json`（`type: "process"` + `${ZCODE_PLUGIN_ROOT}`），`.zcode-plugin/plugin.json` 声明 `"hooks": "hooks/hooks.json"`，install-zcode.js 展平拷贝。
+- CodeBuddy：`hooks/codebuddy/hooks.json`（`type: "command"` + `node "${CODEBUDDY_PLUGIN_ROOT}/hooks/X.js"`），`.codebuddy-plugin/plugin.json` 声明。CodeBuddy 在 Windows 强制用 Git Bash 执行 command hook，Node 脚本直调即可无需 wrapper；退出码 2 + stderr 即阻断（PreToolUse 拦工具 / Stop 拦停止），与脚本既有契约一致。
+- Qwen Code：`hooks/qwencode/hooks.json`（**顶层事件键**，无 `hooks` 包裹层；`type: "command"` + `node "${CLAUDE_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 毫秒），`.qwen-plugin/qwen-extension.json` 声明 `"hooks": "hooks/hooks.json"`。要点：file-based hook 文件里**只有 `${CLAUDE_PLUGIN_ROOT}`** 会被替换（`${extensionPath}` 等不生效）；PreToolUse matcher 用 Qwen 工具名 `WriteFile|Edit`；退出码 2 + stderr 阻断，契约同上。`install-qwencode.js` 选择性拷贝（仅 `*.js` + `qwencode/hooks.json`→`hooks.json`），避免其他平台配置落入 Qwen 自动发现路径。
+- Trae：`hooks/trae/hooks.json`（**模板**，非直接加载）—— Trae 没有插件级 hooks，只认全局 `~/.trae-cn/hooks.json` / 项目 `.trae/hooks.json`，且命令里无 PLUGIN_ROOT 变量。`install-trae.js` 安装时把模板的 `${TRAE_PLUGIN_ROOT}` 替换为实际安装目录后**幂等合并**进目标 hooks.json（自有条目按 `<name>-trae` 路径标记识别，重装先剔除再追加，卸载同标记移除）。Trae 在 Windows 默认用 PowerShell 跑 command hook，Node 直调可用；timeout 单位秒；工具名就是 `Write|Edit`；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），Stop 额外有 `loop_limit`（默认5）防无限阻断循环。注意：项目级 hook 仅对当前工作区生效，全局则对本机所有工作区；脚本对非 pipeline 项目 fail-open（无 `.loop-cli/state/` 即退 0），不干扰其他项目。
+- Qoder：`hooks/qoder/hooks.json`（**包裹格式** `{ "hooks": ... }` + `node "${QODER_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 秒），`.qoder-plugin/plugin.json` 声明 `"hooks": "./hooks/hooks.json"`，`install-qoder.js` 展平拷贝。**激活前提**：Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，须 `qodercli plugins install <staged-dir>` 注册（install-qoder.js 注册的是 **staged 目录**而非 repo 源——源 agents 是 zcode baseline frontmatter，Qoder 不认，staged 目录已派生为 Qoder 格式）。工具名就是 `Write|Edit`；`${QODER_PLUGIN_ROOT}` 在 bash 下由 shell 运行时展开、PowerShell 下由 CLI 预替换；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），契约同上。至此**五平台 hook 强制全覆盖**。
 
 当前 agentic-workflow 的 hooks：
 
@@ -210,10 +215,9 @@ agentic-workflow 当前**未使用** ZCode userConfig。此前的表格（`max_c
 - Uninstall MUST remove all files created by install (full install dirs for codebuddy/zcode/trae/qoder).
 - Scripts copy from `plugins/<name>/` (shared content) and the root platform manifests from `plugins/<name>/.codebuddy-plugin/`, `plugins/<name>/.zcode-plugin/`, `plugins/<name>/.trae-plugin/`, or `plugins/<name>/.qoder-plugin/`.
 - **install-trae.js hooks 作用域（P1-4，2026-07-30 变更）**：默认项目级优先——从 cwd 上溯找到项目根（`.git`/`package.json`/`.trae`）则合并到 `<root>/.trae/hooks.json`；找不到项目根才回退全局 `~/.trae-cn/hooks.json` 并打印警告。`--project-only` 强制项目级（无项目根报错），`--global` 显式写全局。卸载按同一作用域解析移除标记条目。
-- 所有平台安装目标统一为 `agents/`（平台根目录）。
-- **Qoder 特例**：`install-qoder.js` 的拷贝仅是暂存 —— Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，需 `qodercli plugins install <dir>` 激活（脚本收尾已提示；待修项见 reports/audit-2026-07-29-06.md 后记 P1-Q1）。
-- 源目录为 `<platform>/agents/`，安装时通过 RENAME_MAP 展平为 `agents/`。
-- CodeBuddy manifest 指向 `codebuddy/agents`，materialize 时 overlay 到 `agents/`。
+- 所有平台安装目标统一为 `agents/`（平台根目录）。源仓库只有**一份 baseline** `plugins/<name>/agents/`（ZCode frontmatter），安装时各 install 脚本调 `scripts/lib/derive-platform.js` 的 `deriveAgents()` 派生目标平台 frontmatter 写入 `<dest>/agents/`（ZCode 直拷、codebuddy/trae/qoder/qwencode 派生）。
+- **Qoder 特例**：`install-qoder.js` 先 stage（拷贝 + 派生 agents + 展平 hooks）到 `~/.qoder/plugins/<name>-qoder/<version>/`，再 `qodercli plugins install <staged-dir>` 注册——注册的是 **staged 目录**（已派生为 Qoder frontmatter），不是 repo 源（源是 zcode baseline，Qoder 不认）。Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件。
+- Hooks 安装：各 install 脚本把 `hooks/<platform>/hooks.json` 展平拷贝为 `<dest>/hooks/hooks.json` + 共享 `*.js`，不拷其他平台配置。
 
 ## Verification
 
@@ -234,7 +238,6 @@ Manifest + platform frontmatter + dependency checks (all must exit 0):
 
 ```sh
 node scripts/validate-manifest.js            # plugin.json schema + capabilities + hooks file shape + cross-platform version consistency
-node scripts/generate-platform-agents.js --check   # agent frontmatter drift vs derived profiles
 node scripts/resolve-deps.js                 # dependency existence / semver range / cycle detection
 ```
 
@@ -242,7 +245,7 @@ node scripts/resolve-deps.js                 # dependency existence / semver ran
 
 - **`scripts/validate-manifest.js`** (P0-1) — JSON Schema-ish validation of every `.<platform>-plugin/` manifest: name pattern, semver version, component path existence, hooks file shape per platform (qwen = top-level event keys), `capabilities` enum (P1-5), cross-platform version consistency with `.codebuddy-plugin` as authoritative source (P1-1). `--plugin <name>` / `--strict`.
 - **`scripts/migrate-state.js`** (P0-2) — state v1→v2 migration for BOTH state families, auto-detected: graph-workflow `loop-state/task-*.json` (injects DEFAULT_GRAPH, phase→current_node) and agentic-workflow `.loop-cli/state/ralph-pipeline.json` (tasks[]→nodes{} + recomputed active_set). `--dry-run` / `--out` / `--no-backup`; in-place writes a `.bak` first.
-- **`scripts/generate-platform-agents.js`** (P1-2) — declarative platform adapter: derives each zcode agent's permission PROFILE (editor/orchestrator/reviewer) from its nested `permission:` block and generates/validates the four other platforms' frontmatter. `--check` (CI) / `--write` (regenerate; body always taken from zcode baseline, description preserved per platform).
+- **`scripts/lib/derive-platform.js`** (P1-2，重构) — 安装时 agent frontmatter 派生库。从 baseline `agents/*.md`（ZCode 嵌套 `permission:`）推导 PROFILE（editor/orchestrator/reviewer），按平台模板生成 codebuddy/qoder 的 `permissionMode`+`tools`、qwencode 的 `approvalMode`+`tools` 列表、trae 的嵌套 permission + `platform: trae`。导出 `deriveAgents(srcDir, platform, destDir)` 供各 install 脚本调用；ZCode 直拷 baseline。取代了旧的 `generate-platform-agents.js`（源不再有多平台副本，drift check 无对象）+ `verify-agent-sync.js`（源只 1 份，无 sync 对象），两者已删。
 - **`scripts/resolve-deps.js`** (P1-6) — plugin dependency resolution: spec parsing (`name[@market][@range]`), existence in marketplaces/repo, mini-semver range match (`^ ~ >= <= > < = *`), cross-marketplace allow-list check, cycle detection (three-color DFS). `--plugin` / `--json`.
 - **`scripts/lib/secret-store.js`** (P1-3) — cross-platform secret storage for `sensitive: true` userConfig. Resolution: env var (key uppercased, non-alnum→`_`) → OS keychain (Windows Credential Manager via CredRead/CredWrite P/Invoke; macOS `security`; Linux `secret-tool`). Credential target `agentic-work:<key>`. CLI: `get|set|delete|has <key> [value]`; library: `getSecret/setSecret/deleteSecret`.
 - **`capabilities` 字段约定（P1-5）**：每个 manifest 必须声明，enum：`file-read`/`file-write`/`bash-exec`/`network`/`hooks`/`agents`/`mcp`/`env-access`。validate-manifest 校验；marketplace/宿主可在安装时向用户展示。
@@ -261,15 +264,9 @@ Exits 0 on success; non-zero with diagnostics (unknown fields, type mismatches, 
 
 ## Agent body sync
 
-Each agent ships as per-platform copies under `<plugin>/<platform>/agents/`. Frontmatter differs per platform; **bodies must be identical** (ZCode is the baseline). Check before committing:
+源仓库每个 agent 只存**一份** baseline `<plugin>/agents/<name>.md`（ZCode frontmatter）。body sync 不再是问题——没有多份副本会漂移。各平台 frontmatter 由 `scripts/lib/derive-platform.js` 在安装时从这一份 baseline 派生，body 始终取自 baseline。
 
-```sh
-node scripts/verify-agent-sync.js                 # check all plugins, exit 1 on drift
-node scripts/verify-agent-sync.js --plugin graph-workflow
-node scripts/verify-agent-sync.js --fix           # overwrite non-zcode bodies from zcode baseline
-```
-
-The script strips frontmatter + platform sync comments and compares normalized body hashes. On drift it lists agent, platform, and file path. `--fix` preserves each platform's own frontmatter and replaces only the body — run it only after editing the zcode baseline. Also exposed as `npm run verify:agents`.
+旧的 `scripts/verify-agent-sync.js`（比较多平台副本 body 哈希）已删——源只 1 份，无对象可比。`npm run verify:agents` 脚本条目同步移除。
 
 ## Shared documents
 
@@ -278,7 +275,7 @@ Plugin-root `_shared/` (e.g. `plugins/agentic-workflow/_shared/`) holds cross-ag
 - `_shared/decomposition.md` — task complexity estimation & decomposition rules, referenced by `coding-orchestrator.md`, `ralph-orchestrator.md`, and the three command templates.
 - `_shared/field-map.md` — state JSON field ↔ `=== X ===` injection mapping for each loop variant.
 
-Orchestrator bodies reference these via `../_shared/` — 这个相对路径以**安装后布局**为准(install/materialize 将 `<platform>/agents/` 展平为根 `agents/`、`_shared/` 拷到根同级，`../_shared/` 正确解析)。仓库内从 `<platform>/agents/` 浏览时断链为已知且可接受，勿改为 `../../_shared/`(会弄断全部五平台安装布局)。
+Orchestrator bodies reference these via `../_shared/` — 这个相对路径以**安装后布局**为准(install/materialize 将 `agents/` 拷到根 `agents/`、`_shared/` 拷到根同级，`../_shared/` 正确解析)。源仓库 `agents/` 与 `_shared/` 同级，仓库内浏览即解析正确。
 
 ## Versioning
 
@@ -293,4 +290,4 @@ Orchestrator bodies reference these via `../_shared/` — 这个相对路径以*
 
 The `agentic-work` marketplace is used for CodeBuddy installation. Each repo uses its own marketplace name to avoid conflicts — `caveman4cn` uses `master0071`, agentic-work uses `agentic-work`.
 
-- Both CodeBuddy and ZCode `source` paths point at `./plugins/<name>/`. 所有平台 manifest `"agents"` 字段指向 `<platform>/agents`，安装时统一展平为 `agents/`。
+- Both CodeBuddy and ZCode `source` paths point at `./plugins/<name>/`. 所有平台 manifest `"agents"` 字段指向根 `agents/`（源与安装形态一致），`"hooks"` 指向 `hooks/hooks.json`（安装时从 `hooks/<platform>/hooks.json` 展平）。

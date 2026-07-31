@@ -21,6 +21,6 @@
     "skill",
     "telemetry"
   ],
-  "hooks": "hooks/hooks.codebuddy.json",
+  "hooks": "hooks/hooks.json",
   "category": "observability"
 }

@@ -23,6 +23,6 @@
     "orchestration"
   ],
   "commands": "commands",
-  "agents": "trae/agents",
-  "hooks": "hooks/hooks.trae.json"
+  "agents": "agents",
+  "hooks": "hooks/hooks.json"
 }
