@@ -14,19 +14,46 @@ _CACHE_VERSION: str | None = None
 
 
 def _compute_analyzer_hash() -> str:
-    """Compute a combined hash of all analyzer DLLs for cache versioning.
+    """Compute a combined hash of analyzer projects for cache versioning.
 
-    Returns a hex string that changes when any analyzer is rebuilt.
-    Empty string if no analyzer DLLs can be read (cache disabled).
+    Returns a hex string that changes when any analyzer is rebuilt or its
+    .csproj changes. Empty string if no analyzer artifacts can be read
+    (cache disabled).
+
+    The runtime invokes analyzers via ``dotnet run --project <x>.csproj``, so
+    cache validity must track the .csproj files (dependency/TFM changes drive
+    ``dotnet run`` rebuilds) plus the newest built DLL under bin/ for each
+    project. We hash the newest DLL across all bin/ subdirs (Debug/Release ×
+    net6.0/net8.0/win-x64) rather than a hardcoded ``Debug/net6.0`` path,
+    which went stale when ast-analyzer moved to net8.0 and the unified
+    analyzer (preferred at runtime) was added.
     """
     skill_dir = Path(__file__).resolve().parent.parent
     hasher = hashlib.sha256()
     hasher.update(_CACHE_SALT.encode())
-    for name in ["csharp-ast-analyzer", "csharp-semantic-analyzer", "csharp-project-analyzer"]:
-        dll = skill_dir / name / "bin" / "Debug" / "net6.0" / f"{name}.dll"
-        if dll.exists():
+    # Include the unified analyzer (preferred at runtime) and the three
+    # individual analyzers (fallback path).
+    for name in [
+        "csharp-unified-analyzer",
+        "csharp-ast-analyzer",
+        "csharp-semantic-analyzer",
+        "csharp-project-analyzer",
+    ]:
+        proj_dir = skill_dir / name
+        csproj = proj_dir / f"{name}.csproj"
+        if csproj.exists():
             try:
-                hasher.update(dll.read_bytes())
+                hasher.update(csproj.read_bytes())
+            except OSError:
+                pass
+        # Newest built DLL across all configs/tfms under bin/.
+        dlls = sorted(
+            proj_dir.glob("bin/**/{0}.dll".format(name)),
+            key=lambda p: p.stat().st_mtime if p.exists() else 0,
+        )
+        if dlls:
+            try:
+                hasher.update(dlls[-1].read_bytes())
             except OSError:
                 pass
     return hasher.hexdigest()[:16]

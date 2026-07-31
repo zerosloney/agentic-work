@@ -269,16 +269,26 @@ def analyze_semantic(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
-        output = result.stdout
-        if result.returncode != 0 or not output.strip():
-            output = result.stderr
+        # Prefer stdout JSON (analyzer emits findings on stdout even when it
+        # logs warnings on stderr). Only consult stderr if stdout is empty.
+        output = result.stdout if result.stdout.strip() else result.stderr
 
         json_start = output.find("{")
-        if json_start >= 0:
-            json_text = output[json_start:]
-        else:
+        if json_start < 0:
+            # No JSON anywhere. Non-zero exit with no structured output means
+            # the analyzer failed (e.g. compilation errors, internal crash).
+            # Surface a degradation marker so the report flags SEM_* as
+            # downgraded instead of silently reporting "no semantic issues".
+            if result.returncode != 0:
+                logger.warning(
+                    "Semantic analyzer exited %d with no JSON output — "
+                    "SEM_* rules degraded. stderr: %s",
+                    result.returncode,
+                    (result.stderr or "")[:200],
+                )
+                return [], {"compilation_error_count": 1}
             return [], {}
-        data = json.loads(json_text)
+        data = json.loads(output[json_start:])
         issues = []
         for d in data.get("diagnostics", []):
             src_file = d.get("file", "")
@@ -368,12 +378,18 @@ def analyze_project(files: list[str]) -> dict:
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        output = result.stdout
-        if result.returncode != 0 or not output.strip():
-            output = result.stderr
+        # Prefer stdout JSON; only fall back to stderr if stdout is empty.
+        output = result.stdout if result.stdout.strip() else result.stderr
 
         json_start = output.find("{")
         if json_start < 0:
+            if result.returncode != 0:
+                logger.warning(
+                    "Project analyzer exited %d with no JSON output — "
+                    "project-level rules skipped. stderr: %s",
+                    result.returncode,
+                    (result.stderr or "")[:200],
+                )
             return {}
         return json.loads(output[json_start:])
     except (json.JSONDecodeError, subprocess.TimeoutExpired, OSError) as e:
