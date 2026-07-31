@@ -1,6 +1,6 @@
 {
   "name": "skill-radar-codebuddy",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
   "capabilities": [
     "file-read",

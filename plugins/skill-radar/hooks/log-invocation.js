@@ -10,7 +10,8 @@
 // in hookSpecificOutput format.
 //
 // Never blocks: exit 0 + {} on any error. Observability layer must not
-// interfere with the user's workflow.
+// interfere with the user's workflow. Raw tool input is not stored unless
+// SKILL_RADAR_CAPTURE_RAW=1 is set.
 
 const path = require('path');
 const fs = require('fs');
@@ -19,6 +20,8 @@ const fs = require('fs');
 // to this file so it works regardless of process cwd.
 const { inferSkill } = require(path.join(__dirname, '..', 'scripts', 'lib', 'infer-skill.js'));
 const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
+const { getDataDir, resolveSessionId } = require(path.join(__dirname, '..', 'scripts', 'lib', 'session.js'));
+const { now, recordDuration, warnIfSlow } = require(path.join(__dirname, '..', 'scripts', 'lib', 'perf.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
@@ -33,32 +36,12 @@ function parseArgs(argv) {
 
 // ─── paths ────────────────────────────────────────────────────────
 
-function getDataDir() {
-  // Platform-specific data dir env vars
-  const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
-  if (envDir) return envDir;
-  return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
-}
-
 function getTracesDir() {
   return path.join(getDataDir(), 'traces');
 }
 
-function getSessionFile() {
-  return path.join(getDataDir(), 'session.json');
-}
-
-// ─── session ──────────────────────────────────────────────────────
-
-function readSessionId() {
-  try {
-    const f = getSessionFile();
-    if (!fs.existsSync(f)) return null;
-    const data = JSON.parse(fs.readFileSync(f, 'utf-8'));
-    return data.session_id || null;
-  } catch {
-    return null;
-  }
+function isEnabled() {
+  return !['1', 'true', 'yes'].includes(String(process.env.SKILL_RADAR_DISABLED || '').toLowerCase());
 }
 
 // ─── trace writing ───────────────────────────────────────────────
@@ -84,10 +67,49 @@ function excerpt(str, max = 500) {
   return s.length > max ? s.slice(0, max) + `...[${s.length - max} more]` : s;
 }
 
+const SENSITIVE_KEY_RE = /(pass(word)?|secret|token|api[-_]?key|credential|auth|cookie|session|private[-_]?key)/i;
+const LARGE_CONTENT_KEYS = new Set(['content', 'old_string', 'new_string', 'replace_string', 'insert', 'text']);
+
+function redactString(s) {
+  return s
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[redacted]')
+    .replace(/([?&](?:token|api_key|key|secret|password)=)[^&\s]+/gi, '$1[redacted]')
+    .replace(/((?:password|passwd|token|secret|api[-_]?key)\s*=\s*)[^\s"'`]+/gi, '$1[redacted]')
+    .replace(/(--(?:password|passwd|token|secret|api-key)\s+)[^\s"'`]+/gi, '$1[redacted]')
+    .replace(/(https?:\/\/)[^:\s/@]+:[^@\s/]+@/gi, '$1[redacted]@');
+}
+
+function redactValue(value, key = '') {
+  if (SENSITIVE_KEY_RE.test(key)) return '[redacted]';
+  if (value == null) return value;
+  if (typeof value === 'string') {
+    if (LARGE_CONTENT_KEYS.has(key)) return `[redacted:${value.length} chars]`;
+    return excerpt(redactString(value), 1000);
+  }
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.slice(0, 20).map((v) => redactValue(v, key));
+
+  const out = {};
+  for (const [k, v] of Object.entries(value)) out[k] = redactValue(v, k);
+  return out;
+}
+
+function shouldCaptureRawInput() {
+  return ['1', 'true', 'yes'].includes(String(process.env.SKILL_RADAR_CAPTURE_RAW || '').toLowerCase());
+}
+
 // ─── main ─────────────────────────────────────────────────────────
 
 async function main() {
+  const started = now();
   const args = parseArgs(process.argv);
+  if (!isEnabled()) {
+    process.stdout.write(args.platform === 'codebuddy'
+      ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: '' } })
+      : JSON.stringify({}));
+    return;
+  }
+
   // Hard timeout: never hang if the platform doesn't close stdin (P1-2).
   const raw = await readStdin(3000);
 
@@ -122,14 +144,15 @@ async function main() {
     ts: new Date().toISOString(),
     event: eventName,
     tool_name: toolName,
-    session_id: input.session_id || readSessionId(),
+    session_id: resolveSessionId(input),
     platform: args.platform || 'zcode',
   };
 
   // Optional fields — present only when non-empty
   if (toolInput) {
-    entry.tool_input = toolInput;
     entry.tool_input_size = JSON.stringify(toolInput).length;
+    entry.tool_input = shouldCaptureRawInput() ? toolInput : redactValue(toolInput);
+    if (!shouldCaptureRawInput()) entry.tool_input_redacted = true;
     // Tag the likely skill at trace time so aggregation can group by skill
     // without re-running inference offline.
     const skill = inferSkill(toolName, toolInput);
@@ -137,15 +160,17 @@ async function main() {
   }
 
   entry.tool_response_size = JSON.stringify(toolResponse).length;
-  entry.tool_response_excerpt = excerpt(toolResponse);
+  entry.tool_response_excerpt = excerpt(redactValue(toolResponse));
 
   // Failure-specific: capture error detail
   if (eventName === 'PostToolUseFailure') {
     entry.error = {
-      message: toolResponse.error || toolResponse.message || null,
-      stack: toolResponse.stack || null,
+      message: excerpt(redactValue(toolResponse.error || toolResponse.message || null), 500),
+      stack: excerpt(redactValue(toolResponse.stack || null), 500),
     };
   }
+
+  const elapsed = recordDuration(entry, started);
 
   appendTrace(entry);
 
@@ -153,6 +178,7 @@ async function main() {
   process.stderr.write(
     `[skill-radar] ${eventName} ${toolName} (${entry.tool_response_size}b)\n`
   );
+  warnIfSlow(`${eventName} ${toolName}`, elapsed);
 
   // Output format: ZCode uses flat {}, CodeBuddy uses hookSpecificOutput
   if (args.platform === 'codebuddy') {

@@ -61,10 +61,12 @@ Traces and signals are written under the plugin data dir, resolved in order:
   "session_id": "sess_...",
   "platform": "zcode",
   "skill": "dotnet-csharp-developer",   // present when inferable, else omitted
-  "tool_input": { "file_path": "..." },
+  "tool_input": { "file_path": "...", "content": "[redacted:123 chars]" },
   "tool_input_size": 62,
+  "tool_input_redacted": true,
   "tool_response_size": 40,
   "tool_response_excerpt": "...[N more]",
+  "hook_duration_ms": 12.3,
   "error": { "message": "...", "stack": null }  // failures only
 }
 ```
@@ -87,6 +89,24 @@ tool + input heuristics. Recognized skills:
 
 Traces that don't match a known skill omit the field — they still aggregate
 by tool/date, just not by skill.
+
+By default, traces store redacted tool input only: content/edit bodies are
+replaced by their character length, sensitive keys are replaced with
+`[redacted]`, and common bearer tokens, CLI secret flags, query-string secrets,
+and URL basic-auth credentials are scrubbed from strings. Set
+`SKILL_RADAR_CAPTURE_RAW=1` only in a trusted local debugging session to keep
+raw `tool_input`. Set `SKILL_RADAR_DISABLED=1` to disable trace collection.
+
+Session correlation resolves in this order: hook stdin `session_id`,
+`SKILL_RADAR_SESSION_ID` (or platform session env vars), then the legacy
+`session.json` fallback. `SessionStart` persists both the legacy
+`session.json` and a per-session `sessions/<session_id>.json` record, and writes
+`SKILL_RADAR_SESSION_ID` to Trae/Claude env files when the host exposes them.
+This keeps concurrent sessions from depending on a single mutable file.
+
+Hooks record `hook_duration_ms` in traces/signals. If a hook exceeds
+`SKILL_RADAR_PERF_BUDGET_MS` (default `150`), it writes a stderr diagnostic but
+still exits successfully.
 
 ## How scoring works
 
@@ -119,13 +139,15 @@ observed automatically via a cached skill map at `<data-dir>/skill-map.json`.
 
 - **Never blocks.** Every hook exits 0 with `{}` on any error — observability
   must not interfere with the user's workflow.
+- **Redacted by default.** Raw tool inputs require explicit
+  `SKILL_RADAR_CAPTURE_RAW=1`.
+- **Concurrent-session aware.** Host session ids and env propagation take
+  precedence over the legacy `session.json` fallback.
 - **No dependencies.** Plain Node.js stdlib only.
 - **Append-only storage.** Nothing is deleted automatically (see roadmap below).
 
 ## Known limitations / roadmap
 
-- **Session correlation assumes single active session.** `session.json` is a
-  single file; concurrent ZCode windows will overwrite each other's session_id.
 - **Error categorization is regex-based.** Failures are bucketed into
   permission/not_found/timeout/syntax/connection/resource/other by pattern —
   edge cases land in `other`.

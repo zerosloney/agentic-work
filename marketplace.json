@@ -43,7 +43,7 @@
       "name": "skill-radar-zcode",
       "source": "./plugins/skill-radar",
       "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals for ZCode.",
-      "version": "0.2.0",
+      "version": "0.2.2",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "observability",

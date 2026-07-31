@@ -12,6 +12,8 @@ const path = require('path');
 const fs = require('fs');
 
 const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
+const { now, recordDuration, warnIfSlow } = require(path.join(__dirname, '..', 'scripts', 'lib', 'perf.js'));
+const { getDataDir, resolveSessionId } = require(path.join(__dirname, '..', 'scripts', 'lib', 'session.js'));
 
 function parseArgs(argv) {
   const args = { platform: 'zcode' };
@@ -19,12 +21,6 @@ function parseArgs(argv) {
     if (argv[i] === '--platform') args.platform = argv[++i];
   }
   return args;
-}
-
-function getDataDir() {
-  const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
-  if (envDir) return envDir;
-  return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
 }
 
 // Heuristic: detect if the message suggests failure/incompleteness.
@@ -120,17 +116,6 @@ function appendSignal(entry) {
   }
 }
 
-function readSessionId() {
-  try {
-    const f = path.join(getDataDir(), 'session.json');
-    if (!fs.existsSync(f)) return null;
-    const data = JSON.parse(fs.readFileSync(f, 'utf-8'));
-    return data.session_id || null;
-  } catch {
-    return null;
-  }
-}
-
 // Output format: ZCode uses flat {}, CodeBuddy uses hookSpecificOutput.
 function writeOutput(platform) {
   if (platform === 'codebuddy') {
@@ -146,6 +131,7 @@ function writeOutput(platform) {
 }
 
 async function main() {
+  const started = now();
   const args = parseArgs(process.argv);
   // Hard timeout: never hang if the platform doesn't close stdin (P1-2).
   const raw = await readStdin(3000);
@@ -165,11 +151,12 @@ async function main() {
   const entry = {
     ts: new Date().toISOString(),
     event: 'Stop',
-    session_id: input.session_id || readSessionId(),
+    session_id: resolveSessionId(input),
     platform: args.platform,
     signal_type: signal, // null | 'error_indicator' | 'incompleteness'
     message_excerpt: lastMessage ? lastMessage.slice(0, 300) : null,
   };
+  const elapsed = recordDuration(entry, started);
 
   appendSignal(entry);
 
@@ -178,6 +165,7 @@ async function main() {
   } else {
     process.stderr.write('[skill-radar] Stop: OK\n');
   }
+  warnIfSlow('Stop', elapsed);
 
   // Never block
   writeOutput(args.platform);

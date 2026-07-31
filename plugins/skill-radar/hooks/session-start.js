@@ -1,13 +1,22 @@
 #!/usr/bin/env node
 // session-start.js — SessionStart hook
 //
-// Generates a session_id on session start and persists it to:
+// Resolves a session_id on session start and persists it to:
 //   <ZCODE_PLUGIN_DATA>/session.json
 //
 // log-invocation.js reads this file to correlate traces by session.
 
 const path = require('path');
-const fs = require('fs');
+
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
+const { elapsedMs, now, warnIfSlow } = require(path.join(__dirname, '..', 'scripts', 'lib', 'perf.js'));
+const {
+  exportSessionToEnvFiles,
+  generateSessionId,
+  getDataDir,
+  persistSession,
+  resolveSessionId,
+} = require(path.join(__dirname, '..', 'scripts', 'lib', 'session.js'));
 
 function parseArgs(argv) {
   const args = { platform: 'zcode' };
@@ -17,48 +26,34 @@ function parseArgs(argv) {
   return args;
 }
 
-function getDataDir() {
-  const envDir = process.env.ZCODE_PLUGIN_DATA || process.env.CODEBUDDY_PLUGIN_DATA;
-  if (envDir) return envDir;
-  return path.join(process.env.HOME || process.env.USERPROFILE || '.', '.skill-radar');
+async function readHookInput() {
+  try {
+    const raw = await readStdin(50);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 }
 
-function generateSessionId() {
-  // Simple uuid v4-ish: timestamp + random. Avoids crypto dependency.
-  const rand = Math.random().toString(36).slice(2, 10);
-  const ts = Date.now().toString(36);
-  return `sess_${ts}_${rand}`;
-}
-
-function main() {
+async function main() {
+  const started = now();
   const args = parseArgs(process.argv);
   try {
-    const dir = getDataDir();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    const sessionFile = path.join(dir, 'session.json');
+    const input = await readHookInput();
+    const sessionId = resolveSessionId(input, getDataDir()) || generateSessionId();
     const data = {
-      session_id: generateSessionId(),
+      session_id: sessionId,
+      platform: args.platform,
       started_at: new Date().toISOString(),
     };
-    // Atomic write: tmp + rename, so a crash mid-write never leaves a
-    // truncated session.json (which would break session correlation for
-    // every trace in the session).
-    const tmpFile = `${sessionFile}.tmp.${process.pid}`;
-    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2) + '\n');
-    try {
-      fs.renameSync(tmpFile, sessionFile);
-    } catch {
-      // Windows can refuse rename over a concurrently-open file; fall back
-      // to direct write, then always clean up the tmp file.
-      fs.writeFileSync(sessionFile, JSON.stringify(data, null, 2) + '\n');
-      try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
-    }
+    persistSession(data);
+    exportSessionToEnvFiles(sessionId);
 
     process.stderr.write(`[skill-radar] session started: ${data.session_id}\n`);
   } catch {
     // swallow — observability must never break the user
   }
+  warnIfSlow('SessionStart', elapsedMs(started));
 
   // Never block. Output format: ZCode flat {}, CodeBuddy hookSpecificOutput.
   if (args.platform === 'codebuddy') {

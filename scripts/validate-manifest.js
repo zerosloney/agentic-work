@@ -8,7 +8,7 @@
 //   - version: valid semver
 //   - component fields (commands/skills/agents/hooks/mcpServers): correct types
 //     and that referenced paths exist relative to the plugin root
-//   - capabilities: optional array from a fixed enum (P1-5); unknown values error
+//   - capabilities: required non-empty array from a fixed enum (P1-5); unknown values error
 //   - qwen-extension.json: treated as a manifest variant with the same core rules
 //
 // Usage:
@@ -191,11 +191,15 @@ function validateComponentField(rep, site, pluginRoot, manifest, field, kind, pl
 function validateCapabilities(rep, site, manifest) {
   const caps = manifest.capabilities;
   if (caps === undefined) {
-    rep.warn(site, 'missing recommended field: capabilities (P1-5 install-time permission display)');
+    rep.error(site, 'missing required field: capabilities (P1-5 install-time permission display)');
     return;
   }
   if (!Array.isArray(caps)) {
     rep.error(site, `capabilities: must be an array, got ${typeof caps}`);
+    return;
+  }
+  if (caps.length === 0) {
+    rep.error(site, 'capabilities: must not be empty');
     return;
   }
   for (const c of caps) {

@@ -110,12 +110,26 @@ function toPosix(p) {
 }
 
 function loadHooksFile(hooksFile) {
+  if (!fs.existsSync(hooksFile)) return { version: 1, hooks: {} };
   try {
     const data = JSON.parse(fs.readFileSync(hooksFile, 'utf-8'));
     if (!data.hooks || typeof data.hooks !== 'object') data.hooks = {};
     return data;
-  } catch {
-    return { version: 1, hooks: {} };
+  } catch (e) {
+    throw new Error(`Refusing to overwrite unreadable hooks file: ${hooksFile} (${e.message})`);
+  }
+}
+
+function writeJsonAtomic(file, data) {
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.hooks.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
+  try {
+    fs.renameSync(tmp, file);
+  } catch (e) {
+    try { fs.rmSync(tmp, { force: true }); } catch { /* best effort cleanup */ }
+    throw e;
   }
 }
 
@@ -147,8 +161,7 @@ function installHooks(pluginName, destDir, args, hooksTarget) {
   for (const [event, groups] of Object.entries(rendered)) {
     config.hooks[event] = (config.hooks[event] || []).concat(groups);
   }
-  fs.mkdirSync(path.dirname(hooksTarget.file), { recursive: true });
-  fs.writeFileSync(hooksTarget.file, JSON.stringify(config, null, 2) + '\n');
+  writeJsonAtomic(hooksTarget.file, config);
   console.log(`  merged hooks into: ${hooksTarget.file} [${hooksTarget.scope}]`);
 }
 
@@ -161,7 +174,7 @@ function uninstallHooks(pluginName, args, hooksTarget) {
     return;
   }
   const config = stripOwnHooks(loadHooksFile(hooksTarget.file), marker);
-  fs.writeFileSync(hooksTarget.file, JSON.stringify(config, null, 2) + '\n');
+  writeJsonAtomic(hooksTarget.file, config);
   console.log(`  removed '${marker}' hook entries from: ${hooksTarget.file} [${hooksTarget.scope}]`);
 }
 
