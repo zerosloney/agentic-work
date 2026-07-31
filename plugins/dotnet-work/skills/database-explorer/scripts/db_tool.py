@@ -242,6 +242,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sql", required=True, help="SQL SELECT 查询")
     p.add_argument("--filepath", required=True, help="输出文件路径")
     p.add_argument("--encoding", default="utf-8-sig", help="文件编码")
+    p.add_argument("--max-rows", type=int, default=None, help="导出行数上限（默认无上限，全量流式导出）")
+    p.add_argument("--timeout", type=int, default=None, help="查询超时秒数")
     p.add_argument("--yes", "-y", action="store_true", help="非交互确认：跳过文件覆写确认（subprocess 调用需先在聊天层获用户同意）")
 
     # search（重定向到 _legacy_search → cmd_explore 统一适配层）

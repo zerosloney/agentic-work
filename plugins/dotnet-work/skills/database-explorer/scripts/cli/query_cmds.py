@@ -215,30 +215,61 @@ def cmd_export(args: argparse.Namespace) -> None:
 
     conn, cfg = get_connection()
     try:
-        result = execute_query(conn, args.sql, max_rows=100000)
-        if not result["success"]:
-            print(format_result(result))
-            return
+        db_type = cfg.get("db_type", "sqlserver")
+        max_rows = getattr(args, "max_rows", None)
+        # Stream rows to CSV instead of buffering the whole result set in
+        # memory. execute_query's cursor is already lazy (enumerate(result)),
+        # but collecting into `rows` doubled memory on wide tables. Here we
+        # iterate the SQLAlchemy result directly and write per-row.
+        from sqlalchemy import text
+        from _drivers import _bind_params
+        from _security import sanitize_error
 
         encoding = args.encoding or "utf-8-sig"
+        query_timeout = getattr(args, "timeout", None)
 
-        cols = result.get("columns", [])
-        rows = result.get("rows", [])
+        try:
+            with conn.connect() as connection:
+                if query_timeout is not None and db_type in ("postgresql", "mysql", "mssql"):
+                    if db_type == "postgresql":
+                        connection.execute(text(f"SET statement_timeout = '{int(query_timeout * 1000)}ms'"))
+                    elif db_type == "mysql":
+                        connection.execute(text(f"SET SESSION max_execution_time = {int(query_timeout * 1000)}"))
+                    elif db_type == "mssql":
+                        connection.execute(text(f"SET LOCK_TIMEOUT {int(query_timeout * 1000)}"))
 
-        import csv
+                bound_sql, bound_params = _bind_params(args.sql, None)
+                result_proxy = connection.execute(text(bound_sql), bound_params)
+                if result_proxy.returns_rows is False:
+                    print("ERROR: export 仅支持返回行的 SELECT 查询", file=sys.stderr)
+                    return
 
-        with open(filepath, "w", newline="", encoding=encoding) as f:
-            writer = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
-            writer.writeheader()
-            for row in rows:
-                # 与 _formatters._to_csv 一致：每格先 normalize(bytes/UUID) 再防公式注入
-                writer.writerow({c: _sanitize_csv_value(_normalize(row.get(c, ""))) for c in cols})
+                cols = list(result_proxy.keys())
+                import csv
 
-        print(f"已导出 {len(rows)} 行到 {filepath}")
-        if result.get("truncated"):
-            print(
-                "警告: 结果超过导出上限(100000 行)被截断,文件不完整。如需全量导出,请加 WHERE/LIMIT 缩小范围或分批导出。",
-                file=sys.stderr,
-            )
+                written = 0
+                truncated = False
+                with open(filepath, "w", newline="", encoding=encoding) as f:
+                    writer = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+                    writer.writeheader()
+                    for i, row in enumerate(result_proxy):
+                        if max_rows is not None and i >= max_rows:
+                            truncated = True
+                            break
+                        row_dict = dict(zip(cols, row))
+                        # 与 _formatters._to_csv 一致：每格先 normalize(bytes/UUID) 再防公式注入
+                        writer.writerow({c: _sanitize_csv_value(_normalize(row_dict.get(c, ""))) for c in cols})
+                        written += 1
+
+            print(f"已导出 {written} 行到 {filepath}")
+            if truncated:
+                print(
+                    f"警告: 结果超过导出上限({max_rows} 行)被截断,文件不完整。"
+                    "如需全量导出,请加 WHERE/LIMIT 缩小范围或去掉 --max-rows。",
+                    file=sys.stderr,
+                )
+        except Exception as e:
+            logger.debug("export query failed: %s", e, exc_info=True)
+            print(f"ERROR: 导出查询失败 - {sanitize_error(e)}", file=sys.stderr)
     finally:
         conn.dispose()

@@ -13,6 +13,8 @@
 v0.5.1 起改为降级到空结果，让上层 build_semantic_matches 自然回退到纯词法评分。
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import threading
@@ -20,7 +22,16 @@ import time
 from pathlib import Path
 from typing import Any
 
-import numpy as np
+# numpy is an SBERT dependency, but it is listed as a hard requirement.
+# Still degrade gracefully if it is missing so the whole semantic-search
+# chain (this module → _scoring → explore --semantic) doesn't ImportError
+# and crash the CLI; callers fall back to lexical-only matching.
+try:
+    import numpy as np
+    _HAS_NUMPY = True
+except ImportError:
+    np = None  # type: ignore[assignment]
+    _HAS_NUMPY = False
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +97,14 @@ def is_available() -> bool:
     if _HAS_SBERT is True and _MODEL is not None:
         return True
     if _HAS_SBERT is False:
+        return False
+    # numpy is required for all vector math; without it degrade immediately.
+    if not _HAS_NUMPY:
+        _HAS_SBERT = False
+        _MODEL = None
+        logger.info(
+            "numpy not installed. Semantic search falls back to lexical-only."
+        )
         return False
     # 快速失败：模型未缓存且不允许联网下载 → 直接降级
     if not _model_cached_locally() and not _allow_network_download():
