@@ -17,6 +17,8 @@
 //           to avoid blocking legitimate writes.
 
 const fs = require('fs');
+const path = require('path');
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 
 // Minimal required fields per state version. Mirrors the `required` subset of
 // validate-state.js fieldsV1/fieldsV2; intentionally smaller — hooks must stay
@@ -25,19 +27,6 @@ const REQUIRED_BY_VERSION = {
   1: ['version', 'prompt', 'max_iterations', 'outer_iteration', 'round', 'tasks', 'consecutive_failures', 'stall_counter', 'fail_history', 'stop_reason'],
   2: ['version', 'prompt', 'max_iterations', 'outer_iteration', 'round', 'nodes', 'active_set', 'consecutive_failures', 'stall_counter', 'fail_history', 'stop_reason'],
 };
-
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', chunk => { data += chunk; });
-    process.stdin.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch (e) { reject(new Error('Invalid JSON on stdin: ' + e.message)); }
-    });
-    process.stdin.on('error', reject);
-  });
-}
 
 function isStateFile(filePath) {
   if (!filePath) return false;
@@ -72,7 +61,13 @@ function validateState(json) {
 }
 
 async function main() {
-  const input = await readStdin();
+  const raw = await readStdin();
+  let input;
+  try { input = JSON.parse(raw); }
+  catch (e) {
+    // Empty/timeout payload or unparseable stdin — nothing to inspect, allow.
+    process.exit(0);
+  }
 
   const filePath = input.tool_input && input.tool_input.file_path;
   if (!isStateFile(filePath)) {

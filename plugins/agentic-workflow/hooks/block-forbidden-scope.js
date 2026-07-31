@@ -18,21 +18,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 
 const STATE_DIR = path.join(process.cwd(), '.loop-cli', 'state');
-
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', chunk => { data += chunk; });
-    process.stdin.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch (e) { reject(new Error('Invalid JSON on stdin: ' + e.message)); }
-    });
-    process.stdin.on('error', reject);
-  });
-}
 
 // Collect forbidden_scope patterns from all state files. Returns [] if the
 // state dir is missing or no file declares the field (fail open).
@@ -59,21 +47,36 @@ function collectForbiddenScopes() {
 }
 
 // Minimal glob (gitignore-flavored subset):
-//   - pattern with wildcards (* or **) → regex match (basename OR full path)
-//   - trailing /*  (no other wildcards) → everything under that dir
+//   - ** → matches across path segments (.* equivalent)
+//   - *  → matches within one segment ([^/]* — does NOT cross /)
+//   - trailing /*  (no other wildcards) → everything directly under that dir
 //   - trailing /   → dir prefix
 //   - otherwise    → exact path or suffix match
 // Path separators normalized to '/' for cross-platform match.
-// intentional-simple: * maps to .* (cross-segment); no brace expansion,
-// no character classes. Fine for the small scope lists these pipelines use.
+// intentional-simple: no brace expansion, no character classes. Fine for the
+// small scope lists these pipelines use.
+//
+// * NOT crossing / is the gitignore/POSIX glob convention: `src/*` matches
+// `src/a` but NOT `src/a/b` — use `src/**` for recursive. Earlier versions
+// mapped * to .* (cross-segment), which over-blocked `src/*` to match nested
+// paths. Fixed so single-segment * stays single-segment.
 function matchesPattern(filePath, pattern) {
   const normalized = filePath.replace(/\\/g, '/');
   const rel = normalized.replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
   const cleanPattern = pattern.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
 
-  // wildcard patterns (incl. **/x/*) → regex
+  // wildcard patterns (incl. **/x/*) → regex.
+  // Escape regex specials first, then map ** → .* (cross-segment) and
+  // remaining single * → [^/]* (single-segment). Use a placeholder so the
+  // .* from ** isn't re-matched by the subsequent * → [^/]* pass.
   if (cleanPattern.includes('*')) {
-    const re = new RegExp('^' + cleanPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    const PLACEHOLDER = '\u0000';
+    const escaped = cleanPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const reSrc = escaped
+      .replace(/\*\*/g, PLACEHOLDER)
+      .replace(/\*/g, '[^/]*')
+      .replace(new RegExp(PLACEHOLDER, 'g'), '.*');
+    const re = new RegExp('^' + reSrc + '$');
     const basename = rel.split('/').pop();
     return re.test(basename) || re.test(rel);
   }
@@ -88,7 +91,11 @@ function matchesPattern(filePath, pattern) {
 }
 
 async function main() {
-  const input = await readStdin();
+  const raw = await readStdin();
+  let input;
+  try { input = JSON.parse(raw); }
+  catch (e) { process.exit(0); } // unparseable stdin → nothing to check, allow
+
   const filePath = input.tool_input && input.tool_input.file_path;
   if (!filePath) process.exit(0); // nothing to check
 

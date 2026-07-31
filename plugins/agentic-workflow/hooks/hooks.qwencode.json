@@ -18,16 +18,29 @@
           "timeout": 10000
         }
       ]
+    },
+    {
+      "matcher": "run_shell_command",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/block-dangerous-bash.js\"",
+          "name": "block-dangerous-bash",
+          "description": "Deny irreversible/outbound bash (git push, reset --hard, rm -rf, sudo, etc.) — backfills executor bash deny-list that Qwen Code approvalMode+tools cannot express; exit 2 blocks",
+          "timeout": 10000
+        }
+      ]
     }
   ],
   "Stop": [
     {
+      "loop_limit": 5,
       "hooks": [
         {
           "type": "command",
           "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check-verification-on-stop.js\"",
           "name": "check-verification-on-stop",
-          "description": "Block stop while an active pipeline has verification_status != pass; exit 2 blocks",
+          "description": "Block stop while an active pipeline has verification_status != pass; exit 2 blocks. loop_limit caps repeated blocks so the user can escape a stuck pipeline (run /cancel-pipeline to retire it cleanly)",
           "timeout": 10000
         }
       ]

@@ -1,5 +1,5 @@
 {
-  "description": "Agentic Workflow — state write validation, forbidden-scope guard, verification gate (Trae). TEMPLATE, not loaded by Trae directly: Trae has no plugin-level hooks, so install-trae.js substitutes ${TRAE_PLUGIN_ROOT} with the installed plugin root at install time (Trae itself performs no variable substitution) and merges the hooks map into the global ~/.trae-cn/hooks.json (own entries identified by the 'agentic-workflow-trae' path marker). Trae runs command hooks in the system default shell (PowerShell on Windows); exit 2 + stderr blocks (PreToolUse deny / Stop block). timeout is in seconds; Stop loop_limit caps repeated blocks.",
+  "description": "Agentic Workflow — state write validation, forbidden-scope guard, dangerous-bash deny, verification gate (Trae). TEMPLATE, not loaded by Trae directly: Trae has no plugin-level hooks, so install-trae.js substitutes ${TRAE_PLUGIN_ROOT} with the installed plugin root at install time (Trae itself performs no variable substitution) and merges the hooks map into the global ~/.trae-cn/hooks.json (own entries identified by the 'agentic-workflow-trae' path marker). Trae runs command hooks in the system default shell (PowerShell on Windows); exit 2 + stderr blocks (PreToolUse deny / Stop block). timeout is in seconds; Stop loop_limit caps repeated blocks. block-dangerous-bash backfills the executor bash deny-list that Trae's nested permission.bash should already cover — kept here as defense-in-depth so all platforms share the same enforced floor.",
   "version": 1,
   "hooks": {
     "PreToolUse": [
@@ -14,6 +14,16 @@
           {
             "type": "command",
             "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/block-forbidden-scope.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/block-dangerous-bash.js\"",
             "timeout": 10
           }
         ]

@@ -1,6 +1,6 @@
 ---
 description: "Cancel active pipelines (coding-pipeline / ralph-pipeline / ralph-graph)"
-allowed-tools: Bash(test:*), Bash(rm:*), Read
+allowed-tools: Bash(test:*), Bash(rm:.loop-cli/state/*), Read
 hide-from-slash-command-tool: true
 ---
 

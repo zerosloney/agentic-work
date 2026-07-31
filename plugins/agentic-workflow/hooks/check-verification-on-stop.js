@@ -14,21 +14,9 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 
 const STATE_DIR = path.join(process.cwd(), '.loop-cli', 'state');
-
-function readStdin() {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    process.stdin.setEncoding('utf-8');
-    process.stdin.on('data', chunk => { data += chunk; });
-    process.stdin.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch (e) { reject(new Error('Invalid JSON on stdin: ' + e.message)); }
-    });
-    process.stdin.on('error', reject);
-  });
-}
 
 // Find active pipelines with unpassed verification. Returns array of
 // { file, verification_status } for each offending pipeline.

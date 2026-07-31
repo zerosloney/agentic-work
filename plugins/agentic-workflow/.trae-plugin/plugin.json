@@ -1,7 +1,7 @@
 {
   "name": "agentic-workflow-trae",
   "version": "0.1.0",
-  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Trae.",
+  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
   "capabilities": [
     "file-read",
     "file-write",
