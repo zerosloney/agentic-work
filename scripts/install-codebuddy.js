@@ -26,6 +26,7 @@ const { execSync } = require('child_process');
 const { joinHome } = require('./lib/resolve-home');
 const { materializePlugin, readCodebuddyDescription, deleteDirRecursive } = require('./lib/materialize');
 const { getPluginVersion } = require('./lib/plugin-version');
+const { readJsonWithRecovery, writeJsonAtomic } = require('./lib/json-file');
 
 const PLUGIN_DIR = joinHome('.codebuddy', 'plugins');
 const MARKETPLACE_NAME = 'agentic-work';
@@ -77,9 +78,14 @@ function ensureMarketplaceManifest(plugins, dryRun) {
   const manifestFile = path.join(PLUGIN_DIR, '.codebuddy-plugin', 'marketplace.json');
   if (dryRun) { console.log(`  would update: ${manifestFile}`); return; }
   fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
-  let data = { name: MARKETPLACE_NAME, description: '', owner: { name: 'master0071' }, plugins: [] };
-  if (fs.existsSync(manifestFile)) {
-    try { data = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')); } catch (_) {}
+  let data = readJsonWithRecovery(manifestFile, {
+    name: MARKETPLACE_NAME, description: '', owner: { name: 'master0071' }, plugins: []
+  });
+  if (!data || typeof data !== 'object' || !Array.isArray(data.plugins)) {
+    console.error(`Warning: invalid marketplace structure in ${manifestFile}; preserving it as a backup.`);
+    const backup = `${manifestFile}.corrupt.${Date.now()}.bak`;
+    fs.copyFileSync(manifestFile, backup);
+    data = { name: MARKETPLACE_NAME, description: '', owner: { name: 'master0071' }, plugins: [] };
   }
   data.name = MARKETPLACE_NAME;
   if (!data.description) data.description = 'Custom marketplace for local CodeBuddy plugins';
@@ -100,7 +106,7 @@ function ensureMarketplaceManifest(plugins, dryRun) {
     if (idx >= 0) data.plugins[idx] = entry;
     else data.plugins.push(entry);
   }
-  fs.writeFileSync(manifestFile, JSON.stringify(data, null, 2) + '\n');
+  writeJsonAtomic(manifestFile, data);
 }
 
 function install(args) {

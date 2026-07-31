@@ -74,15 +74,54 @@ record_rollback_point() {
 }
 
 VERIFY_TIMEOUT="${VERIFY_TIMEOUT:-300}"
+validate_verify_config() {
+  case "$VERIFY_TIMEOUT" in
+    ''|*[!0-9]*)
+      echo "  [verify] 错误: VERIFY_TIMEOUT 必须是正整数" >&2
+      return 125
+      ;;
+  esac
+  [ "$VERIFY_TIMEOUT" -gt 0 ] || {
+    echo "  [verify] 错误: VERIFY_TIMEOUT 必须大于 0" >&2
+    return 125
+  }
+  [ "$VERIFY_TIMEOUT" -le 3600 ] || {
+    echo "  [verify] 错误: VERIFY_TIMEOUT 不得超过 3600 秒" >&2
+    return 125
+  }
+
+  # Verify commands come from the trusted launcher environment. Keep them to
+  # one repo-local executable plus arguments; do not interpret a shell program.
+  case "$VERIFY_CMD" in
+    *$'\n'*|*$'\r'*|*';'*|*'|'*|*'&'*|*'>'*|*'<'*|*'`'*|*'$('*|*'${'*)
+      echo "  [verify] 错误: VERIFY_CMD 禁止换行、管道、重定向、命令替换和 shell 连接符" >&2
+      return 125
+      ;;
+  esac
+  local verify_bin="${VERIFY_CMD%%[[:space:]]*}"
+  [ -n "$verify_bin" ] || {
+    echo "  [verify] 错误: VERIFY_CMD 不能为空白" >&2
+    return 125
+  }
+  case "$verify_bin" in
+    /*|*'/'*|*'\\'*)
+      echo "  [verify] 错误: VERIFY_CMD 只能调用仓库环境中的命令名，不允许绝对路径或路径分隔符" >&2
+      return 125
+      ;;
+  esac
+  return 0
+}
+
 run_verify() {
   [ -z "$VERIFY_CMD" ] && return 0
+  validate_verify_config || return $?
   if command -v timeout >/dev/null 2>&1; then
     ( cd "$PROJECT_ROOT" && timeout "$VERIFY_TIMEOUT" bash -c "$VERIFY_CMD" ) >/dev/null 2>&1
   elif command -v gtimeout >/dev/null 2>&1; then
     ( cd "$PROJECT_ROOT" && gtimeout "$VERIFY_TIMEOUT" bash -c "$VERIFY_CMD" ) >/dev/null 2>&1
   else
-    echo "  [verify] 警告: 未找到 timeout/gtimeout,VERIFY_CMD 无超时保护(挂起会卡到 BUDGET_S)"
-    ( cd "$PROJECT_ROOT" && eval "$VERIFY_CMD" ) >/dev/null 2>&1
+    echo "  [verify] 错误: 未找到 timeout/gtimeout，拒绝执行无超时 VERIFY_CMD" >&2
+    return 125
   fi
 }
 

@@ -94,7 +94,9 @@ By default, traces store redacted tool input only: content/edit bodies are
 replaced by their character length, sensitive keys are replaced with
 `[redacted]`, and common bearer tokens, CLI secret flags, query-string secrets,
 and URL basic-auth credentials are scrubbed from strings. Set
-`SKILL_RADAR_CAPTURE_RAW=1` only in a trusted local debugging session to keep
+`SKILL_RADAR_CAPTURE_RAW=1` only in a trusted local debugging session. Raw mode
+still redacts key-shaped secrets and limits strings, nesting, arrays, and object
+fields; it is not an unlimited trace bypass.
 raw `tool_input`. Set `SKILL_RADAR_DISABLED=1` to disable trace collection.
 
 Session correlation resolves in this order: hook stdin `session_id`,

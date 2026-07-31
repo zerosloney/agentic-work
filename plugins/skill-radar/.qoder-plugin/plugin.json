@@ -2,6 +2,7 @@
   "name": "skill-radar-qoder",
   "version": "0.2.2",
   "description": "Skill observability for Qoder — tool invocation tracing, session tracking, and evolution signals.",
+  "tool_selection": { "use_when": ["automatic tool tracing", "session correlation", "skill failure aggregation"], "avoid_when": ["direct task execution", "blocking validation", "application logging replacement"] },
   "capabilities": [
     "file-read",
     "file-write",

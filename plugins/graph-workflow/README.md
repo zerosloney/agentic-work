@@ -48,8 +48,8 @@ Loop Engineering + Graph Engineering 双档位闭环:外层脚本管硬约束(MA
 | `MAX_ITER` | 20 | 最大轮次 |
 | `BUDGET_S` | 3600 | 总预算秒数 |
 | `STALL_LIMIT` | 3 | 连续无进展轮数,触发停滞熔断 |
-| `VERIFY_CMD` | (空) | 客观验证命令;非空时 reviewer 判达成后必跑此命令,失败则驳回 |
-| `VERIFY_TIMEOUT` | 300 | VERIFY_CMD 超时秒数 |
+| `VERIFY_CMD` | (空) | 客观验证命令;只能是仓库环境中的单个命令名加参数,禁止 shell 连接符/重定向/命令替换 |
+| `VERIFY_TIMEOUT` | 300 | VERIFY_CMD 强制超时秒数;找不到 `timeout`/`gtimeout` 时拒绝执行 |
 | `MOCK` | 0 | =1 用 mock 推进(测试用,不调真实 agent) |
 
 示例:

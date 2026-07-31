@@ -2,6 +2,7 @@
   "name": "graph-workflow-trae",
   "version": "0.1.1",
   "description": "Graph Workflow — Loop Engineering + Graph Engineering 闭环能力(外层脚本硬约束 + 内层三角色 Task 协作) for Trae.",
+  "tool_selection": { "use_when": ["unattended long-running task", "execute-review-fix loop", "custom graph or DAG workflow"], "avoid_when": ["interactive single-session coding", "single-step edit"] },
   "capabilities": [
     "file-read",
     "file-write",

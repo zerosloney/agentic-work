@@ -2,6 +2,7 @@
   "name": "dotnet-work-codebuddy",
   "version": "1.0.0",
   "description": ".NET development skills for CodeBuddy (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
+  "tool_selection": { "use_when": ["C#/.NET development", "database exploration", "WinForms/DevExpress", ".NET code review"], "avoid_when": ["non-.NET coding", "workflow orchestration"] },
   "capabilities": [
     "file-read",
     "file-write",

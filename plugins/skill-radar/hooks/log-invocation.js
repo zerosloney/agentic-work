@@ -22,6 +22,7 @@ const { inferSkill } = require(path.join(__dirname, '..', 'scripts', 'lib', 'inf
 const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 const { getDataDir, resolveSessionId } = require(path.join(__dirname, '..', 'scripts', 'lib', 'session.js'));
 const { now, recordDuration, warnIfSlow } = require(path.join(__dirname, '..', 'scripts', 'lib', 'perf.js'));
+const { excerpt, limitRawValue, redactValue } = require(path.join(__dirname, '..', 'scripts', 'lib', 'redaction.js'));
 
 // ─── args ─────────────────────────────────────────────────────────
 
@@ -57,41 +58,6 @@ function appendTrace(entry) {
   } catch {
     // swallow — observability must never break the user
   }
-}
-
-// ─── excerpt helper ───────────────────────────────────────────────
-
-function excerpt(str, max = 500) {
-  if (str == null) return null;
-  const s = typeof str === 'string' ? str : JSON.stringify(str);
-  return s.length > max ? s.slice(0, max) + `...[${s.length - max} more]` : s;
-}
-
-const SENSITIVE_KEY_RE = /(pass(word)?|secret|token|api[-_]?key|credential|auth|cookie|session|private[-_]?key)/i;
-const LARGE_CONTENT_KEYS = new Set(['content', 'old_string', 'new_string', 'replace_string', 'insert', 'text']);
-
-function redactString(s) {
-  return s
-    .replace(/(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, '$1[redacted]')
-    .replace(/([?&](?:token|api_key|key|secret|password)=)[^&\s]+/gi, '$1[redacted]')
-    .replace(/((?:password|passwd|token|secret|api[-_]?key)\s*=\s*)[^\s"'`]+/gi, '$1[redacted]')
-    .replace(/(--(?:password|passwd|token|secret|api-key)\s+)[^\s"'`]+/gi, '$1[redacted]')
-    .replace(/(https?:\/\/)[^:\s/@]+:[^@\s/]+@/gi, '$1[redacted]@');
-}
-
-function redactValue(value, key = '') {
-  if (SENSITIVE_KEY_RE.test(key)) return '[redacted]';
-  if (value == null) return value;
-  if (typeof value === 'string') {
-    if (LARGE_CONTENT_KEYS.has(key)) return `[redacted:${value.length} chars]`;
-    return excerpt(redactString(value), 1000);
-  }
-  if (typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.slice(0, 20).map((v) => redactValue(v, key));
-
-  const out = {};
-  for (const [k, v] of Object.entries(value)) out[k] = redactValue(v, k);
-  return out;
 }
 
 function shouldCaptureRawInput() {
@@ -151,7 +117,7 @@ async function main() {
   // Optional fields — present only when non-empty
   if (toolInput) {
     entry.tool_input_size = JSON.stringify(toolInput).length;
-    entry.tool_input = shouldCaptureRawInput() ? toolInput : redactValue(toolInput);
+    entry.tool_input = shouldCaptureRawInput() ? limitRawValue(toolInput) : redactValue(toolInput);
     if (!shouldCaptureRawInput()) entry.tool_input_redacted = true;
     // Tag the likely skill at trace time so aggregation can group by skill
     // without re-running inference offline.

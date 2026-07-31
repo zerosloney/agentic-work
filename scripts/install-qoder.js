@@ -118,7 +118,7 @@ function installPlugin(pluginName, args) {
 
   console.log(`\n→ Installing ${installName}`);
   // Pre-wipe for idempotency: reinstall replaces all content.
-  if (fs.existsSync(destDir)) removeDir(destDir);
+  if (!args.dryRun && fs.existsSync(destDir)) removeDir(destDir);
   if (!fs.existsSync(src)) {
     console.error(`Error: source not found: ${src}`);
     process.exit(1);

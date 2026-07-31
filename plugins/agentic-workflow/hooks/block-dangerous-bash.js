@@ -15,8 +15,8 @@
 // forbidden_scope / verification hooks, which only gate during active pipelines.
 //
 // Contract: stdin = JSON tool payload, stderr = diagnostics,
-//           exit 0 = allow, exit 2 = deny. Internal errors fail open (exit 0)
-//           — a broken hook must not block legitimate work.
+//           exit 0 = allow, exit 2 = deny. Malformed payloads fail closed
+//           because this hook is a safety boundary for shell execution.
 //
 // The deny-list mirrors the `permission.bash` deny entries in
 // zcode/agents/coding-builder.md and zcode/agents/ralph-worker.md so the
@@ -28,10 +28,9 @@
 // loosely (substring with word-boundary-ish context) to catch the dangerous
 // form while avoiding false positives on benign tokens.
 //
-// intentional-simple: substring/regex on raw command, no shell-AST parsing.
-// A determined adversarial prompt can obfuscate (env vars, $(), eval), but
-// this catches the direct forms the agent deny-list enumerates, which is the
-// documented contract. Deeper analysis (sandboxing) is out of scope for a hook.
+// This is defense-in-depth, not a shell sandbox. Normalize common whitespace
+// obfuscation and reject shell indirection so direct deny-list checks cannot be
+// bypassed by the common `${IFS}`/eval forms.
 const DENY_LIST = [
   { pattern: /\bgit\s+push\b/, reason: 'git push — outbound remote write' },
   { pattern: /\bgit\s+reset\s+--hard\b/, reason: 'git reset --hard — discards uncommitted work' },
@@ -42,6 +41,10 @@ const DENY_LIST = [
   { pattern: /\bsudo\b/, reason: 'sudo — privilege escalation' },
   { pattern: /\bdd\s+/, reason: 'dd — low-level block write' },
   { pattern: /\bmkfs\b/, reason: 'mkfs — filesystem format' },
+  { pattern: /\b(?:eval|exec)\b/, reason: 'eval/exec — shell indirection' },
+  { pattern: /\b(?:bash|sh|cmd|powershell)(?:\.exe)?\s+(?:-c|\/c|-command)\b/i, reason: 'nested shell — command indirection' },
+  { pattern: /[;&|<>]/, reason: 'shell operator — chained or redirected command' },
+  { pattern: /\$\(|`|\$\{[^}]+\}/, reason: 'shell expansion — command or variable indirection' },
 ];
 
 const path = require('path');
@@ -58,27 +61,37 @@ function extractCommand(toolInput) {
   return null;
 }
 
+function normalizeCommand(command) {
+  return command
+    .replace(/\$\{?IFS\}?/g, ' ')
+    .replace(/\\\s/g, ' ')
+    .replace(/["']/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deny(reason) {
+  console.error(`Command blocked by agentic-workflow safety hook: ${reason}`);
+  process.exit(2);
+}
+
 async function main() {
   const raw = await readStdin();
   let input;
   try { input = JSON.parse(raw); }
-  catch (e) { process.exit(0); } // empty/timeout/unparseable stdin → allow
+  catch (e) { deny('missing or malformed tool payload'); }
 
   const cmd = extractCommand(input.tool_input);
-  if (!cmd) process.exit(0); // not a bash call we can inspect → allow
+  if (!cmd) deny('missing command in Bash tool payload');
+  const normalized = normalizeCommand(cmd);
 
   for (const entry of DENY_LIST) {
-    if (entry.pattern.test(cmd)) {
-      console.error(`Command blocked by agentic-workflow safety hook: ${entry.reason}`);
-      console.error(`  command: ${cmd}`);
-      console.error('  If this command is genuinely required, run it manually outside the pipeline.');
-      process.exit(2);
-    }
+    if (entry.pattern.test(normalized)) deny(entry.reason);
   }
   process.exit(0);
 }
 
 main().catch(err => {
   console.error(`Hook error: ${err.message}`);
-  process.exit(0); // fail open
+  process.exit(2);
 });

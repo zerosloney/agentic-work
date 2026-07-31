@@ -14,6 +14,7 @@ const fs = require('fs');
 const { readStdin } = require(path.join(__dirname, '..', 'scripts', 'lib', 'read-stdin.js'));
 const { now, recordDuration, warnIfSlow } = require(path.join(__dirname, '..', 'scripts', 'lib', 'perf.js'));
 const { getDataDir, resolveSessionId } = require(path.join(__dirname, '..', 'scripts', 'lib', 'session.js'));
+const { excerpt, redactString } = require(path.join(__dirname, '..', 'scripts', 'lib', 'redaction.js'));
 
 function parseArgs(argv) {
   const args = { platform: 'zcode' };
@@ -154,7 +155,7 @@ async function main() {
     session_id: resolveSessionId(input),
     platform: args.platform,
     signal_type: signal, // null | 'error_indicator' | 'incompleteness'
-    message_excerpt: lastMessage ? lastMessage.slice(0, 300) : null,
+    message_excerpt: lastMessage ? excerpt(redactString(lastMessage), 300) : null,
   };
   const elapsed = recordDuration(entry, started);
 

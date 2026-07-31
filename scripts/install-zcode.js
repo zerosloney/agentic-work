@@ -23,6 +23,7 @@ const path = require('path');
 const { copyDirRecursive } = require('./lib/copy-dir');
 const { joinHome } = require('./lib/resolve-home');
 const { getPluginVersion } = require('./lib/plugin-version');
+const { readJsonWithRecovery, writeJsonAtomic } = require('./lib/json-file');
 
 const PLUGIN_DIR = joinHome('.zcode', 'cli', 'plugins');
 const MARKETPLACE_NAME = 'master0071';
@@ -87,7 +88,7 @@ function installPlugin(pluginName, args) {
 
   console.log(`\n→ Installing ${installName}`);
   // Pre-wipe for idempotency: reinstall replaces all content.
-  if (fs.existsSync(destDir)) removeDir(destDir);
+  if (!args.dryRun && fs.existsSync(destDir)) removeDir(destDir);
   if (!fs.existsSync(src)) {
     console.error(`Error: source not found: ${src}`);
     process.exit(1);
@@ -119,9 +120,14 @@ function installPlugin(pluginName, args) {
   const marketplaceFile = path.join(PLUGIN_DIR, 'marketplaces', MARKETPLACE_NAME, 'marketplace.json');
   if (!args.dryRun) {
     fs.mkdirSync(path.dirname(marketplaceFile), { recursive: true });
-    let marketplace = { name: MARKETPLACE_NAME, owner: { name: 'master0071' }, plugins: [], version: 1 };
-    if (fs.existsSync(marketplaceFile)) {
-      marketplace = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
+    let marketplace = readJsonWithRecovery(marketplaceFile, {
+      name: MARKETPLACE_NAME, owner: { name: 'master0071' }, plugins: [], version: 1
+    });
+    if (!marketplace || typeof marketplace !== 'object' || !Array.isArray(marketplace.plugins)) {
+      console.error(`Warning: invalid marketplace structure in ${marketplaceFile}; preserving it as a backup.`);
+      const backup = `${marketplaceFile}.corrupt.${Date.now()}.bak`;
+      fs.copyFileSync(marketplaceFile, backup);
+      marketplace = { name: MARKETPLACE_NAME, owner: { name: 'master0071' }, plugins: [], version: 1 };
     }
     const entry = {
       name: installName,
@@ -134,7 +140,7 @@ function installPlugin(pluginName, args) {
     const idx = marketplace.plugins.findIndex(p => p.name === installName);
     if (idx >= 0) marketplace.plugins[idx] = entry;
     else marketplace.plugins.push(entry);
-    fs.writeFileSync(marketplaceFile, JSON.stringify(marketplace, null, 2) + '\n');
+    writeJsonAtomic(marketplaceFile, marketplace);
     console.log(`  registered in marketplace`);
   } else {
     console.log(`  would register in marketplace`);
@@ -145,7 +151,7 @@ function installPlugin(pluginName, args) {
   if (!args.dryRun) {
     fs.mkdirSync(dataDir, { recursive: true });
     const enabledFile = path.join(dataDir, 'enabled.json');
-    fs.writeFileSync(enabledFile, JSON.stringify({ enabled: true, version: PLUGIN_VERSION }, null, 2) + '\n');
+    writeJsonAtomic(enabledFile, { enabled: true, version: PLUGIN_VERSION });
     console.log(`  enabled`);
   } else {
     console.log(`  would create data dir with enabled.json`);
