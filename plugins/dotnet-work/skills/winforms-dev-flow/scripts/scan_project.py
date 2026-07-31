@@ -108,6 +108,23 @@ def _rg(query: str, root: Path, pattern_hint: Optional[str] = None) -> list[str]
         return []
 
 
+def _read_cs_text(csfile: Path) -> str:
+    """Read a .cs file with encoding fallback.
+
+    Chinese WinForms projects are frequently GB2312/GBK, not UTF-8. Decoding
+    them as UTF-8 with errors='replace' turns multibyte chars into U+FFFD,
+    which breaks the regex patterns (base class, GridStyle, conn name) and
+    yields a wrong fingerprint card. Try UTF-8 strict first, then GBK, then
+    latin-1 (never fails).
+    """
+    for enc in ('utf-8-sig', 'utf-8', 'gbk', 'gb2312', 'latin-1'):
+        try:
+            return csfile.read_text(encoding=enc)
+        except (UnicodeDecodeError, OSError):
+            continue
+    return ''  # unreachable; latin-1 never raises
+
+
 def _select_string(query: str, root: Path) -> list[str]:
     """Fallback when ripgrep is unavailable: pure-Python regex scan.
 
@@ -125,9 +142,8 @@ def _select_string(query: str, root: Path) -> list[str]:
         return []
     matches: list[str] = []
     for csfile in read_cs_files(root):
-        try:
-            content = csfile.read_text(encoding='utf-8', errors='replace')
-        except OSError:
+        content = _read_cs_text(csfile)
+        if not content:
             continue
         for idx, line in enumerate(content.splitlines(), start=1):
             if pattern.search(line):

@@ -45,7 +45,7 @@ from .scoring import (
     dedup_issues,
 )
 from .auto_fix import apply_all_auto_fixes
-from .errors import UserInputError, ToolMissingError, ReviewError, safe_read_file
+from .errors import UserInputError, ToolMissingError, ReviewError, ConfigError, safe_read_file
 
 # ── analyzer/ subpackage ──
 from .analyzer.fetcher import (
@@ -341,14 +341,25 @@ def _extract_params(line: str) -> str:
 
 
 def load_custom_rules(project_root: str) -> list[dict]:
-    """Load custom rules from .dotnet-review/rules.json."""
+    """Load custom rules from .dotnet-review/rules.json.
+
+    A malformed (unparseable JSON) rules file raises ConfigError (exit 3) so
+    the Agent is told its custom-rules config is broken, rather than silently
+    dropping all rules. Missing file or read errors degrade to [] as before.
+    """
     rule_path = Path(project_root) / ".dotnet-review" / "rules.json"
     if not rule_path.exists():
         return []
     try:
         data = json.loads(rule_path.read_text(encoding="utf-8"))
         return data.get("rules", [])
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as e:
+        raise ConfigError(
+            f"Custom rules file is not valid JSON: {rule_path}",
+            details={"file": str(rule_path), "error": str(e)},
+            fix="Fix the JSON syntax in .dotnet-review/rules.json or delete it",
+        )
+    except OSError:
         return []
 
 

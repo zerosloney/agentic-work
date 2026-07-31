@@ -519,7 +519,12 @@ def record_query(sql: str, success: bool = True, duration: float = 0.0, path: st
         p.parent.mkdir(parents=True, exist_ok=True)
         import yaml
 
-        p.write_text(yaml.dump(merged, allow_unicode=True, default_flow_style=False), encoding="utf-8")
+        content = yaml.dump(merged, allow_unicode=True, default_flow_style=False)
+        # Atomic write: tmp + os.replace. A crash mid-write otherwise leaves a
+        # half-written yaml that yaml.safe_load rejects, losing ALL learned data.
+        tmp_file = p.with_suffix(p.suffix + ".tmp")
+        tmp_file.write_text(content, encoding="utf-8")
+        os.replace(tmp_file, p)
     except Exception as e:
         logger.warning("Failed to write learned data to %s: %s", p, e)
 

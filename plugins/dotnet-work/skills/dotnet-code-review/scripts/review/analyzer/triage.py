@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 from ..models import CodeIssue
+from ..errors import ConfigError
 
 logger = logging.getLogger("dotnet-review.analyzer.triage")
 
@@ -112,14 +113,25 @@ def _rule_family(rule_code: str) -> str:
 
 
 def load_suppressions(project_root: str) -> list[dict]:
-    """Load user-defined suppressions from .dotnet-review/suppressions.json."""
+    """Load user-defined suppressions from .dotnet-review/suppressions.json.
+
+    Malformed JSON raises ConfigError (exit 3) so the Agent learns the
+    suppression config is broken, rather than silently applying no suppressions.
+    Missing file or read errors degrade to [].
+    """
     path = Path(project_root) / ".dotnet-review" / "suppressions.json"
     if not path.exists():
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return data.get("suppressions", [])
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as e:
+        raise ConfigError(
+            f"Suppressions file is not valid JSON: {path}",
+            details={"file": str(path), "error": str(e)},
+            fix="Fix the JSON syntax in .dotnet-review/suppressions.json or delete it",
+        )
+    except OSError:
         return []
 
 
