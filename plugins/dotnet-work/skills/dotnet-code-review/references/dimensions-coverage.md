@@ -1,6 +1,6 @@
 # Dimensions Coverage Matrix（6 维度规则覆盖矩阵）
 
-> ⚠️ **执行口径（唯一真相）**：本文件描述各维度的**实际执行规则**，不以"规则定义"口径计数。Python 正则层已从 `run_review()` 移除；所有 C# 审查结论来自 Roslyn（AST/语义/项目级）+ `dotnet build`/`dotnet format` + NetAnalyzers。**规则数量以 `python scripts/count_rules.py` 为准**，当前快照为 175 条（AST `LEGACY_*` 153 条 + 语义 `SEM/EF/ASP/P/RCS` 22 条），另含项目级 + dotnet build/format + NetAnalyzers CAxxxx 动态注入。
+> ⚠️ **执行口径（唯一真相）**：本文件描述各维度的**实际执行规则**，不以"规则定义"口径计数。**规则数量以 `python scripts/count_rules.py` 为准**，当前快照为 186 条（AST `LEGACY_*` 154 条 + 语义 `SEM/EF/ASP/P/RCS` 24 条 + 测试/安全/专项 8 条），另含项目级 + dotnet build/format + NetAnalyzers CAxxxx 动态注入。
 
 > 加载时机：用户问"性能/可维护性/安全/最佳实践/架构哪条规则覆盖？"、评估技能成熟度、向用户证明覆盖度时。
 > 数据来源：`scripts/csharp-ast-analyzer/Program.cs`（LEGACY_*）+ `scripts/csharp-semantic-analyzer/Program.cs`（SEM/EF/P/ASP）+ `scripts/csharp-project-analyzer/Program.cs`（ARCH/LAYER）+ `scripts/review/engine.py`（内联 S001/S002/S005/P021）+ dotnet build/format。
@@ -9,7 +9,7 @@
 
 | 执行层 | 引擎 | 说明 |
 |--------|------|------|
-| **AST** | Roslyn `CSharpSyntaxWalker` | `LEGACY_*` 规则，153 条，语法级零误报 |
+| **AST** | Roslyn `CSharpSyntaxWalker` | `LEGACY_*` 规则，154 条，语法级检测 |
 | **Semantic** | Roslyn `SemanticModel` | `SEM_*`/`EF*`/`ASP*`/`P*` 规则，14 条，类型/符号级 |
 | **Project** | Roslyn 跨文件分析器 | `ARCH001`/`LAYER001`/`CS006` 等 |
 | **Build** | `dotnet build` | CSxxxx 编译诊断 + NetAnalyzers CAxxxx（~500 条） |

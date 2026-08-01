@@ -1,5 +1,6 @@
 ﻿/// C# Semantic Analyzer — 基于 Roslyn SemanticModel 的语义分析
-/// 使用 AdhocWorkspace + CSharpCompilation（仅需 Microsoft.CodeAnalysis 4.5.0）
+/// 优先使用 MSBuildWorkspace 加载真实项目；无 solution 或 workspace 不可用时，
+/// 回退到 AdhocWorkspace + CSharpCompilation。
 ///
 /// 支持增量编译：通过 --incremental 和 --cache-dir 参数复用 Compilation 对象
 ///
@@ -14,6 +15,10 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
+#if NET8_0_OR_GREATER
+using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.Build.Locator;
+#endif
 
 // ── 命令行参数解析 ──
 var parsedArgs = ParseArguments(args);
@@ -27,14 +32,38 @@ if (slnPath == null && parsedArgs.SolutionFull && files.Length > 0)
     var firstDir = Path.GetDirectoryName(Path.GetFullPath(files[0]));
     if (firstDir != null) slnPath = SolutionHelper.FindSolution(firstDir);
 }
+
+var incremental = parsedArgs.Incremental;
+var cacheDir = parsedArgs.CacheDir;
+var diagnostics = new List<SemanticDiagnostic>();
+int CompilationErrorCount = 0;
+bool msbuildWorkspaceUsed = false;
+int msbuildProjectsLoaded = 0;
+int msbuildCompileItems = 0;
+int msbuildGeneratedCompileItems = 0;
+
 if (slnPath != null && File.Exists(slnPath))
+{
+#if NET8_0_OR_GREATER
+    var workspaceFiles = await TryAnalyzeWithMsBuildWorkspaceAsync(
+        slnPath, files, parsedArgs.SolutionFull, parsedArgs.ProjectPath, diagnostics);
+    if (workspaceFiles != null)
+    {
+        files = workspaceFiles;
+        msbuildWorkspaceUsed = true;
+    }
+#endif
+}
+
+// ── Static solution fallback (only when MSBuildWorkspace cannot load) ──
+if (!msbuildWorkspaceUsed && slnPath != null && File.Exists(slnPath))
 {
     var solutionProjects = SolutionHelper.ParseSolution(slnPath);
     var depGraph = SolutionHelper.BuildDependencyGraph(solutionProjects);
     var matchedCsprojs = SolutionHelper.FindCsprojForFiles(files, solutionProjects);
     foreach (var csproj in matchedCsprojs)
     {
-        var depDlls = SolutionHelper.ResolveTransitiveDeps(csproj, depGraph, solutionProjects, "net6.0");
+        var depDlls = SolutionHelper.ResolveTransitiveDeps(csproj, depGraph, solutionProjects);
         foreach (var dll in depDlls)
         {
             if (!parsedArgs.References.Contains(dll, StringComparer.OrdinalIgnoreCase))
@@ -55,14 +84,10 @@ if (files.Length == 0)
     return 1;
 }
 
-var incremental = parsedArgs.Incremental;
-var cacheDir = parsedArgs.CacheDir;
-var diagnostics = new List<SemanticDiagnostic>();
-int CompilationErrorCount = 0;
-
 try
 {
-    await AnalyzeFilesAsync(files, diagnostics, incremental, cacheDir);
+    if (!msbuildWorkspaceUsed)
+        await AnalyzeFilesAsync(files, diagnostics, incremental, cacheDir);
 }
 catch (Exception ex)
 {
@@ -90,6 +115,14 @@ var output = new
     incremental_used = incremental && cacheDir != null,
     files_scanned = files.Intersect(diagnostics.Select(d => d.File)).Count(),
     compilation_error_count = CompilationErrorCount,
+    semantic_workspace = new
+    {
+        used = msbuildWorkspaceUsed,
+        projects = msbuildProjectsLoaded,
+        evaluated_compile_items = msbuildCompileItems,
+        generated_compile_items = msbuildGeneratedCompileItems,
+        fallback = !msbuildWorkspaceUsed && slnPath != null ? "static solution/project reference resolution" : null,
+    },
     cache_stats = new
     {
         total_files = totalFiles,
@@ -112,6 +145,145 @@ Console.WriteLine(JsonSerializer.Serialize(output, new JsonSerializerOptions
 }));
 
 return 0;
+
+// ============================================================
+// MSBuildWorkspace solution analysis
+// ============================================================
+
+#if NET8_0_OR_GREATER
+async Task<string[]?> TryAnalyzeWithMsBuildWorkspaceAsync(
+    string solutionPath,
+    string[] requestedFiles,
+    bool solutionFull,
+    string? projectPath,
+    List<SemanticDiagnostic> diagnostics)
+{
+    try
+    {
+        if (!MSBuildLocator.IsRegistered)
+            MSBuildLocator.RegisterDefaults();
+
+        using var workspace = MSBuildWorkspace.Create();
+        workspace.WorkspaceFailed += (_, e) =>
+            Console.Error.WriteLine($"[MSBUILD] {e.Diagnostic.Kind}: {e.Diagnostic.Message}");
+
+        Project? requestedProject = null;
+        Solution solution;
+        if (!solutionFull && !string.IsNullOrWhiteSpace(projectPath) && File.Exists(projectPath))
+        {
+            // Loading a project evaluates only that project and its project
+            // reference closure instead of materializing every solution node.
+            requestedProject = await workspace.OpenProjectAsync(Path.GetFullPath(projectPath));
+            solution = requestedProject.Solution;
+        }
+        else
+        {
+            solution = await workspace.OpenSolutionAsync(Path.GetFullPath(solutionPath));
+        }
+        var requested = new HashSet<string>(
+            requestedFiles.Select(Path.GetFullPath),
+            StringComparer.OrdinalIgnoreCase);
+        var solutionRoot = Path.GetDirectoryName(Path.GetFullPath(solutionPath)) ?? "";
+        if (!solutionRoot.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            solutionRoot += Path.DirectorySeparatorChar;
+        var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var analyzed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var projectCount = 0;
+
+        var projectsToAnalyze = new List<Project>();
+        if (requestedProject != null)
+        {
+            var seen = new HashSet<ProjectId>();
+            void AddProjectClosure(Project project)
+            {
+                if (!seen.Add(project.Id)) return;
+                projectsToAnalyze.Add(project);
+                foreach (var reference in project.ProjectReferences)
+                {
+                    var referenced = solution.GetProject(reference.ProjectId);
+                    if (referenced != null) AddProjectClosure(referenced);
+                }
+            }
+            AddProjectClosure(requestedProject);
+        }
+        else
+        {
+            projectsToAnalyze.AddRange(solution.Projects);
+        }
+
+        foreach (var project in projectsToAnalyze)
+        {
+            var documents = project.Documents
+                .Where(d => !string.IsNullOrWhiteSpace(d.FilePath))
+                .ToList();
+            var documentPaths = documents
+                .Select(d => Path.GetFullPath(d.FilePath!))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            msbuildCompileItems += documentPaths.Count;
+            msbuildGeneratedCompileItems += documentPaths.Count(
+                path => path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase));
+
+            var selectedPaths = solutionFull
+                ? documentPaths
+                : documentPaths.Where(requested.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (selectedPaths.Count == 0)
+                continue;
+
+            foreach (var path in selectedPaths)
+                matched.Add(path);
+
+            var compilation = await project.GetCompilationAsync();
+            if (compilation == null)
+                continue;
+
+            var syntaxTrees = new Dictionary<string, SyntaxTree>(StringComparer.OrdinalIgnoreCase);
+            foreach (var document in documents)
+            {
+                var tree = await document.GetSyntaxTreeAsync();
+                if (tree?.FilePath is { Length: > 0 } path)
+                    syntaxTrees[Path.GetFullPath(path)] = tree;
+            }
+            if (syntaxTrees.Count == 0)
+                continue;
+
+            CompilationErrorCount += compilation.GetDiagnostics()
+                .Count(d => d.Severity == DiagnosticSeverity.Error);
+            RunSemanticRules(compilation, syntaxTrees, selectedPaths, diagnostics);
+            foreach (var path in selectedPaths)
+            {
+                if (syntaxTrees.ContainsKey(path))
+                    analyzed.Add(path);
+            }
+            projectCount++;
+        }
+
+        var unmatchedOutsideSolution = !solutionFull && requested.Any(
+            path => !matched.Contains(path) &&
+                    !path.StartsWith(solutionRoot, StringComparison.OrdinalIgnoreCase));
+        if (projectCount == 0 || (!solutionFull && matched.Count == 0) || unmatchedOutsideSolution)
+        {
+            msbuildProjectsLoaded = 0;
+            msbuildCompileItems = 0;
+            msbuildGeneratedCompileItems = 0;
+            Console.Error.WriteLine("[MSBUILD] No requested files matched evaluated Compile items; using static fallback");
+            return null;
+        }
+
+        Console.Error.WriteLine(
+            $"[MSBUILD] Loaded {projectCount} project(s), {analyzed.Count} evaluated Compile item(s)");
+        msbuildProjectsLoaded = projectCount;
+        return analyzed.ToArray();
+    }
+    catch (Exception ex)
+    {
+        msbuildProjectsLoaded = 0;
+        msbuildCompileItems = 0;
+        msbuildGeneratedCompileItems = 0;
+        Console.Error.WriteLine($"[MSBUILD] Workspace unavailable; using static fallback: {ex.Message}");
+        return null;
+    }
+}
+#endif
 
 // ============================================================
 // 增量编译核心逻辑
@@ -261,50 +433,67 @@ async Task AnalyzeFilesAsync(string[] filePaths, List<SemanticDiagnostic> diagno
         Console.Error.WriteLine($"[DBG-COMP-ERR] {d}");
     }
 
-    // ── 构建类型 -> 文件 映射（全项目）──
-    var allTypes = new Dictionary<string, (INamedTypeSymbol type, string file)>(StringComparer.OrdinalIgnoreCase);
-
-    foreach (var (file, tree) in syntaxTrees)
-    {
-        var model = compilation.GetSemanticModel(tree);
-        var root = tree.GetRoot();
-        CollectNamedTypes(model, root, file, allTypes);
-    }
-
-    // ── 遍历每个文件进行语义分析 ──
-    foreach (var (filePath, tree) in syntaxTrees)
-    {
-        var semanticModel = compilation.GetSemanticModel(tree);
-        AnalyzeNullable(semanticModel, tree, filePath, diagnostics);
-        AnalyzeTypeGetType(semanticModel, tree, filePath, allTypes, diagnostics);
-        AnalyzeBoxing(semanticModel, tree, filePath, diagnostics);
-        AnalyzeStringConcatInLoop(semanticModel, tree, filePath, diagnostics);
-        AnalyzeSealedOverride(semanticModel, tree, filePath, diagnostics);
-        AnalyzeInterfaceImplementation(semanticModel, tree, filePath, compilation, allTypes, diagnostics);
-        AnalyzeEfRules(semanticModel, tree, filePath, diagnostics);
-        AnalyzeLinqMultipleEnumeration(semanticModel, tree, filePath, diagnostics);
-        AnalyzeDisposePattern(semanticModel, tree, filePath, diagnostics);
-        AnalyzeMutableStruct(semanticModel, tree, filePath, diagnostics);
-        AnalyzeSemanticHints(semanticModel, tree, filePath, diagnostics);
-        AnalyzeTaint(semanticModel, tree, filePath, diagnostics);
-        AnalyzeCancellationToken(semanticModel, tree, filePath, diagnostics);
-        AnalyzeOutRefNullAssignment(semanticModel, tree, filePath, diagnostics);
-        AnalyzeAspNetRules(semanticModel, tree, filePath, allTypes, diagnostics);
-AnalyzeRedundantBaseConstructorCall(semanticModel, tree, filePath, diagnostics);
-        AnalyzeRedundantNameofType(semanticModel, tree, filePath, diagnostics);
-        AnalyzeUseStringInterpolation(semanticModel, tree, filePath, diagnostics);
-        AnalyzeUseCollectionInitializer(semanticModel, tree, filePath, diagnostics);
-        AnalyzeUseCoalesceExpression(semanticModel, tree, filePath, diagnostics);
-    }
-
-    // 分析未使用的私有成员（跨文件）
-    AnalyzeUnusedPrivateMembers(compilation, syntaxTrees, diagnostics);
+    RunSemanticRules(compilation, syntaxTrees, syntaxTrees.Keys, diagnostics);
 
     // ── 保存缓存 ──
     if (incremental && cacheDir != null)
     {
         await SaveCacheAsync(cacheDir, compilation, syntaxTrees, fileHashes);
     }
+}
+
+void RunSemanticRules(
+    Compilation compilation,
+    Dictionary<string, SyntaxTree> syntaxTrees,
+    IEnumerable<string> analysisFiles,
+    List<SemanticDiagnostic> diagnostics)
+{
+    var selected = analysisFiles.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    // ── 构建类型 -> 文件映射（完整 evaluated project）──
+    var allTypes = new Dictionary<string, (INamedTypeSymbol type, string file)>(StringComparer.OrdinalIgnoreCase);
+    var semanticModels = new Dictionary<string, SemanticModel>(StringComparer.OrdinalIgnoreCase);
+    var syntaxRoots = new Dictionary<string, SyntaxNode>(StringComparer.OrdinalIgnoreCase);
+    foreach (var (file, tree) in syntaxTrees)
+    {
+        var model = compilation.GetSemanticModel(tree);
+        semanticModels[file] = model;
+        var root = tree.GetRoot();
+        syntaxRoots[file] = root;
+        CollectNamedTypes(model, root, file, allTypes);
+    }
+
+    // 只对用户请求的文件发出 findings，但保留完整项目树用于符号解析。
+    foreach (var (filePath, tree) in syntaxTrees)
+    {
+        if (!selected.Contains(filePath))
+            continue;
+
+        var semanticModel = semanticModels[filePath];
+        var root = syntaxRoots[filePath];
+        AnalyzeNullable(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeTypeGetType(semanticModel, tree, root, filePath, allTypes, diagnostics);
+        AnalyzeBoxing(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeStringConcatInLoop(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeSealedOverride(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeInterfaceImplementation(semanticModel, tree, root, filePath, compilation, allTypes, diagnostics);
+        AnalyzeEfRules(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeLinqMultipleEnumeration(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeDisposePattern(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeMutableStruct(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeSemanticHints(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeTaint(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeCancellationToken(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeOutRefNullAssignment(semanticModel, tree, root, filePath, diagnostics);
+        AnalyzeAspNetRules(semanticModel, tree, root, filePath, allTypes, diagnostics);
+        AnalyzeRedundantBaseConstructorCall(semanticModel, tree, filePath, diagnostics);
+        AnalyzeRedundantNameofType(semanticModel, tree, filePath, diagnostics);
+        AnalyzeUseStringInterpolation(semanticModel, tree, filePath, diagnostics);
+        AnalyzeUseCollectionInitializer(semanticModel, tree, filePath, diagnostics);
+        AnalyzeUseCoalesceExpression(semanticModel, tree, filePath, diagnostics);
+    }
+
+    AnalyzeUnusedPrivateMembers(compilation, syntaxTrees, diagnostics, selected, semanticModels);
 }
 
 /// <summary>
@@ -538,6 +727,11 @@ ParsedArgs ParseArguments(string[] args)
             }
             i++;
         }
+        else if (arg == "--project" && i + 1 < args.Length)
+        {
+            result = result with { ProjectPath = args[i + 1] };
+            i += 2;
+        }
         else if (!arg.StartsWith("--"))
         {
             result.Files.Add(arg);
@@ -558,7 +752,9 @@ ParsedArgs ParseArguments(string[] args)
 
 void AnalyzeUnusedPrivateMembers(Compilation compilation,
     Dictionary<string, SyntaxTree> syntaxTrees,
-    List<SemanticDiagnostic> diagnostics)
+    List<SemanticDiagnostic> diagnostics,
+    HashSet<string> selectedFiles,
+    Dictionary<string, SemanticModel>? semanticModels = null)
 {
     var referencedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -572,7 +768,12 @@ void AnalyzeUnusedPrivateMembers(Compilation compilation,
 
     foreach (var (file, tree) in syntaxTrees)
     {
-        var semanticModel = compilation.GetSemanticModel(tree);
+        if (!selectedFiles.Contains(file))
+            continue;
+
+        var semanticModel = semanticModels != null && semanticModels.TryGetValue(file, out var cachedModel)
+            ? cachedModel
+            : compilation.GetSemanticModel(tree);
         var root = tree.GetRoot();
 
         foreach (var node in root.DescendantNodes())
@@ -675,10 +876,10 @@ void CollectNamedTypes(SemanticModel model, SyntaxNode root, string file,
     }
 }
 
-void AnalyzeNullable(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeNullable(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() == SyntaxKind.NullableType)
         {
@@ -729,11 +930,11 @@ void AnalyzeNullable(SemanticModel semanticModel, SyntaxTree syntaxTree,
     }
 }
 
-void AnalyzeTypeGetType(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeTypeGetType(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, Dictionary<string, (INamedTypeSymbol, string)> allTypes,
     List<SemanticDiagnostic> diagnostics)
 {
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() == SyntaxKind.InvocationExpression)
         {
@@ -777,10 +978,10 @@ void AnalyzeTypeGetType(SemanticModel semanticModel, SyntaxTree syntaxTree,
     }
 }
 
-void AnalyzeBoxing(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeBoxing(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() == SyntaxKind.CastExpression)
         {
@@ -804,7 +1005,7 @@ void AnalyzeBoxing(SemanticModel semanticModel, SyntaxTree syntaxTree,
     }
 }
 
-void AnalyzeStringConcatInLoop(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeStringConcatInLoop(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
     // BP008: string += inside a loop produces O(n²) allocations; recommend
@@ -813,7 +1014,7 @@ void AnalyzeStringConcatInLoop(SemanticModel semanticModel, SyntaxTree syntaxTre
     // It misses `s += i` (int operand) because it cannot infer that the LHS `s`
     // is typed `string`. This semantic check closes that gap by resolving the
     // declared type of the left operand via GetTypeInfo.
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() != SyntaxKind.AddAssignmentExpression) continue;
         var assign = (AssignmentExpressionSyntax)node;
@@ -839,10 +1040,10 @@ static bool IsInsideLoop(SyntaxNode node)
                                      || a is DoStatementSyntax);
 }
 
-void AnalyzeSealedOverride(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeSealedOverride(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() == SyntaxKind.MethodDeclaration)
         {
@@ -878,12 +1079,12 @@ void AnalyzeSealedOverride(SemanticModel semanticModel, SyntaxTree syntaxTree,
     }
 }
 
-void AnalyzeInterfaceImplementation(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeInterfaceImplementation(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, Compilation compilation,
     Dictionary<string, (INamedTypeSymbol, string)> allTypes,
     List<SemanticDiagnostic> diagnostics)
 {
-    foreach (var node in syntaxTree.GetRoot().DescendantNodes())
+    foreach (var node in root.DescendantNodes())
     {
         if (node.Kind() == SyntaxKind.ClassDeclaration)
         {
@@ -939,10 +1140,9 @@ void Add(List<SemanticDiagnostic> diagnostics, string file, Location location,
     });
 }
 
-void AnalyzeOutRefNullAssignment(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeOutRefNullAssignment(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
     foreach (var method in root.DescendantNodes().OfType<BaseMethodDeclarationSyntax>())
     {
         if (method.Body == null) continue;
@@ -968,11 +1168,9 @@ void AnalyzeOutRefNullAssignment(SemanticModel semanticModel, SyntaxTree syntaxT
 // ============================================================
 // CancellationToken propagation (ASYNC1004)
 // ============================================================
-void AnalyzeCancellationToken(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeCancellationToken(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
     {
         // Skip non-async methods
@@ -1017,11 +1215,9 @@ void AnalyzeCancellationToken(SemanticModel semanticModel, SyntaxTree syntaxTree
 // EF Core rules (Layer 3b — Semantic Analyzer)
 // ============================================================
 
-void AnalyzeEfRules(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeEfRules(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     var efTerminalMethods = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "ToList", "ToListAsync", "FirstOrDefault", "FirstOrDefaultAsync",
@@ -1320,11 +1516,9 @@ static bool LooksLikeDbSetAccessor(string text)
 // LINQ multiple-enumeration (P009) — cross-statement data flow
 // ============================================================
 
-void AnalyzeLinqMultipleEnumeration(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeLinqMultipleEnumeration(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     // Per-method analysis: the unit of "scope" for multi-enumeration is a
     // method body, since that's where local variables are introduced and
     // consumed.
@@ -1627,14 +1821,14 @@ static bool IsInsideTransactionUsing(SyntaxNode node)
     return false;
 }
 
-void AnalyzeDisposePattern(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeDisposePattern(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
     // SEM015: class implements IDisposable but Dispose() does not call
     // Dispose() on owned IDisposable fields. Heuristic: check if any field
     // type implements IDisposable and the Dispose method body does not
     // reference that field name.
-    foreach (var cls in syntaxTree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>())
+    foreach (var cls in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
     {
         var clsSym = semanticModel.GetDeclaredSymbol(cls) as INamedTypeSymbol;
         if (clsSym == null) continue;
@@ -1683,14 +1877,14 @@ void AnalyzeDisposePattern(SemanticModel semanticModel, SyntaxTree syntaxTree,
     }
 }
 
-void AnalyzeMutableStruct(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeMutableStruct(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
     // SEM016: mutable struct (contains non-readonly fields) — value type
     // semantics mean mutations affect copies, not the original, leading to
     // subtle bugs. Detected by checking for non-readonly fields in structs
     // that have any setter or non-constructor assignment.
-    foreach (var st in syntaxTree.GetRoot().DescendantNodes().OfType<StructDeclarationSyntax>())
+    foreach (var st in root.DescendantNodes().OfType<StructDeclarationSyntax>())
     {
         var stSym = semanticModel.GetDeclaredSymbol(st) as INamedTypeSymbol;
         if (stSym == null) continue;
@@ -1719,11 +1913,9 @@ void AnalyzeMutableStruct(SemanticModel semanticModel, SyntaxTree syntaxTree,
 /// <summary>
 /// SEM009/011/012/013/015 — syntax-level semantic hints (no type query needed).
 /// </summary>
-void AnalyzeSemanticHints(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeSemanticHints(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     // SEM012: reflection usage — typeof / GetMethod / GetProperty / Assembly.GetTypes
     foreach (var inv in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
     {
@@ -1890,11 +2082,9 @@ static bool IsLikelyValueTypeName(string name)
 /// analyzer's pattern-matching SEC002/003/004 rules.
 /// Limitation: method-local only (no cross-method/cross-file propagation).
 /// </summary>
-void AnalyzeTaint(SemanticModel semanticModel, SyntaxTree syntaxTree,
+void AnalyzeTaint(SemanticModel semanticModel, SyntaxTree syntaxTree, SyntaxNode root,
     string filePath, List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     // Taint sources: member/identifier names that indicate user-controlled input
     var sourceMembers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -2068,12 +2258,11 @@ static bool UsesTaintedSymbol(ExpressionSyntax expr, HashSet<ISymbol> tainted, S
 void AnalyzeAspNetRules(
     SemanticModel semanticModel,
     SyntaxTree syntaxTree,
+    SyntaxNode root,
     string filePath,
     Dictionary<string, (INamedTypeSymbol, string)> allTypes,
     List<SemanticDiagnostic> diagnostics)
 {
-    var root = syntaxTree.GetRoot();
-
     // ASP001: Controller 缺 [Authorize]
     // 用语义模型精确定义 Controller：继承自 ControllerBase/Controller 或标记了 [ApiController]
     foreach (var classDecl in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
@@ -2489,27 +2678,67 @@ static class SolutionHelper
         return graph;
     }
 
-    internal static string? FindOutputDll(string csprojPath, string tfm = "net6.0")
+    internal static string? FindOutputDll(string csprojPath, string? tfm = null)
     {
         var projDir = Path.GetDirectoryName(Path.GetFullPath(csprojPath)) ?? "";
         var dllName = Path.GetFileNameWithoutExtension(csprojPath) + ".dll";
-        var candidates = new[]
+        var targetFrameworks = tfm != null
+            ? new[] { tfm }
+            : ReadTargetFrameworks(csprojPath).ToArray();
+        var candidates = new List<string>();
+        foreach (var target in targetFrameworks)
         {
-            Path.Combine(projDir, "bin", "Debug", tfm, dllName),
-            Path.Combine(projDir, "bin", "Release", tfm, dllName),
-        };
+            candidates.Add(Path.Combine(projDir, "bin", "Debug", target, dllName));
+            candidates.Add(Path.Combine(projDir, "bin", "Release", target, dllName));
+        }
         foreach (var c in candidates)
         {
             if (File.Exists(c)) return c;
         }
+
+        var binDir = Path.Combine(projDir, "bin");
+        if (Directory.Exists(binDir))
+        {
+            var fallback = Directory.EnumerateFiles(binDir, dllName, SearchOption.AllDirectories)
+                .Where(p => !p.Contains(Path.DirectorySeparatorChar + "ref" + Path.DirectorySeparatorChar,
+                                         StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+            if (fallback != null) return fallback;
+        }
         return null;
+    }
+
+    internal static List<string> ReadTargetFrameworks(string csprojPath)
+    {
+        var result = new List<string>();
+        try
+        {
+            var content = File.ReadAllText(csprojPath);
+            foreach (var property in new[] { "TargetFrameworks", "TargetFramework" })
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    content,
+                    $@"<{property}>\s*([^<]+)\s*</{property}>",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (!match.Success) continue;
+                foreach (var tfm in match.Groups[1].Value.Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var normalized = tfm.Trim();
+                    if (normalized.Length > 0 && !result.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                        result.Add(normalized);
+                }
+            }
+        }
+        catch { }
+        return result;
     }
 
     internal static List<string> ResolveTransitiveDeps(
         string targetCsproj,
         Dictionary<string, HashSet<string>> graph,
         List<SolutionProject> allProjects,
-        string tfm = "net6.0")
+        string? tfm = null)
     {
         var dlls = new List<string>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -2557,10 +2786,10 @@ static class SolutionHelper
         var found = new List<string>();
         foreach (var file in files)
         {
-            var fileDir = Path.GetDirectoryName(Path.GetFullPath(file)) ?? "";
+            var filePath = Path.GetFullPath(file);
             foreach (var (projDir, csprojPath) in csprojMap)
             {
-                if (fileDir.StartsWith(projDir, StringComparison.OrdinalIgnoreCase))
+                if (filePath.StartsWith(projDir, StringComparison.OrdinalIgnoreCase))
                 {
                     if (!found.Contains(csprojPath, StringComparer.OrdinalIgnoreCase))
                         found.Add(csprojPath);
@@ -2593,6 +2822,7 @@ record ParsedArgs
     public bool Incremental { get; init; }
     public string? CacheDir { get; init; }
     public string? SolutionPath { get; init; }
+    public string? ProjectPath { get; init; }
     public bool SolutionFull { get; init; }
 }
 

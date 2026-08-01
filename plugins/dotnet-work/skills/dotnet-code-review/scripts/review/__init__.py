@@ -39,6 +39,10 @@ from .framework import (
 )
 from .duplication import _normalize_code_block, _code_hash, detect_duplicates
 from .coverage import load_coverage, analyze_coverage
+from .test_quality import analyze_test_quality
+from .security import analyze_security_text, enrich_security_metadata, SECURITY_RULE_METADATA
+from .specialized import analyze_specialized
+from .configuration import load_team_config, load_rule_packages, apply_team_config
 from .nuget import (
     check_nuget_versions, _parse_version,
     _load_cve_db, _load_cve_db_meta, _db_age_days,
@@ -48,7 +52,9 @@ from .nuget import (
 from .docs import check_xml_documentation
 from .history import (
     _history_file, save_report_history, _load_history, compute_trend,
+    build_trend_report, format_trend_markdown,
 )
+from .pr_comments import render_pr_comments, render_github_comments, render_azure_comments
 from .api_compat import _extract_public_api, check_api_compatibility
 from .auto_fix import apply_auto_fix, apply_all_auto_fixes
 from .engine import (

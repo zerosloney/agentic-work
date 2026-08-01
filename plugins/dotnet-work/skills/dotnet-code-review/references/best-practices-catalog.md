@@ -620,8 +620,7 @@ dotnet_diagnostic.LEGACY_throw_ex.severity = error  # throw ex 丢栈
 # PR 级别门禁
 python scripts/review.py --target . \
     --quality-gate-score 80 \
-    --fail-on error \
-    --incremental-semantic
+    --fail-on error
 ```
 
 按 `--fail-on error` 阻断 critical 级（`LEGACY_throw_ex`、`LEGACY_R016_task_whenall_not_awaited`、`LEGACY_BP007_sync_wait` 等），warning 进入 review 讨论。

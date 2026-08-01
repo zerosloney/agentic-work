@@ -32,6 +32,9 @@
 
 ### Layer 3b（语义）
 - `SemanticModel` 用于类型/符号解析，消除语法级 false positive（如 `var x = GetSomething()` 的类型推断）
+- 传入 `--solution <path.sln>` 且运行时使用 SDK 8+ analyzer 时，优先通过 `MSBuildWorkspace` 打开真实 solution：由 MSBuild 评估条件属性、`ProjectReference`、显式/隐式 `Compile` 项、生成的 `.g.cs` 和重定向输出路径，再使用项目原生 Compilation 进行语义分析。
+- Semantic analyzer 同时产出 `net6.0` 与 `net8.0` 目标：SDK 8+ 自动选择完整 MSBuildWorkspace；SDK 6/7 保留 AdhocWorkspace + 静态项目引用 fallback。fallback 的 limitation 记录在 `semantic_workspace.fallback`，不能等同于完整 MSBuild 评估。
+- 结果中的 `semantic_workspace` 暴露 `projects`、`evaluated_compile_items`、`generated_compile_items` 和 `used`，用于确认是否真正加载了 MSBuild 项目上下文。
 
 ### Layer 3c（项目级）
 - **语义级依赖图**：基于 `SemanticModel` 类型解析，消除 `using` 导入导致的误报
@@ -73,12 +76,12 @@
 | R021 | `throw new Exception()` → `InvalidOperationException` | 低 |
 
 ### 安全约束
-- **自定义规则不修复**：`AUTO_FIXES` key 仅上述 6 条；`.dotnet-review/rules.json` 规则即使含 fixable 字段也被忽略（防注入）
+- **自定义规则不修复**：`AUTO_FIXES` key 仅上述 9 条；`.dotnet-review/rules.json` 规则即使含 fixable 字段也被忽略（防注入）
 - **CS002 故意排除**：删未用参数需全调用方上下文
 - **备份**：每文件单份 `.bak`（TRUE 原始内容，非中间态），可整文件回滚
 - **批量门禁**：单次改 > 20 文件应先 `--fix-dry-run` 确认（SKILL.md 强制约束）
 
-## 五、增量语义缓存（`--incremental-semantic`）
+## 五、增量语义缓存（默认启用；`--no-incremental-semantic` 禁用）
 
 - 缓存目录：`<project>/.review-cache/semantic/`（或 `--semantic-cache-dir` 指定）
 - 策略：按文件内容哈希增量，未变化文件复用 Compilation 对象
@@ -104,6 +107,7 @@
 | 现象 | 可能原因 | 处置 |
 |------|---------|------|
 | AST 未报某问题 | 跨程序集符号 / `AdhocWorkspace` 限制 | 标注能力边界，不强行下结论 |
+| solution 场景出现 `semantic_compilation_errors` | MSBuild 项目加载失败、条件项缺失、目标框架/SDK 不可用或 SDK<8 走 fallback | 检查 `semantic_workspace`；SDK 8+ 重新运行并确认 evaluated Compile/generated 计数，SDK 6/7 则标注 fallback 边界 |
 | 合法业务代码被报 | AST 层上下文误报（如 `==` 比较 string） | 读源码上下文，按 `triage` 值判断 |
 | CVE 报「无漏洞」但 `db_present=false` | 未实际扫描 | 必须声明未扫描 |
 | .NET Framework 项目误报 ConfigureAwait | 框架误判 | 用 `--target-framework netframework-v4.8` 覆盖 |

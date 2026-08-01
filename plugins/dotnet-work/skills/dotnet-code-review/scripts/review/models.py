@@ -13,3 +13,5 @@ class CodeIssue:
     source: str = "builtin"     # builtin | complexity | ast | semantic | project | build | format | nuget | doc | coverage | custom | duplicate
     suggestion: str = ""
     triage: str = ""            # deterministic | agent_verify | agent_only (empty = auto from RULE_TRIAGE)
+    cwe: str = ""
+    owasp: str = ""

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RollForward>Major</RollForward>
@@ -9,5 +9,11 @@
   <ItemGroup>
     <!-- 4.12.0 支持 C# 12/13 新语法 -->
     <PackageReference Include="Microsoft.CodeAnalysis" Version="4.12.0" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <!-- MSBuildWorkspace evaluates SDK-style projects, conditions, generated Compile items,
+         project references, and redirected output paths using the installed MSBuild. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.12.0" />
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />
   </ItemGroup>
 </Project>

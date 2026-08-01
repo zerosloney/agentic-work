@@ -2,6 +2,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 
 logger = logging.getLogger('dotnet-review')
@@ -13,6 +14,67 @@ _CACHE_SALT = "v1"
 _CACHE_VERSION: str | None = None
 
 
+def inputs_fingerprint(paths: list[str], salt: str = "") -> str:
+    """Return a stable content fingerprint for a group of review inputs.
+
+    This is used for whole-project results (semantic/build/format), where a
+    single file cache key is insufficient because project settings and
+    references affect the result.
+    """
+    hasher = hashlib.sha256()
+    hasher.update(salt.encode("utf-8"))
+    for raw_path in sorted({str(Path(p).resolve()) for p in paths}):
+        path = Path(raw_path)
+        hasher.update(raw_path.lower().encode("utf-8", errors="replace"))
+        digest = file_hash(raw_path) if path.is_file() else "missing"
+        hasher.update(digest.encode("ascii"))
+    return hasher.hexdigest()[:24]
+
+
+def load_result_cache(cache_dir: str | None, prefix: str, fingerprint: str) -> dict | None:
+    """Load a JSON result cache entry keyed by a complete input fingerprint."""
+    if not cache_dir or not fingerprint:
+        return None
+    path = Path(cache_dir) / f"{prefix}_{fingerprint}.json"
+    try:
+        if time.time() - path.stat().st_mtime > 24 * 60 * 60:
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_result_cache(
+    cache_dir: str | None, prefix: str, fingerprint: str, data: dict
+) -> None:
+    """Atomically save a whole-project JSON result cache entry."""
+    if not cache_dir or not fingerprint:
+        return
+    try:
+        root = Path(cache_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / f"{prefix}_{fingerprint}.json"
+        temp = root / f".{path.name}.tmp"
+        temp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        temp.replace(path)
+        # Keep each result-cache family bounded. Fingerprints are immutable, so
+        # retaining only the newest entries prevents long-lived workspaces from
+        # accumulating stale project snapshots.
+        entries = sorted(
+            root.glob(f"{prefix}_*.json"),
+            key=lambda p: p.stat().st_mtime if p.exists() else 0,
+            reverse=True,
+        )
+        for stale in entries[32:]:
+            try:
+                stale.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
 def _compute_analyzer_hash() -> str:
     """Compute a combined hash of analyzer projects for cache versioning.
 
@@ -20,19 +82,19 @@ def _compute_analyzer_hash() -> str:
     .csproj changes. Empty string if no analyzer artifacts can be read
     (cache disabled).
 
-    The runtime invokes analyzers via ``dotnet run --project <x>.csproj``, so
-    cache validity must track the .csproj files (dependency/TFM changes drive
-    ``dotnet run`` rebuilds) plus the newest built DLL under bin/ for each
+    The runtime prefers a built DLL for each individual analyzer and falls
+    back to ``dotnet run --project <x>.csproj`` when no DLL is available. Cache
+    validity therefore tracks the .csproj files (dependency/TFM changes drive
+    the fallback rebuild) plus the newest built DLL under bin/ for each
     project. We hash the newest DLL across all bin/ subdirs (Debug/Release ×
-    net6.0/net8.0/win-x64) rather than a hardcoded ``Debug/net6.0`` path,
-    which went stale when ast-analyzer moved to net8.0 and the unified
-    analyzer (preferred at runtime) was added.
+    net6.0/net8.0/win-x64) rather than a hardcoded TFM path.
     """
     skill_dir = Path(__file__).resolve().parent.parent
     hasher = hashlib.sha256()
     hasher.update(_CACHE_SALT.encode())
-    # Include the unified analyzer (preferred at runtime) and the three
-    # individual analyzers (fallback path).
+    # Include the three authoritative individual analyzers. Keep the unified
+    # project in the cache fingerprint as well so future parity work cannot
+    # accidentally reuse results produced by a different analyzer build.
     for name in [
         "csharp-unified-analyzer",
         "csharp-ast-analyzer",

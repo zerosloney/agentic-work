@@ -32,6 +32,14 @@ logger = logging.getLogger("dotnet-review")
 
 
 def main():
+    # Analyzer diagnostics and context bundles are UTF-8. On Windows the
+    # console may default to a legacy code page (often GBK), which can crash
+    # full JSON/SARIF output after analysis has already succeeded.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(
         prog="dotnet-review",
         description="C# Code Review — Standalone CLI",
@@ -76,6 +84,17 @@ def main():
     parser.add_argument(
         "--quiet", "-q", action="store_true", help="Suppress progress output"
     )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Fast local review: AST + semantic checks only; skips project/build/format/NuGet/CVE extras",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Maximum workers for independent file checks (default: 4)",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     parser.add_argument(
         "--no-duplicates", action="store_true", help="Disable duplicate code detection"
@@ -89,6 +108,9 @@ def main():
         type=float,
         default=None,
         help="Minimum overall score to pass (0-100). Exit 1 if score below threshold.",
+    )
+    parser.add_argument(
+        "--skip-ast", action="store_true", help="Skip AST analysis (Layer 3a)"
     )
     parser.add_argument(
         "--skip-semantic", action="store_true", help="Skip semantic analysis (Layer 3b)"
@@ -191,6 +213,34 @@ def main():
         help="Directory for report history (enables trend tracking)",
     )
     parser.add_argument(
+        "--trend-report",
+        metavar="DIR",
+        help="Read review history and print a quality/performance trend report without scanning code",
+    )
+    parser.add_argument(
+        "--trend-format",
+        choices=["json", "markdown"],
+        default="json",
+        help="Trend report format (default: json)",
+    )
+    parser.add_argument(
+        "--pr-provider",
+        choices=["github", "azure"],
+        help="PR comment provider for --pr-comments-out/--publish-pr-comments",
+    )
+    parser.add_argument(
+        "--pr-comments-out",
+        metavar="PATH",
+        help="Write provider-specific PR comment payloads to a JSON file",
+    )
+    parser.add_argument(
+        "--publish-pr-comments",
+        action="store_true",
+        help="Explicitly publish PR comments using provider environment variables",
+    )
+    parser.add_argument("--pr-number", help="Pull request number (otherwise read provider environment)")
+    parser.add_argument("--pr-repo", help="Repository identifier/name (otherwise read provider environment)")
+    parser.add_argument(
         "--api-compat",
         action="store_true",
         help="Check public API compatibility (requires --diff)",
@@ -229,8 +279,9 @@ def main():
         "--solution", "-s",
         metavar="PATH",
         help="Path to .sln file. Enables solution-aware semantic analysis: "
-             "resolves cross-project type references using dependency project DLLs. "
-             "Pass 'full' to auto-discover and include ALL source files from the solution.",
+             "SDK 8+ uses MSBuildWorkspace to evaluate conditions, references, "
+             "generated Compile items, and redirected outputs; SDK 6/7 use static fallback. "
+             "Pass 'full' to auto-discover and include all evaluated source files.",
     )
     parser.add_argument(
         "--legacy-compat",
@@ -244,12 +295,48 @@ def main():
 
     args = parser.parse_args()
 
+    if (args.pr_comments_out or args.publish_pr_comments) and not args.pr_provider:
+        error = UserInputError(
+            "--pr-comments-out/--publish-pr-comments requires --pr-provider github|azure",
+            fix="Set --pr-provider github or --pr-provider azure.",
+        )
+        print(json.dumps(error.to_dict(), indent=2, ensure_ascii=False), file=sys.stderr)
+        sys.exit(error.exit_code)
+
+    # Keep the fast path explicit and deterministic. It retains the two
+    # high-signal Roslyn layers and avoids subprocess-heavy enrichment layers.
+    if args.quick:
+        args.no_duplicates = True
+        args.no_docs = True
+        args.no_nuget_check = True
+        args.skip_project = True
+        args.skip_build = True
+        args.skip_format = True
+        args.cve_check = False
+        if args.diff:
+            args.changed_only = True
+
     # ── --checklist: print the human-review checklist and exit (no scan) ──
     if args.checklist:
         from .output import format_human_review_checklist
 
         print(format_human_review_checklist())
         sys.exit(EXIT_OK)
+
+    if args.trend_report:
+        from .history import build_trend_report, format_trend_markdown
+
+        trend = build_trend_report(args.trend_report)
+        print(format_trend_markdown(trend) if args.trend_format == "markdown" else json.dumps(trend, indent=2, ensure_ascii=False))
+        sys.exit(EXIT_OK)
+
+    if args.fail_on_introduced != "none" and not args.baseline_report:
+        error = UserInputError(
+            "--fail-on-introduced requires --baseline-report",
+            fix="Provide a baseline review.py JSON report or set --fail-on-introduced none.",
+        )
+        print(json.dumps(error.to_dict(), indent=2, ensure_ascii=False), file=sys.stderr)
+        sys.exit(error.exit_code)
 
     if args.verbose:
         logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
@@ -260,7 +347,7 @@ def main():
 
     # ── Run review with error handling ──
     try:
-        result = run_review(args)
+        raw_result = run_review(args)
     except UserInputError as e:
         print(json.dumps(e.to_dict(), indent=2, ensure_ascii=False), file=sys.stderr)
         sys.exit(e.exit_code)
@@ -300,7 +387,23 @@ def main():
         sys.exit(EXIT_INTERNAL)
 
     # ── Apply output mode (token efficiency) ──
-    result = apply_output_mode(result, args)
+    try:
+        if args.pr_provider and args.pr_comments_out:
+            from .pr_comments import write_pr_comments
+            write_pr_comments(raw_result, args.pr_provider, args.pr_comments_out)
+        if args.publish_pr_comments:
+            from .pr_comments import publish_pr_comments
+            publish_pr_comments(
+                raw_result,
+                args.pr_provider,
+                number=args.pr_number,
+                repo=args.pr_repo,
+            )
+    except (OSError, ValueError, TimeoutError) as e:
+        print(json.dumps({"error": str(e), "code": "PR_COMMENT_ERROR", "exit_code": EXIT_INVALID_INPUT}, ensure_ascii=False), file=sys.stderr)
+        sys.exit(EXIT_INVALID_INPUT)
+
+    result = apply_output_mode(raw_result, args)
 
     # ── Output ──
     if args.format == "markdown":
@@ -357,7 +460,11 @@ def _calculate_exit_code(result: dict, args) -> int:
     introduced_result = EXIT_OK
     if fail_on_introduced != "none":
         diff = result.get("diff_baseline")
-        if isinstance(diff, dict) and "introduced" in diff:
+        if not isinstance(diff, dict) or diff.get("error"):
+            # A requested introduced-issue gate must never silently pass when
+            # its baseline is missing or malformed.
+            return EXIT_ERROR
+        if "introduced" in diff:
             sev_rank = {"error": 3, "warning": 2, "info": 1}
             threshold = sev_rank.get(fail_on_introduced, 3)
             for issue in diff["introduced"]:

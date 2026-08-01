@@ -20,7 +20,9 @@ from .models import CodeIssue
 from .files import (
     discover_files,
     get_diff_files,
+    get_changed_line_ranges,
     find_csproj_files,
+    normalize_review_path,
 )
 from .framework import (
     parse_target_frameworks,
@@ -35,7 +37,7 @@ from .framework import (
 from .duplication import detect_duplicates
 from .coverage import load_coverage, analyze_coverage
 from .docs import check_xml_documentation
-from .nuget import check_nuget_versions, check_nuget_cves
+from .nuget import check_nuget_versions, check_nuget_cves, ensure_cve_db
 from .history import save_report_history
 from .api_compat import check_api_compatibility
 from .scoring import (
@@ -45,12 +47,17 @@ from .scoring import (
     dedup_issues,
 )
 from .auto_fix import apply_all_auto_fixes
+from .test_quality import analyze_test_quality
+from .security import analyze_security_text, enrich_security_metadata
+from .specialized import analyze_specialized
+from .configuration import load_team_config, load_rule_packages, apply_team_config
 from .errors import UserInputError, ToolMissingError, ReviewError, ConfigError, safe_read_file
 
 # ── analyzer/ subpackage ──
 from .analyzer.fetcher import (
     dotnet_available,
     get_dotnet_sdk_version,
+    dotnet_sdk_meets_minimum,
     analyze_ast,
     analyze_semantic,
     analyze_project,
@@ -68,8 +75,29 @@ from .analyzer.triage import (
     apply_verdicts,
 )
 from .analyzer.reporter import build_report
+from .context_bundle import build_context_bundles
+from .rules import get_triage_for_rule
+from .diff_baseline import compute_diff, load_baseline
 
 logger = logging.getLogger("dotnet-review")
+_MAX_FILE_WORKERS = 4
+
+
+class _PhaseTimer:
+    """Collect wall-clock durations without changing the review pipeline."""
+
+    def __init__(self, timings: dict[str, float], name: str):
+        self.timings = timings
+        self.name = name
+        self.started = 0.0
+
+    def __enter__(self):
+        self.started = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.timings[self.name] = round(time.perf_counter() - self.started, 4)
+        return False
 
 
 # ============================================================
@@ -348,11 +376,14 @@ def load_custom_rules(project_root: str) -> list[dict]:
     dropping all rules. Missing file or read errors degrade to [] as before.
     """
     rule_path = Path(project_root) / ".dotnet-review" / "rules.json"
-    if not rule_path.exists():
-        return []
+    rules: list[dict] = []
     try:
-        data = json.loads(rule_path.read_text(encoding="utf-8"))
-        return data.get("rules", [])
+        if rule_path.exists():
+            data = json.loads(rule_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and isinstance(data.get("rules"), list):
+                rules.extend(item for item in data["rules"] if isinstance(item, dict))
+            elif isinstance(data, list):
+                rules.extend(item for item in data if isinstance(item, dict))
     except json.JSONDecodeError as e:
         raise ConfigError(
             f"Custom rules file is not valid JSON: {rule_path}",
@@ -360,13 +391,24 @@ def load_custom_rules(project_root: str) -> list[dict]:
             fix="Fix the JSON syntax in .dotnet-review/rules.json or delete it",
         )
     except OSError:
-        return []
+        pass
+    # Team rule packages can live beside the legacy rules.json file or be
+    # listed in .dotnet-review/config.json.
+    config, _ = load_team_config(project_root)
+    known = {rule.get("id") for rule in rules if isinstance(rule, dict)}
+    for rule in load_rule_packages(project_root, config):
+        if rule.get("id") not in known:
+            rules.append(rule)
+            known.add(rule.get("id"))
+    return rules
 
 
 def analyze_custom(filepath: str, code: str, rules: list[dict]) -> list[CodeIssue]:
     """Apply user-defined regex rules to a file."""
     issues: list[CodeIssue] = []
     for rule in rules:
+        if rule.get("enabled", True) is False:
+            continue
         pattern = rule.get("pattern", "")
         if not pattern:
             continue
@@ -386,6 +428,8 @@ def analyze_custom(filepath: str, code: str, rules: list[dict]) -> list[CodeIssu
                     message=rule.get("message", "Custom rule match"),
                     source="custom",
                     suggestion=rule.get("suggestion", ""),
+                    cwe=rule.get("cwe", ""),
+                    owasp=rule.get("owasp", ""),
                 ))
     return issues
 
@@ -453,7 +497,7 @@ def _parallel_map_files(
 ) -> list[CodeIssue]:
     """Run a file-level analysis function across all files in parallel."""
     results: list[CodeIssue] = []
-    workers = max_workers or min(8, _cpu_count())
+    workers = max_workers or min(_MAX_FILE_WORKERS, _cpu_count())
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(func, fp, code): fp
@@ -475,12 +519,16 @@ def _parallel_map_files(
 def run_review(args) -> dict:
     """Main review entry point."""
     start_time = time.time()
+    phase_timings: dict[str, float] = {}
+    global _MAX_FILE_WORKERS
+    _MAX_FILE_WORKERS = max(1, min(32, int(getattr(args, "workers", 4) or 4)))
     project_root = os.getcwd()
 
     # ── .NET SDK gate ──
     legacy_compat = getattr(args, "legacy_compat", False)
-    if not dotnet_available() and not legacy_compat:
-        detected = get_dotnet_sdk_version()
+    sdk_version = get_dotnet_sdk_version()
+    if not legacy_compat and not dotnet_sdk_meets_minimum(6):
+        detected = sdk_version
         if detected is None:
             reason = "no `dotnet` command found on PATH"
         else:
@@ -503,7 +551,14 @@ def run_review(args) -> dict:
             "to run AST/semantic/project analysis without the build/format layers.",
         )
 
+    if getattr(args, "changed_only", False) and not args.diff:
+        raise UserInputError(
+            "--changed-only requires --diff <base-ref>",
+            fix="Provide --diff HEAD (or another Git base ref), then retry.",
+        )
+
     # ── File Discovery ──
+    _phase_started = time.perf_counter()
     cs_files = []
     if args.diff:
         cs_files = get_diff_files(args.diff, project_root)
@@ -531,13 +586,13 @@ def run_review(args) -> dict:
         cs_files = discover_files(scan_dir, [".cs"])
         project_root = scan_dir
     elif args.target:
-        cs_files = get_diff_files("HEAD", args.target)
-        cs_files = [f for f in cs_files if f.endswith(".cs")]
-        if not cs_files:
-            cs_files = discover_files(args.target, [".cs"])
+        # --target means a complete target scan. Use --diff explicitly when
+        # the caller wants only changed files.
+        cs_files = discover_files(args.target, [".cs"])
         project_root = args.target
     else:
         cs_files = discover_files(project_root, [".cs"])
+    phase_timings["file_discovery"] = round(time.perf_counter() - _phase_started, 4)
 
     if not cs_files:
         explicit_target = bool(args.target or args.files or args.all or args.diff)
@@ -576,6 +631,7 @@ def run_review(args) -> dict:
         }
 
     # ── Framework & Project Detection ──
+    _phase_started = time.perf_counter()
     csproj_files = find_csproj_files(project_root)
     frameworks: list[str] = []
     framework = ""
@@ -612,6 +668,7 @@ def run_review(args) -> dict:
             frameworks = [fallback]
             framework_type = classify_framework(framework)
             logger.info("Framework detected from fallback: %s", framework)
+    phase_timings["project_detection"] = round(time.perf_counter() - _phase_started, 4)
 
     override_framework = getattr(args, "target_framework", None)
     if override_framework:
@@ -630,14 +687,41 @@ def run_review(args) -> dict:
     project_analysis: dict = {}
     sem_extra: dict = {}
     semantic_cache_stats: dict = {}
+    semantic_workspace: dict = {}
+    test_quality_summary: dict = {}
+    team_config, config_sources = load_team_config(project_root)
+    configuration_summary: dict = {"sources": config_sources}
 
     file_codes: dict[str, str] = {}
+    _phase_started = time.perf_counter()
     for filepath in cs_files:
         try:
             code = safe_read_file(filepath)
         except (OSError, ReviewError):
             continue
         file_codes[filepath] = code
+    phase_timings["file_read"] = round(time.perf_counter() - _phase_started, 4)
+
+    # Repository-level quality layers. These are intentionally lightweight and
+    # remain useful even when the project cannot be compiled.
+    _phase_started = time.perf_counter()
+    test_issues, test_quality_summary = analyze_test_quality(
+        cs_files, file_codes, project_type
+    )
+    all_issues.extend(test_issues)
+    layer_counts["test"] = len(test_issues)
+    executed_layers.add("test")
+
+    security_issues = analyze_security_text(file_codes)
+    all_issues.extend(security_issues)
+    layer_counts["security"] = len(security_issues)
+    executed_layers.add("security")
+
+    specialized_issues = analyze_specialized(file_codes)
+    all_issues.extend(specialized_issues)
+    layer_counts["specialized"] = len(specialized_issues)
+    executed_layers.add("specialized")
+    phase_timings["repository_quality"] = round(time.perf_counter() - _phase_started, 4)
 
     # ── Custom Rules ──
     custom_rules = load_custom_rules(project_root)
@@ -749,20 +833,45 @@ def run_review(args) -> dict:
     _dotnet_cmd_exists = legacy_compat and dotnet_available()
     sdk_present = dotnet_available() or _dotnet_cmd_exists
 
+    files_mode = bool(args.files)
+    skip_ast = getattr(args, "skip_ast", False)
     skip_semantic = getattr(args, "skip_semantic", False)
     skip_project = getattr(args, "skip_project", False)
-    skip_build = getattr(args, "skip_build", False)
-    skip_format = getattr(args, "skip_format", False)
+    skip_build = getattr(args, "skip_build", False) or files_mode or legacy_compat
+    skip_format = getattr(args, "skip_format", False) or files_mode or legacy_compat
+    solution_path = getattr(args, "solution", None)
+
+    # AST analysis only needs source files. Semantic analysis needs a project
+    # or solution context to resolve framework/project references; running it
+    # against a bare file produces noisy compilation errors and can create
+    # misleading type-dependent findings. Keep AST available and report the
+    # semantic boundary explicitly instead of treating an unavailable context
+    # as a successful empty semantic scan.
+    semantic_context_available = bool(csproj_files or solution_path)
+    run_semantic = not skip_semantic and semantic_context_available
+
+    # The public --cache flag is the AST cache. Semantic analysis has its own
+    # cache because it stores compilation metadata rather than diagnostics.
+    ast_cache_dir = getattr(args, "cache", None)
+    incremental_semantic = not getattr(args, "no_incremental_semantic", False)
+    semantic_cache_dir = getattr(args, "semantic_cache_dir", None)
+    if incremental_semantic and not semantic_cache_dir:
+        semantic_cache_dir = str(Path(project_root) / ".review-cache" / "semantic")
 
     # AST analysis
-    if not skip_semantic:
+    _phase_started = time.perf_counter()
+    if not skip_ast:
         executed_layers.add("ast")
-        ast_issues = analyze_ast(cs_files, project_root)
+        ast_issues = analyze_ast(cs_files, project_root, cache_dir=ast_cache_dir)
         all_issues.extend(ast_issues)
         layer_counts["ast"] = len(ast_issues)
+    else:
+        skipped_layer_details.append({"layer": "ast", "reason": "--skip-ast"})
+    phase_timings["ast"] = round(time.perf_counter() - _phase_started, 4)
 
     # Semantic analysis
-    if not skip_semantic:
+    _phase_started = time.perf_counter()
+    if run_semantic:
         executed_layers.add("semantic")
         refs = None
         if csproj_files:
@@ -773,19 +882,26 @@ def run_review(args) -> dict:
         expanded = _expand_files_for_semantic_analysis(cs_files, project_root)
         sem_issues, sem_extra = analyze_semantic(
             expanded,
-            incremental=getattr(args, "incremental", False),
-            cache_dir=getattr(args, "cache_dir", None),
+            incremental=incremental_semantic,
+            cache_dir=semantic_cache_dir,
             project_root=project_root,
             references=refs,
+            solution_path=solution_path,
+            project_path=csproj_files[0] if csproj_files and solution_path else None,
         )
         if "cache_stats" in sem_extra:
             semantic_cache_stats = sem_extra["cache_stats"]
+        if "semantic_workspace" in sem_extra:
+            semantic_workspace = sem_extra["semantic_workspace"]
         all_issues.extend(sem_issues)
         layer_counts["semantic"] = len(sem_issues)
     else:
-        skipped_layer_details.append({"layer": "semantic", "reason": "--skip-semantic"})
+        reason = "--skip-semantic" if skip_semantic else "no project or solution context"
+        skipped_layer_details.append({"layer": "semantic", "reason": reason})
+    phase_timings["semantic"] = round(time.perf_counter() - _phase_started, 4)
 
     # Project analysis
+    _phase_started = time.perf_counter()
     if not skip_project:
         executed_layers.add("project")
         project_analysis = analyze_project(cs_files)
@@ -794,9 +910,10 @@ def run_review(args) -> dict:
         layer_counts["project"] = len(project_issues)
     else:
         skipped_layer_details.append({"layer": "project", "reason": "--skip-project"})
+    phase_timings["project"] = round(time.perf_counter() - _phase_started, 4)
 
     # AST/SEM overlap suppression
-    if not skip_semantic:
+    if run_semantic:
         ast_list = [i for i in all_issues if i.source == "ast"]
         sem_list = [i for i in all_issues if i.source == "semantic"]
         filtered_ast, suppressed_by_ast = suppress_ast_semantic_overlap(ast_list, sem_list)
@@ -806,35 +923,68 @@ def run_review(args) -> dict:
         suppressed_by_ast = 0
 
     # Build analysis
+    _phase_started = time.perf_counter()
     if not skip_build and csproj_files:
         executed_layers.add("build")
         build_issues, build_info = analyze_build(
-            csproj_files[0], project_root, framework_type,
+            csproj_files[0],
+            project_root,
+            framework_type,
+            enable_netanalyzers=not getattr(args, "skip_netanalyzers", False),
+            cache_dir=str(Path(project_root) / ".review-cache" / "layers"),
+            source_files=cs_files,
         )
         all_issues.extend(build_issues)
         layer_counts["build"] = len(build_issues)
         netanalyzers_summary = build_info
     else:
-        if not skip_build:
+        if legacy_compat:
+            skipped_layer_details.append({"layer": "build", "reason": "--legacy-compat"})
+        elif files_mode:
+            skipped_layer_details.append({"layer": "build", "reason": "--files mode"})
+        elif not skip_build:
             skipped_layer_details.append({"layer": "build", "reason": "no .csproj found"})
         netanalyzers_summary = None
+    phase_timings["build"] = round(time.perf_counter() - _phase_started, 4)
 
     # Format analysis
+    _phase_started = time.perf_counter()
     if not skip_format and csproj_files:
         executed_layers.add("format")
-        format_issues = analyze_format(csproj_files[0], project_root)
+        format_issues = analyze_format(
+            csproj_files[0],
+            project_root,
+            cache_dir=str(Path(project_root) / ".review-cache" / "layers"),
+            source_files=cs_files,
+        )
         all_issues.extend(format_issues)
         layer_counts["format"] = len(format_issues)
+    elif legacy_compat:
+        skipped_layer_details.append({"layer": "format", "reason": "--legacy-compat"})
+    elif files_mode:
+        skipped_layer_details.append({"layer": "format", "reason": "--files mode"})
     elif not skip_format:
         skipped_layer_details.append({"layer": "format", "reason": "no .csproj found"})
+    phase_timings["format"] = round(time.perf_counter() - _phase_started, 4)
 
     # CVE check
+    _phase_started = time.perf_counter()
     cve_result = None
     if getattr(args, "cve_check", False):
         executed_layers.add("cve")
-        cve_result = check_nuget_cves(nuget_packages) if nuget_packages else {"db_present": False}
+        cve_db = getattr(args, "cve_db", None)
+        if getattr(args, "ensure_cve_db", False):
+            ensured = ensure_cve_db(cve_db)
+            if ensured.get("error"):
+                logger.warning("CVE database could not be ensured: %s", ensured["error"])
+            elif ensured.get("db_path"):
+                cve_db = ensured["db_path"]
+        cve_result = check_nuget_cves(nuget_packages, cve_db)
+    phase_timings["cve"] = round(time.perf_counter() - _phase_started, 4)
 
     # ── Suppressions ──
+    all_issues, config_summary = apply_team_config(all_issues, team_config, project_root)
+    configuration_summary.update(config_summary)
     suppressions = load_suppressions(project_root)
     all_issues, suppressed_by_config = apply_suppressions(all_issues, suppressions, project_root)
 
@@ -850,7 +1000,25 @@ def run_review(args) -> dict:
             dry_run=getattr(args, "fix_dry_run", not getattr(args, "fix", False)),
         )
 
+    # ── Changed-line filtering ──
+    changed_lines = None
+    if getattr(args, "changed_only", False):
+        changed_lines = get_changed_line_ranges(args.diff, project_root)
+        normalized_changed = {
+            normalize_review_path(path, project_root): lines
+            for path, lines in changed_lines.items()
+        }
+        all_issues = [
+            issue for issue in all_issues
+            if normalized_changed.get(
+                normalize_review_path(issue.file, project_root), set()
+            ) and issue.line in normalized_changed[
+                normalize_review_path(issue.file, project_root)
+            ]
+        ]
+
     # ── Dedup & score ──
+    enrich_security_metadata(all_issues)
     all_issues = dedup_issues(all_issues)
     score = calculate_score(all_issues)
     # by_severity and technical_debt are computed inside build_report (reporter.py),
@@ -870,6 +1038,8 @@ def run_review(args) -> dict:
             "score": score,
             "cognitive_complexity": 0,
             "technical_debt_minutes": estimate_technical_debt(all_issues),
+            "phase_timings": phase_timings,
+            "test_quality": test_quality_summary,
         }
         history_summary = save_report_history(history_dir, history_snapshot, cs_files, all_issues)
 
@@ -878,16 +1048,77 @@ def run_review(args) -> dict:
     if getattr(args, "api_compat", False) and getattr(args, "diff", None):
         api_compat = check_api_compatibility(project_root, getattr(args, "diff"))
 
+    # ── Optional context bundles for agent verification ──
+    if getattr(args, "context_bundles", False):
+        verify_issues = [
+            issue for issue in all_issues
+            if get_triage_for_rule(issue.rule) == "agent_verify"
+        ]
+        bundles = build_context_bundles(verify_issues, project_root)
+        for issue in verify_issues:
+            bundle = bundles.get((issue.file, issue.line))
+            if bundle:
+                issue._context_bundle = bundle
+
     # ── Diff baseline ──
     diff_baseline_result = None
     introduced_score = None
-    changed_lines = None
     if getattr(args, "baseline_report", None):
-        diff_baseline_result = {
-            "baseline": getattr(args, "baseline_report"),
-            "current_score": score,
-        }
-        introduced_score = score  # simplified
+        baseline_path = getattr(args, "baseline_report")
+        baseline_issues = load_baseline(baseline_path)
+        if baseline_issues is None:
+            diff_baseline_result = {
+                "baseline_report": baseline_path,
+                "error": "baseline report could not be loaded",
+            }
+        else:
+            diff_baseline_result = compute_diff(
+                all_issues, baseline_issues, project_root
+            )
+            diff_baseline_result["baseline_report"] = baseline_path
+            introduced_keys = {
+                (
+                    item.get("rule", ""),
+                    normalize_review_path(item.get("file", ""), project_root),
+                    int(item.get("line", 0) or 0),
+                )
+                for item in diff_baseline_result.get("introduced", [])
+            }
+            introduced_issues = [
+                issue for issue in all_issues
+                if (
+                    issue.rule,
+                    normalize_review_path(issue.file, project_root),
+                    issue.line,
+                ) in introduced_keys
+            ]
+            introduced_score = calculate_score(introduced_issues)
+
+    requested_layers = set()
+    if custom_rules:
+        requested_layers.add("custom")
+    if not no_duplicates:
+        requested_layers.add("duplicate")
+    if coverage_path:
+        requested_layers.add("coverage")
+    if not no_docs:
+        requested_layers.add("doc")
+    requested_layers.update({"style", "perf_hint"})
+    requested_layers.update({"test", "security", "specialized"})
+    if nuget_packages and not getattr(args, "no_nuget_check", False):
+        requested_layers.add("nuget")
+    if not skip_ast:
+        requested_layers.add("ast")
+    if run_semantic:
+        requested_layers.add("semantic")
+    if not skip_project:
+        requested_layers.add("project")
+    if not skip_build and csproj_files:
+        requested_layers.add("build")
+    if not skip_format and csproj_files:
+        requested_layers.add("format")
+    if getattr(args, "cve_check", False):
+        requested_layers.add("cve")
 
     elapsed = time.time() - start_time
 
@@ -905,14 +1136,17 @@ def run_review(args) -> dict:
         layer_counts=layer_counts,
         skipped_layer_details=skipped_layer_details,
         executed_layers=executed_layers,
-        requested_layers=set(),  # computed inside reporter
+        requested_layers=requested_layers,
         sdk_present=sdk_present,
+        sdk_version=sdk_version,
         cve_result=cve_result,
         coverage_data=coverage_data,
+        coverage_requested=bool(coverage_path),
         netanalyzers_summary=netanalyzers_summary,
         sem_comp_errs=sem_extra.get("compilation_error_count", 0) if isinstance(sem_extra, dict) else 0,
         semantic_status="",
         semantic_cache_stats=semantic_cache_stats,
+        semantic_workspace=semantic_workspace,
         mi_score=mi_score,
         total_cognitive=0,
         fix_result=fix_result,
@@ -929,4 +1163,8 @@ def run_review(args) -> dict:
         relaxed_suppression_count=0,
         win_suppressed_count=0,
         analysis_time=elapsed,
+        phase_timings=phase_timings,
+        review_mode="quick" if getattr(args, "quick", False) else "full",
+        test_quality=test_quality_summary,
+        configuration=configuration_summary,
     )

@@ -1,11 +1,30 @@
 from __future__ import annotations
 import logging
+import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from .rules import AUTO_FIXES
 
 logger = logging.getLogger('dotnet-review')
+
+
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Write text beside the target and replace it atomically."""
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".autofix-tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as handle:
+            handle.write(content)
+        os.replace(temp_name, path)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
 
 
 # LEGACY_* rule IDs from the Roslyn AST/semantic layer map to their
@@ -71,11 +90,12 @@ def apply_auto_fix(
     if total_fixes == 0:
         return 0, original
 
+    backup_path: Path | None = None
     if create_backup:
         # Primary backup: always .bak (only the latest)
         backup_path = Path(str(filepath) + ".bak")
         try:
-            Path(backup_path).write_text(original, encoding="utf-8")
+            _atomic_write_text(backup_path, original)
         except OSError:
             backup_path = None
         # Timestamped backup: unique to avoid accidental overwrite
@@ -86,13 +106,13 @@ def apply_auto_fix(
             pass
 
     try:
-        Path(filepath).write_text(new_content, encoding="utf-8")
+        _atomic_write_text(Path(filepath), new_content)
         # Verify written content matches what we wrote (read-back check)
         written_check = Path(filepath).read_text(encoding="utf-8", errors="replace")
         if written_check != new_content:
             # restore from primary backup if we created one
             if backup_path and backup_path.exists():
-                Path(filepath).write_text(original, encoding="utf-8")
+                _atomic_write_text(Path(filepath), original)
                 logger.error(
                     "Write mismatch for %s, reverted from backup", filepath
                 )
@@ -190,12 +210,12 @@ def apply_all_auto_fixes(
         if create_backup:
             backup_path = Path(str(filepath) + ".bak")
             try:
-                Path(backup_path).write_text(original, encoding="utf-8")
+                _atomic_write_text(backup_path, original)
             except OSError:
                 pass
 
         try:
-            Path(filepath).write_text(content, encoding="utf-8")
+            _atomic_write_text(Path(filepath), content)
         except OSError:
             skipped.append({"file": filepath, "reason": "write_failed"})
             # Roll back the fixed_records we optimistically recorded above.

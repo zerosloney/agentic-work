@@ -1,7 +1,7 @@
 # Rules Catalog（规则目录）
 
 > 加载时机：解读某条规则 ID、生成修复方向、判断规则是否在 AUTO_FIX / TEST_PROJECT_RELAXED_RULES / WIN_ONLY_API_RULES 列表中。
-> 数据来源：`scripts/review/rules.py`（AUTO_FIXES / AST_RULE_META / RULE_TRIAGE）+ `scripts/review/engine.py`（内联 style/perf_hint）+ `scripts/csharp-ast-analyzer/Program.cs`（LEGACY_*）+ `scripts/csharp-semantic-analyzer/Program.cs`（SEM/EF/ASP/P）+ `scripts/csharp-project-analyzer/Program.cs`（ARCH/LAYER/CS006）。
+> 数据来源：`scripts/review/rules.py`（AUTO_FIXES / AST_RULE_META / RULE_TRIAGE）+ `scripts/review/engine.py`（内联 style/perf_hint）+ `scripts/review/test_quality.py` / `security.py` / `specialized.py`（仓库级质量、CWE 与专项规则）+ `scripts/csharp-ast-analyzer/Program.cs`（LEGACY_*）+ `scripts/csharp-semantic-analyzer/Program.cs`（SEM/EF/ASP/P）+ `scripts/csharp-project-analyzer/Program.cs`（ARCH/LAYER/CS006）。
 
 ## 执行口径（唯一真相）
 
@@ -19,6 +19,7 @@ Python 正则层（`analyze_builtin` / `analyze_complexity`）已从 `run_review
 | **Doc** | `check_xml_documentation()` | XML 文档检查 |
 | **Style hint** | `run_review()` 内联 | S001/S002/S005（TODO/FIXME/commented-code） |
 | **Perf hint** | `run_review()` 内联 | P021（byte[] → Span） |
+| **Repository quality** | `review/test_quality.py`、`security.py`、`specialized.py` | TESTQ、SEC026-029、ASP_API001、EF007、MS001-002 |
 
 **规则数量以 `python scripts/count_rules.py` 输出为准。**
 
@@ -42,6 +43,7 @@ Python 正则层（`analyze_builtin` / `analyze_complexity`）已从 `run_review
 | LEGACY_BinaryFormatter / CSharpCodeProvider | 危险序列化 | error |
 | LEGACY_SqlCommand_Concat / LDAP_Concat / SqlMethods_Like | SQL/LDAP 注入 | error |
 | LEGACY_SEC_hardcoded_secret / _secret_format / _secret_entropy | 硬编码密钥三层检测 | error/warning |
+| LEGACY_SEC025_ssrf | 用户输入流入出站 HTTP URL 的 SSRF 启发式检测 | warning |
 | LEGACY_TLS_cert_validation_disabled | TLS 证书验证绕过 | error |
 | LEGACY_SHA_Password | 密码用 SHA | warning |
 | LEGACY_HttpClient_New / WebClient / ArrayList / Hashtable / DataSet | 过时/低效 API | info/warning |
@@ -58,6 +60,17 @@ Python 正则层（`analyze_builtin` / `analyze_complexity`）已从 `run_review
 | LEGACY_WIN01_registry / WIN02_system_drawing / WIN03_event_log / WIN04_wmi | Windows-only API | warning |
 | LEGACY_equals_no_gethashcode / SEM003_enum_no_none / SEM004_idisposable_no_using | 语义规则 | info/warning |
 | LEGACY_ASP002_binding_sensitive / LEGACY_ASP003_antiforgery_skip / LEGACY_ASP004_developer_page / LEGACY_ASP005_no_https_redirect / LEGACY_ASP006_no_hsts | ASP.NET Core 安全规则 | warning/info |
+
+## 三、仓库级测试、安全与专项规则
+
+| ID | 专项 | 检测内容 | severity |
+|----|------|----------|----------|
+| TESTQ001 | 测试质量 | 测试方法没有发现 Assert/Should/Expect 断言 | warning |
+| TESTQ002 | 测试缺口 | Controller/Service/Handler/Repository/Manager 未发现同名测试类 | info |
+| SEC026-SEC029 | 安全/CWE | 敏感日志、JWT 校验关闭、明文 HTTP、密码/令牌入 URL | error/warning |
+| ASP_API001 | ASP.NET API | 公共 action 未显式声明 HTTP verb/Route | warning |
+| EF007 | EF Core | 物化查询缺少明显过滤或上限 | info |
+| MS001-MS002 | 微服务 | 直接 new HttpClient、外部客户端缺少工厂/超时 | warning/info |
 
 ## 二、语义层规则（SEM/EF/ASP/P\*，Roslyn SemanticModel 产出）
 

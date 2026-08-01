@@ -9,7 +9,7 @@
     {
       "name": "dotnet-work-qoder",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for Qoder.",
-      "version": "1.0.5",
+      "version": "1.0.6",
       "source": "./plugins/dotnet-work",
       "category": "development",
       "author": {

@@ -33,19 +33,22 @@ def build_report(
     executed_layers: set[str],
     requested_layers: set[str],
     sdk_present: bool,
+    sdk_version: str | None = None,
     cve_result: dict | None,
     coverage_data: dict,
+    coverage_requested: bool | None = None,
     netanalyzers_summary: dict | None,
     sem_comp_errs: int = 0,
     semantic_status: str = "",
     semantic_cache_stats: dict | None = None,
+    semantic_workspace: dict | None = None,
     mi_score: float = 0,
     total_cognitive: int = 0,
     fix_result: dict | None = None,
     history_summary: dict | None = None,
     api_compat: dict | None = None,
     diff_baseline_result: dict | None = None,
-    introduced_score: float | None = None,
+    introduced_score: dict | None = None,
     changed_lines: dict | None = None,
     project_analysis: dict | None = None,
     test_available: bool = False,
@@ -55,6 +58,10 @@ def build_report(
     relaxed_suppression_count: int = 0,
     win_suppressed_count: int = 0,
     analysis_time: float = 0,
+    phase_timings: dict[str, float] | None = None,
+    review_mode: str = "full",
+    test_quality: dict | None = None,
+    configuration: dict | None = None,
 ) -> dict:
     """Build the complete review result dict.
 
@@ -69,14 +76,18 @@ def build_report(
     # ── Review integrity ──
     review_integrity = build_review_integrity(
         sdk_present=sdk_present,
-        sdk_version=None,  # caller should pass if needed
+        sdk_version=sdk_version,
         requested_layers=requested_layers,
         executed_layers=executed_layers,
         skipped_layer_details=skipped_layer_details,
         cve_result=cve_result,
         cve_requested="cve" in requested_layers,
         coverage_data=coverage_data,
-        coverage_requested=bool(coverage_data),
+        coverage_requested=(
+            bool(coverage_data)
+            if coverage_requested is None
+            else coverage_requested
+        ),
         netanalyzers_summary=netanalyzers_summary,
     )
     if sem_comp_errs:
@@ -84,6 +95,8 @@ def build_report(
         review_integrity["semantic_degraded"] = True
         from ..evidence import TYPE_DEPENDENT_RULE_PREFIXES
         review_integrity["degraded_rule_families"] = list(TYPE_DEPENDENT_RULE_PREFIXES)
+    if semantic_workspace:
+        review_integrity["semantic_workspace"] = semantic_workspace
 
     # ── Degradation notices ──
     degradation_notices = build_degradation_notices(
@@ -152,7 +165,12 @@ def build_report(
         "win_suppressed_count": win_suppressed_count,
         "project_analysis": project_analysis,
         "semantic_cache_stats": semantic_cache_stats or {},
+        "semantic_workspace": semantic_workspace or {},
         "filtered_rules": [],
         "analysis_time": analysis_time,
+        "phase_timings": phase_timings or {},
+        "review_mode": review_mode,
+        "test_quality": test_quality or {},
+        "configuration": configuration or {},
         "triage_summary": triage_summary,
     }

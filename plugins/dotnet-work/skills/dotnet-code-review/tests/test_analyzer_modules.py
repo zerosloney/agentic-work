@@ -10,6 +10,7 @@ import sys
 import os
 import json
 import pytest
+import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -30,13 +31,26 @@ from review.analyzer.triage import (
     _rule_family,
 )
 from review.analyzer.reporter import build_report
+from review.evidence import build_review_integrity
+from review.scoring import calculate_score
+from review.diff_baseline import compute_diff
+from review.cli import _calculate_exit_code
+from review.output import format_json
 from review.analyzer.fetcher import (
     dotnet_available,
+    dotnet_sdk_meets_minimum,
     _normalize_review_path,
     _chunk_file_args,
     _write_file_list,
 )
 from review.engine import analyze_complexity
+from review.cache import inputs_fingerprint, load_result_cache, save_result_cache
+from review.test_quality import analyze_test_quality
+from review.security import analyze_security_text, enrich_security_metadata
+from review.specialized import analyze_specialized
+from review.configuration import apply_team_config, load_rule_packages
+from review.pr_comments import render_github_comments, render_azure_comments
+from review.history import build_trend_report, format_trend_markdown
 
 
 # ============================================================
@@ -282,6 +296,19 @@ class TestFetcherHelpers:
         assert "file2.cs" in content
         os.unlink(list_path)  # cleanup
 
+    def test_sdk_minimum_is_version_aware(self, monkeypatch):
+        monkeypatch.setattr(
+            "review.analyzer.fetcher.get_dotnet_sdk_version",
+            lambda: "5.0.408",
+        )
+        assert dotnet_sdk_meets_minimum(6) is False
+
+        monkeypatch.setattr(
+            "review.analyzer.fetcher.get_dotnet_sdk_version",
+            lambda: "8.0.423",
+        )
+        assert dotnet_sdk_meets_minimum(6) is True
+
 
 # ============================================================
 # Reporter: build_report
@@ -319,6 +346,7 @@ class TestBuildReport:
         assert "by_severity" in report
         assert "issues" in report
         assert "review_integrity" in report
+        assert report["review_integrity"]["netanalyzers"]["injected_for_projects"] == 1
 
     def test_empty_issues_report(self):
         report = build_report(
@@ -366,6 +394,111 @@ class TestBuildReport:
         assert "triage_summary" in report
         assert "deterministic" in report["triage_summary"]
 
+    def test_report_exposes_phase_timings_and_mode(self):
+        report = build_report(
+            project_root="/tmp/test",
+            framework="net8.0",
+            framework_type="modern",
+            frameworks=["net8.0"],
+            project_type="unknown",
+            nuget_packages=[],
+            project_metadata={},
+            cs_files=[],
+            all_issues=[],
+            layer_counts={},
+            skipped_layer_details=[],
+            requested_layers=set(),
+            executed_layers=set(),
+            sdk_present=True,
+            cve_result=None,
+            coverage_data={},
+            netanalyzers_summary=None,
+            phase_timings={"semantic": 0.25},
+            review_mode="quick",
+        )
+        assert report["phase_timings"]["semantic"] == 0.25
+        assert report["review_mode"] == "quick"
+
+
+class TestResultCache:
+    def test_result_cache_round_trip_and_fingerprint_changes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source = Path(temp_dir) / "A.cs"
+            source.write_text("class A {}", encoding="utf-8")
+            first = inputs_fingerprint([str(source)], salt="test")
+            save_result_cache(temp_dir, "semantic-result", first, {"issues": []})
+            assert load_result_cache(temp_dir, "semantic-result", first) == {"issues": []}
+            source.write_text("class B {}", encoding="utf-8")
+            second = inputs_fingerprint([str(source)], salt="test")
+            assert second != first
+            assert load_result_cache(temp_dir, "semantic-result", second) is None
+
+
+class TestExtendedReviewLayers:
+    def test_test_quality_reports_assertion_and_gap(self):
+        files = ["src/OrderService.cs", "tests/OrderServiceTests.cs"]
+        codes = {
+            files[0]: "public class OrderService { public void Create() {} }",
+            files[1]: "[Fact] public void CreateWorks() { var x = 1; }\n[Fact] public void CreateIsValid() { Assert.True(true); }",
+        }
+        issues, summary = analyze_test_quality(files, codes, "unknown")
+        assert summary["test_methods"] == 2
+        assert summary["assertion_ratio"] == 0.5
+        assert any(issue.rule == "TESTQ001" for issue in issues)
+        assert "OrderService" in summary["missing_test_types"]
+
+    def test_team_config_and_rule_package(self):
+        issue = CodeIssue(file="src/Generated/Api.cs", line=1, severity="warning", category="style", rule="TEAM001")
+        kept, summary = apply_team_config(
+            [issue],
+            {"severity_overrides": {"TEAM001": "error"}, "exclude_paths": ["**/Generated/**"]},
+            ".",
+        )
+        assert kept == []
+        assert summary["suppressed"] == 1
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / ".dotnet-review" / "rules"
+            package_dir.mkdir(parents=True)
+            (package_dir / "team.json").write_text(
+                json.dumps({"rules": [{"id": "TEAM001", "pattern": "TODO"}]}),
+                encoding="utf-8",
+            )
+            assert load_rule_packages(temp_dir) == [{"id": "TEAM001", "pattern": "TODO"}]
+
+    def test_security_metadata_and_specialized_checks(self):
+        codes = {
+            "src/Api/OrdersController.cs": (
+                "using Microsoft.AspNetCore;\n"
+                "public class OrdersController { public IActionResult Get() => Ok(); }\n"
+                "var c = new HttpClient(); Log.Warning(password);"
+            )
+        }
+        security = analyze_security_text(codes)
+        specialized = analyze_specialized(codes)
+        all_issues = security + specialized
+        enrich_security_metadata(all_issues)
+        assert any(issue.rule == "SEC026_sensitive_data_logging" for issue in security)
+        assert any(issue.rule == "ASP_API001" for issue in specialized)
+        assert any(issue.rule == "MS001" for issue in specialized)
+        assert any(issue.cwe == "CWE-532" for issue in all_issues)
+        assert not any(issue.rule == "SEC028_cleartext_http" for issue in analyze_security_text({"a.cs": "https://api.example.test"}))
+
+    def test_pr_payloads_and_trend_report(self):
+        report = {"issues": [{"file": "src/A.cs", "line": 4, "severity": "error", "rule": "SEC026_sensitive_data_logging", "message": "secret log", "cwe": "CWE-532"}]}
+        assert render_github_comments(report)[0]["line"] == 4
+        assert render_azure_comments(report)[0]["threadContext"]["rightFileEnd"]["line"] == 4
+        with tempfile.TemporaryDirectory() as temp_dir:
+            history = Path(temp_dir) / "history.jsonl"
+            history.write_text(
+                json.dumps({"timestamp": "1", "score": 70, "total_issues": 3, "issue_rules": ["A"], "phase_timings": {"semantic": 2.0}}) + "\n"
+                + json.dumps({"timestamp": "2", "score": 80, "total_issues": 1, "issue_rules": ["B"], "phase_timings": {"semantic": 1.0}}) + "\n",
+                encoding="utf-8",
+            )
+            trend = build_trend_report(temp_dir)
+            assert trend["quality"]["score_delta"] == 10
+            assert trend["performance"]["average_phase_seconds"]["semantic"] == 1.5
+            assert "趋势报告" in format_trend_markdown(trend)
+
 
 # ============================================================
 # Complexity Analyzer (compat API)
@@ -410,6 +543,66 @@ public void CleanMethod(int a, int b)
         # Should have no errors (may have info-level suggestions)
         errors = [i for i in issues if i.severity == "error"]
         assert len(errors) == 0
+
+
+class TestScoringAndIntegrity:
+    def test_testability_is_scored_as_test(self):
+        issue = CodeIssue(
+            file="test.cs", line=1, severity="error", category="testability",
+            rule="LEGACY_T016_datetime_now", message="test", source="ast",
+        )
+        assert calculate_score([issue])["test"] == 90
+
+    def test_integrity_normalizes_netanalyzers_summary(self):
+        integrity = build_review_integrity(
+            sdk_present=True,
+            sdk_version="8.0.423",
+            requested_layers={"build"},
+            executed_layers={"build"},
+            skipped_layer_details=[],
+            cve_result=None,
+            cve_requested=False,
+            coverage_data={},
+            coverage_requested=False,
+            netanalyzers_summary={"injected": False, "skipped_reason": "--skip-netanalyzers"},
+        )
+        assert integrity["dotnet_sdk_version"] == "8.0.423"
+        assert integrity["netanalyzers"]["injected_for_projects"] == 0
+        assert integrity["netanalyzers"]["disabled_by_user"] is True
+
+    def test_baseline_classifies_introduced_and_fixed(self):
+        current = [
+            CodeIssue(
+                file="src/New.cs", line=8, severity="warning",
+                category="best-practice", rule="BP001", message="new",
+                source="ast",
+            ),
+        ]
+        baseline = [
+            {
+                "file": "src/Old.cs", "line": 3, "severity": "warning",
+                "category": "style", "rule": "S001", "message": "old",
+            },
+        ]
+        diff = compute_diff(current, baseline, "/project")
+        assert [item["rule"] for item in diff["introduced"]] == ["BP001"]
+        assert [item["rule"] for item in diff["fixed"]] == ["S001"]
+
+    def test_introduced_gate_fails_without_valid_baseline(self):
+        args = type("Args", (), {
+            "fail_on": "none",
+            "quality_gate_score": None,
+            "fail_on_introduced": "error",
+        })()
+        assert _calculate_exit_code({}, args) != 0
+        assert _calculate_exit_code(
+            {"diff_baseline": {"error": "baseline report could not be loaded"}},
+            args,
+        ) != 0
+
+    def test_json_output_is_utf8_safe(self):
+        rendered = format_json({"message": "中文 ⚠️"})
+        assert "中文" in rendered
 
 
 # ============================================================

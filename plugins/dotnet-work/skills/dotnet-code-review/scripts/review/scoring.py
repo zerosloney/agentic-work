@@ -59,6 +59,7 @@ CATEGORY_NORMALIZATION = {
     "usage": "reliability",            # usage rules (CA22xx) → reliability hygiene
     "maintainability": "code-smell",   # maintainability index → code smell
     "portability": "best-practice",    # platform portability → review hygiene
+    "testability": "test",             # legacy testability rules → test score
 }
 
 

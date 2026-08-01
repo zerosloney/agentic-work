@@ -1,7 +1,7 @@
 # OWASP Top 10 2021 映射
 
 > 加载时机：合规审计、回答"你们的工具能检测哪些 OWASP 风险？"、安全审查报告时。
-> 数据来源：`scripts/csharp-ast-analyzer/Program.cs`（`LEGACY_*` 安全家族：`LEGACY_SEC_*` / `LEGACY_SH_*` / `LEGACY_LOG00x_*` 等）+ `scripts/csharp-semantic-analyzer/Program.cs`（`SEC022/SEC023` + `SEM_TYPE_GETTYPE_*`）+ NetAnalyzers `CA21xx`。
+> 数据来源：`scripts/csharp-ast-analyzer/Program.cs`（`LEGACY_*` 安全家族：`LEGACY_SEC_*` / `LEGACY_SH_*` / `LEGACY_LOG00x_*` 等）+ `scripts/csharp-semantic-analyzer/Program.cs`（`SEC022/SEC023` + `SEM_TYPE_GETTYPE_*`）+ `scripts/review/security.py`（文本级高信号安全 sink）+ NetAnalyzers `CA21xx`。
 > 维护规则：新增安全规则时同步本表。
 
 ## 状态速览
@@ -9,19 +9,30 @@
 | OWASP 条目 | 现有规则数 | severity 分布 | 覆盖度评估 |
 |-----------|-----------|--------------|-----------|
 | A01:2021 - Broken Access Control | 6 | 3e / 3w | 🟢 充分 |
-| A02:2021 - Cryptographic Failures | 9 | 4e / 5w | 🟢 充分 |
+| A02:2021 - Cryptographic Failures | 10 | 4e / 6w | 🟢 充分 |
 | A03:2021 - Injection | 11 | 9e / 2w | 🟢 充分 |
 | A04:2021 - Insecure Design | 2 | 0e / 2w | 🟡 部分（DI/DIP/LSP 设计规则已移除） |
 | A05:2021 - Security Misconfiguration | 7 | 1e / 5w / 1i | 🟢 充分（已含 AST 强化） |
 | A06:2021 - Vulnerable Components | 0 | CVE check | 🟡 仅 CVE DB 覆盖（NuGet 漏洞） |
-| A07:2021 - Auth Failures | 4 | 2e / 2w | 🟡 部分（JWT/CORS 在 A03/A05 覆盖） |
+| A07:2021 - Auth Failures | 6 | 4e / 2w | 🟡 部分（JWT/CORS 在 A03/A05 覆盖） |
 | A08:2021 - Software/Data Integrity | 3 | 3e / 0w | 🟢 充分（反序列化 + DTD + eval） |
-| A09:2021 - Logging/Monitoring | 2 | 0e / 1w / 1i | 🟡 部分（敏感日志+结构化日志） |
-| A10:2021 - SSRF | 0 | — | 🔴 未实现（缺静态检测） |
-| **总计** | **44 条** | **22e / 20w / 2i** | |
+| A09:2021 - Logging/Monitoring | 3 | 1e / 1w / 1i | 🟡 部分（敏感日志+结构化日志） |
+| A10:2021 - SSRF | 1 | 0e / 1w | 🟡 启发式覆盖（需人工确认） |
+| **总计** | **49 条** | **25e / 22w / 2i** | |
 
 > e = error，w = warning，i = info。同一规则可对应多个 OWASP 条目（如 `LEGACY_SH007_insecure_cookie` 既是 A05 又是 A04）。
 > 规则 ID 与 severity 以 AST 源（`scripts/csharp-ast-analyzer/Program.cs`）+ 语义源（`csharp-semantic-analyzer/Program.cs`）为唯一真相。
+
+## 本轮新增安全规则与 CWE 映射
+
+| 规则 | 检测点 | CWE | OWASP |
+|------|--------|-----|-------|
+| `SEC026_sensitive_data_logging` | 日志参数包含 password/secret/token/authorization | CWE-532 | A09:2021 |
+| `SEC027_jwt_validation_disabled` | 关闭 JWT 签名、生命周期或 HTTPS 元数据校验 | CWE-347 | A07:2021 |
+| `SEC028_cleartext_http` | 源码中使用 `http://` 外部地址 | CWE-319 | A02:2021 |
+| `SEC029_password_in_url` | query string 传递 password/token/secret | CWE-598 | A07:2021 |
+
+这些映射会同时写入 JSON issue、SARIF rule properties 和 PR 评论正文；文本级 sink 仍需结合业务上下文复核。
 
 ---
 
@@ -268,11 +279,11 @@ python scripts/review.py --target . --cve-check --quality-gate-score 70
 | `LEGACY_HttpClient_New` | http-client-misuse | warning | 每次请求 `new HttpClient()` 漏 `using`（连接泄漏）——非 SSRF 检测，仅 API 用法提示 |
 | `LEGACY_WebClient` | web-client-deprecated | warning | `WebClient` 已过时，推荐 `HttpClient`（using 正确释放资源）——非 SSRF 检测 |
 
-> ⚠️ **A10 当前无 SSRF 专项检测**。上表两条规则仅覆盖"是否正确使用 HttpClient"，对 SSRF 核心（URL 来源是否用户输入）无静态信号。生产环境需配合 SAST 工具（OWASP ZAP / Burp Suite）或 RASP 防护。
+> ⚠️ **A10 仅有启发式 SSRF 检测**。`LEGACY_SEC025_ssrf` 只识别明显用户输入 token 流入常见 HTTP API；它不能证明完整数据流，也不替代 allowlist、IP 网段阻断或 DAST/RASP 防护。
 
 ### 已知缺口
 
-- **SSRF 整体未实现**：HTTP 请求 URL 是否含用户输入无静态检测
+- **SSRF 数据流覆盖有限**：复杂跨方法/跨项目数据流仍可能漏报
 - **`HttpClient` 内网 IP 拦截**：未实现
 - **DNS rebinding 防护**：工具能力外
 - **协议限制**（file://、gopher://）：未实现

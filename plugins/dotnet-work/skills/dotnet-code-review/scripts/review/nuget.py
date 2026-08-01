@@ -1,11 +1,51 @@
 from __future__ import annotations
+import hashlib
 import json
 import logging
+import os
+import tempfile
 import time
+from functools import lru_cache
 from pathlib import Path
 from .models import CodeIssue
 
 logger = logging.getLogger("dotnet-review")
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """Write a downloaded artifact atomically in its destination directory."""
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".download-tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(payload)
+        os.replace(temp_name, path)
+    except Exception:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
+
+
+def _cve_integrity_sidecar(path: Path) -> Path:
+    return Path(str(path) + ".sha256")
+
+
+def _verify_cve_db_integrity(path: Path) -> tuple[bool, str | None]:
+    """Verify a refresh-generated sidecar when present; legacy DBs remain valid."""
+    sidecar = _cve_integrity_sidecar(path)
+    if not sidecar.exists():
+        return True, None
+    try:
+        expected = sidecar.read_text(encoding="ascii").strip().split()[0]
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    except (OSError, IndexError):
+        return False, "CVE database integrity sidecar is unreadable"
+    if expected.lower() != actual.lower():
+        return False, "CVE database SHA-256 does not match its integrity sidecar"
+    return True, None
 
 
 KNOWN_OUTDATED_PACKAGES = {
@@ -233,6 +273,12 @@ def _load_cve_db_meta(db_path: str) -> dict:
     }
 
 
+@lru_cache(maxsize=8)
+def _load_cve_db_meta_cached(db_path: str, mtime_ns: int, size: int) -> dict:
+    """Reuse the decompressed CVE index while its file identity is stable."""
+    return _load_cve_db_meta(db_path)
+
+
 def _db_age_days(updated_at: str) -> int | None:
     """Whole days between ``updated_at`` (ISO-8601 UTC) and now.
 
@@ -385,11 +431,19 @@ def check_nuget_cves(
     """
     db_path = _get_cve_db_path(cve_db_path)
     db_present = bool(db_path)
-    meta = (
-        _load_cve_db_meta(db_path)
-        if db_path
-        else {"packages": {}, "updated_at": "", "age_days": None}
-    )
+    integrity_warning = None
+    if db_present:
+        integrity_ok, integrity_warning = _verify_cve_db_integrity(Path(db_path))
+        if not integrity_ok:
+            db_present = False
+    if db_path and db_present:
+        try:
+            stat = Path(db_path).stat()
+            meta = _load_cve_db_meta_cached(db_path, stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            meta = {"packages": {}, "updated_at": "", "age_days": None}
+    else:
+        meta = {"packages": {}, "updated_at": "", "age_days": None}
     packages_db = meta["packages"]
     updated_at = meta["updated_at"]
     age_days = meta["age_days"]
@@ -440,7 +494,7 @@ def check_nuget_cves(
         # No DB available — an empty result is meaningless. Make the limitation
         # explicit so callers (and the review SKILL) cannot mistake "no DB"
         # for "scanned and clean".
-        result["warning"] = (
+        result["warning"] = integrity_warning or (
             "No CVE database available. Run `python scripts/refresh_cve_db.py` "
             "to build it before relying on CVE results. 'vulnerabilities' is "
             "empty because nothing was scanned, not because packages are safe."
@@ -611,7 +665,10 @@ def refresh_cve_db(output_path: str, retries: int = 0, timeout: int = 30) -> dic
     if out_path.suffix == ".gz":
         import gzip
 
-        out_path.write_bytes(gzip.compress(payload))
+        payload = gzip.compress(payload)
     else:
-        out_path.write_bytes(payload)
+        pass
+    _atomic_write_bytes(out_path, payload)
+    digest = hashlib.sha256(payload).hexdigest() + "  " + out_path.name + "\n"
+    _atomic_write_bytes(_cve_integrity_sidecar(out_path), digest.encode("ascii"))
     return {"updated": len(vulns), "path": output_path, "retries_used": retries_used}

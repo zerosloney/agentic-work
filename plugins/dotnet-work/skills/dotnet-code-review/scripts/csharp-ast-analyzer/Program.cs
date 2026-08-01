@@ -1079,6 +1079,21 @@ class PatternWalker : CSharpSyntaxWalker
                 "Response.Redirect 可能被用于开放重定向攻击，建议使用本地重定向（如 RedirectToLocal）", node.GetLocation());
         }
 
+        // SEC025: user-controlled URL passed to an outbound HTTP API may
+        // enable SSRF. This is intentionally a heuristic AST rule: only
+        // network-looking receivers and URL-taking methods are considered,
+        // and the first argument must contain an obvious user-input token.
+        if (node.Expression is MemberAccessExpressionSyntax ssrfMa &&
+            IsPotentialHttpReceiver(ssrfMa.Expression) &&
+            IsPotentialHttpUrlMethod(ssrfMa.Name.Identifier.Text) &&
+            node.ArgumentList.Arguments.Count > 0 &&
+            ContainsUserInput(node.ArgumentList.Arguments[0].Expression))
+        {
+            Add("LEGACY_SEC025_ssrf", "warning",
+                "出站 HTTP 请求使用了疑似用户可控 URL，可能导致 SSRF（CWE-918）。请限制协议、解析后的 IP/网段和目标 allowlist，并阻断内网地址",
+                node.GetLocation());
+        }
+
         // R017: Task.ContinueWith without exception handling
         if (node.Expression is MemberAccessExpressionSyntax r17ma &&
             r17ma.Name.Identifier.Text == "ContinueWith")
@@ -1638,6 +1653,26 @@ class PatternWalker : CSharpSyntaxWalker
                 name.EndsWith("Input", StringComparison.Ordinal)) return true;
         }
         return false;
+    }
+
+    private static readonly HashSet<string> _potentialHttpUrlMethods = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GetAsync", "GetStringAsync", "GetByteArrayAsync", "GetStreamAsync",
+        "SendAsync", "Send", "PostAsync", "PutAsync", "PatchAsync", "DeleteAsync",
+        "OpenRead", "DownloadString", "DownloadData", "DownloadFile", "Create"
+    };
+
+    private static bool IsPotentialHttpUrlMethod(string methodName) =>
+        _potentialHttpUrlMethods.Contains(methodName);
+
+    private static bool IsPotentialHttpReceiver(ExpressionSyntax receiver)
+    {
+        var text = receiver.ToString();
+        return text.Contains("HttpClient", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("WebClient", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("WebRequest", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("client", StringComparison.OrdinalIgnoreCase)
+            || text.EndsWith("Client", StringComparison.OrdinalIgnoreCase);
     }
 
     private static readonly HashSet<string> _httpMethodAttributes = new(StringComparer.OrdinalIgnoreCase)

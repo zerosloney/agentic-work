@@ -95,6 +95,7 @@ AST_RULE_META: dict[str, dict[str, str]] = {
     'LEGACY_SEC022_jwt_misuse': {'category': 'security', 'suggestion': 'Use TokenValidationParameters with ValidateIssuer/ValidateAudience/ValidateLifetime/ValidateIssuerSigningKey all set to true. Never accept "alg": "none". Reject tokens without "exp" claim. Use HS256/RS256 with secure key storage.'},
     'LEGACY_SEC023_cors_misconfig': {'category': 'security', 'suggestion': 'Use an explicit origin allowlist (WithOrigins("https://example.com")). Never combine AllowAnyOrigin with AllowCredentials. If credentials are required, list specific trusted origins. Note: this regex is line-bounded; multi-line CORS policies in fluent builders are detected via the .NET SDK 6+ Roslyn analyzer when available.'},
     'LEGACY_SEC024_open_redirect': {'category': 'security', 'suggestion': 'Validate returnUrl/RedirectUrl against an allowlist of safe paths. Use Url.IsLocalUrl(returnUrl) to ensure the redirect stays on the same site. Never pass user input directly to Redirect().'},
+    'LEGACY_SEC025_ssrf': {'category': 'security', 'suggestion': 'Validate the destination against an explicit allowlist, allow only https/http as required, resolve DNS and block loopback/private/link-local ranges, then disable redirects where possible.'},
     'LEGACY_SEC_hardcoded_secret': {'category': 'security', 'suggestion': 'Store secrets in environment variables, Azure Key Vault, or user secrets.'},
     'LEGACY_SEC_secret_format': {'category': 'security', 'suggestion': 'The literal value matches a known credential format (AWS/GitHub/Slack/JWT/PEM/Google). Remove from source and load from a secret manager.'},
     'LEGACY_SEC_secret_entropy': {'category': 'security', 'suggestion': 'The literal has high Shannon entropy, characteristic of a key/token. Confirm whether this is a real secret; if so, move it to a secret manager or environment variable.'},
@@ -326,6 +327,7 @@ def _fallback_category(ast_rule_id: str) -> str:
 RULE_TRIAGE: dict[str, str] = {
     "LEGACY_SqlCommand_Concat": "deterministic",
     "LEGACY_SEC024_open_redirect": "agent_verify",
+    "LEGACY_SEC025_ssrf": "agent_verify",
     "LEGACY_SEC_hardcoded_secret": "agent_verify",
     "LEGACY_SEC_secret_format": "agent_verify",
     "LEGACY_SEC_secret_entropy": "agent_verify",
@@ -387,6 +389,13 @@ RULE_TRIAGE: dict[str, str] = {
     "LEGACY_T006_async_void_test": "deterministic",
     "LEGACY_T008_test_magic_sleep": "agent_verify",
     "LEGACY_T010_no_teardown": "agent_verify",
+    "TESTQ001": "agent_verify", "TESTQ002": "agent_verify",
+    "SEC026_sensitive_data_logging": "agent_verify",
+    "SEC027_jwt_validation_disabled": "agent_verify",
+    "SEC028_cleartext_http": "agent_verify",
+    "SEC029_password_in_url": "agent_verify",
+    "ASP_API001": "agent_verify", "EF007": "agent_verify",
+    "MS001": "agent_verify", "MS002": "agent_verify",
     "DI001": "agent_verify",
     "RCS0052": "deterministic",
     "RCS0096": "deterministic",
@@ -442,6 +451,10 @@ RULE_VERIFICATION_HINTS: dict[str, list[str]] = {
     "LEGACY_SEC024_open_redirect": [
         "Check if redirect target validated with Url.IsLocalUrl() or allowlist",
     ],
+    "LEGACY_SEC025_ssrf": [
+        "Trace whether the URL originates from request/query/form/user input",
+        "Check destination allowlist, scheme restrictions, DNS/IP validation, private-range blocking, and redirect handling",
+    ],
     "LEGACY_SEC023_cors_misconfig": [
         "Check if AllowAnyOrigin + AllowCredentials truly combined in same policy",
     ],
@@ -486,6 +499,16 @@ RULE_VERIFICATION_HINTS: dict[str, list[str]] = {
     "LEGACY_T010_no_teardown": [
         "Check if test uses IDisposable instead of [TestCleanup]",
     ],
+    "TESTQ001": ["检查测试是否通过 fixture、mock 验证了间接行为"],
+    "TESTQ002": ["确认该类型是否是纯 DTO、基础设施入口或由集成测试覆盖"],
+    "SEC026_sensitive_data_logging": ["确认日志内容是否经过脱敏，检查生产日志级别和结构化字段"],
+    "SEC027_jwt_validation_disabled": ["确认是否在测试配置或受控内部流量中，生产配置必须保持校验"],
+    "SEC028_cleartext_http": ["确认是否为 localhost/测试地址，生产外部通信必须使用 HTTPS"],
+    "SEC029_password_in_url": ["确认参数是否为非敏感演示字段，真实密码和令牌禁止放入 URL"],
+    "ASP_API001": ["检查路由是否由约定或 Minimal API 统一注册，确认 endpoint 可发现性"],
+    "EF007": ["确认是否有上游分页/过滤或数据库视图限制结果集"],
+    "MS001": ["检查是否在 DI 中统一配置 HttpClient 生命周期和 handler"],
+    "MS002": ["检查超时、取消、重试和熔断策略是否由 resilience handler 统一提供"],
     # Note: RCS0013/0018/0045/0052/0096 and the StyleCop SA1001/1002/1103/1113/1118
     # rules are NOT in RULE_VERIFICATION_HINTS. They are triaged 'deterministic'
     # (the semantic analyzer resolves them against a fully-bound model), so per

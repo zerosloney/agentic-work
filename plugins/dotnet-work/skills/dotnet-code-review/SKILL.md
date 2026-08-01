@@ -3,7 +3,7 @@ name: dotnet-code-review
 description: |
   C#/.NET 代码审查，基于 Roslyn（AST + Semantic + Project）+ dotnet build/format + 离线 CVE 库。
   6 维度覆盖：安全（OWASP Top 10 / CWE 映射）、性能、可维护性、可测试性、最佳实践/可靠性、架构（与 `references/dimensions-coverage.md` 对齐）。
-  175 条自研规则（AST 153 + 语义 22）+ NetAnalyzers CAxxxx（~500 条）动态注入。
+  186 条自研规则（AST 154 + 语义 24 + 测试/安全/专项 8）+ NetAnalyzers CAxxxx（~500 条）动态注入。
   两阶段 Triage→Verify 协议 + Agent 误报反馈闭环（.dotnet-review/agent-verdicts.json）+
   SARIF 输出（GitHub Code Scanning）+ 自动修复（9 条规则）。
   Agent 通过 subprocess 调用 scripts/review.py，用户不接触 CLI。
@@ -14,7 +14,7 @@ when_to_use: |
 license: MIT
 metadata:
   author: master0071
-  version: 1.0.0
+  version: 1.0.6
   category: code-quality
 ---
 
@@ -47,14 +47,43 @@ dotnet --version
 
 ### 0.2 C# 分析器编译
 
-三个 Roslyn 分析器以源文件提供，**首次使用前需编译**（`review.py` 无 DLL 时自动走 `dotnet run` 慢路径回退）：
+三个 Roslyn 分析器以源文件提供，**首次使用前需编译**。运行时优先执行已编译 DLL；如果 DLL 不存在，会自动走允许 restore 的 `dotnet run` 慢路径回退：
 - `scripts/csharp-ast-analyzer/` — AST 语法树级检测
-- `scripts/csharp-semantic-analyzer/` — 语义模型级检测
+- `scripts/csharp-semantic-analyzer/` — 语义模型级检测（SDK 8+ solution 模式优先使用 MSBuildWorkspace；SDK 6/7 保留 fallback）
 - `scripts/csharp-project-analyzer/` — 跨文件项目级检测
 
 编译命令（在 skill 根目录执行）：
 - Windows: `powershell -File scripts/build-analyzers.ps1`
 - Linux/macOS: `bash scripts/build-analyzers.sh`
+
+### 0.3 性能路径与缓存
+
+- 日常本地审查优先使用 `--quick`；CI/生产门禁使用完整模式。
+- Semantic、Build、Format 结果按源文件、项目文件、`Directory.Build.*`、`global.json`、`project.assets.json`、SDK/TFM 等输入指纹缓存到 `<project>/.review-cache/`。
+- SDK 8+ 且提供 solution 时，Semantic 优先按目标 `.csproj` 及其项目引用闭包加载 MSBuildWorkspace；只有 `--solution full` 才加载整个 solution。
+- 热缓存命中会在 JSON 的 `semantic_cache_stats`、`phase_timings` 和 `review_integrity.semantic_workspace` 中体现；缓存默认 24 小时有效并限制每类最多 32 个结果。
+
+### 0.4 团队配置与自定义规则包
+
+在项目根目录放置 `.dotnet-review/config.json`（也可通过 `DOTNET_REVIEW_CONFIG` 指定外部文件）：
+
+```json
+{
+  "disabled_rules": ["MS002"],
+  "severity_overrides": {"TESTQ002": "warning"},
+  "exclude_paths": ["**/Generated/"],
+  "rule_packages": [".dotnet-review/team-rules.json"]
+}
+```
+
+规则包使用 `{"rules": [...]}` 或规则数组格式；每条规则至少包含 `id`、`pattern`，可选 `severity`、`category`、`suggestion`、`cwe`、`owasp`、`enabled`。规则包中的正则规则会与内置规则一起参与审查，团队配置只影响当前项目。
+
+### 0.5 PR 评论、趋势与常驻服务
+
+- 生成 GitHub/Azure DevOps 评论 payload 不访问网络：`--pr-provider github --pr-comments-out pr-comments.json`。
+- 只有显式添加 `--publish-pr-comments` 才会使用 CI 环境变量发布评论；GitHub 读取 `GITHUB_TOKEN` 等变量，Azure DevOps 读取 `SYSTEM_ACCESSTOKEN` 等变量。
+- 记录历史后生成性能/质量趋势：`--trend-report .review-history --trend-format markdown`；报告包含阶段耗时、分数/问题数变化、规则回归和测试质量。
+- 启动本机热审查 daemon：在 `scripts/` 目录执行 `python -m review.daemon --port 8765`，然后 POST JSON 到 `/review`，GET `/health` 查看状态。daemon 常驻 Python 编排进程并复用项目缓存，Roslyn analyzer 子进程在未命中缓存时仍会按请求执行。
 
 ---
 
@@ -67,12 +96,15 @@ dotnet --version
 | 审查整个项目 | `--target <目录> --format compact --output-mode top --max-issues 10` | 自动扫描全部 .cs，快速出分 |
 | 审查指定文件 | `--files <path1.cs> [path2.cs ...] --format compact --output-mode top` | 指定文件，不扫描目录 |
 | 审查 PR 变更 | `--diff HEAD --changed-only --format compact --output-mode top` | 仅报告变更行上的问题 |
+| 快速本地审查 | `--target <目录> --quick --format compact --output-mode top --max-issues 10` | 只跑 AST + Semantic，跳过项目/build/format/NuGet/CVE 扩展层 |
 | 审查并对比基线 | `--target . --baseline-report baseline.json --fail-on-introduced error --format json` | 先跑基线，再对比增量 |
 | 完整生产级审查 | `--target . --quality-gate-score 85 --fail-on warning --cve-check --format json` | 安全 + 质量 + CVE |
 | 只看摘要 | `--target . --format compact --output-mode summary` | 仅分数+统计，~50-100 token |
 | 只看问题列表 | `--target . --format json --output-mode by-rule` | 按规则分组，跳过详细信息 |
 | 预览文件列表 | `--target . --preview` | 列出将扫描的文件，不执行审查 |
 | 输出 SARIF | `--target . --format sarif` | 用于 GitHub Code Scanning / Azure DevOps |
+| 生成 PR 评论 | `--target . --pr-provider github --pr-comments-out pr-comments.json` | 生成 GitHub/Azure DevOps provider payload，不发布网络请求 |
+| 质量/性能趋势 | `--trend-report .review-history --trend-format markdown` | 读取历史 JSONL，不重新扫描代码 |
 | 自动修复 | `--target . --fix-dry-run`（预览） / `--fix`（执行） | 9 条内置规则可自动修复 |
 | 覆盖率检查 | `--coverage coverage.cobertura.xml --coverage-threshold 0.8` | 读 Cobertura 报告检查覆盖率 |
 | .NET Framework 项目 | `--target <目录> --legacy-compat --format compact --output-mode top --max-issues 10` | 跳过 SDK 6+ 门槛和 Build/Format 层，AST/语义/项目分析仍运行 |
@@ -88,6 +120,9 @@ dotnet --version
 | 全部 issue 详情 | `--format json`（默认） | ~2000-10000 | 完整结构化数据，生成修复建议 |
 | 上传 Code Scanning | `--format sarif` | — | GitHub/Azure DevOps 原生格式 |
 | 截断消息长度 | `--max-message-length 80`（追加） | 追加节省 | 控制单条消息大小 |
+
+性能参数：`--workers N` 控制文档、风格和性能等独立文件检查的最大并发数（默认 4）。
+完整 JSON 报告包含 `analysis_time`、`phase_timings` 和 `review_mode`，可用于定位冷启动、MSBuild、Build/Format 或缓存瓶颈。
 
 ### 1.3 质量门禁
 
@@ -123,6 +158,7 @@ dotnet --version
 | "审查这个项目"（多 project 仓库）| 先 `--target . --preview` 列出 project，用户选一个后再 `--target <project_dir>` |
 | "审查这几个文件" | → `--files <file1.cs> <file2.cs> --format compact --output-mode top` |
 | "审查 PR / 变更" | → `--diff HEAD --changed-only --format compact --output-mode top` |
+| "快速审查 / 快速看一下" | → `--target <path> --quick --format compact --output-mode top --max-issues 10`；有 diff 时自动限制到变更行 |
 | "代码质量 / 质量评分" | → `--target . --format compact --output-mode summary` |
 | "安全检查 / 安全漏洞" | → `--target . --format json --cve-check --quality-gate-score 85` |
 | "生产就绪审查" | → `--target . --quality-gate-score 85 --fail-on warning --cve-check --format json --output-mode top --max-issues 20` |
@@ -392,7 +428,7 @@ Summary
 | 无 CVE 数据库 | `--cve-check` 返回 `db_present=false`，标记"未扫描"而非"安全" |
 | 覆盖率文件缺失 | 跳过覆盖率检查，Summary 中说明 |
 | 指定文件模式 (`--files`) | build/format 层自动跳过（无 csproj），这是 AST 级审查，非完整审查 |
-| .NET Framework 项目 | 使用 `--legacy-compat` 标志：跳过 SDK 6+ 门槛 + 自动跳过 Build/Format 层。AST（153 条规则）、语义（22 条）、项目（跨文件/架构）分析仍完整运行。由 `winforms-dev-flow` skill 自动调用 |
+| .NET Framework 项目 | 使用 `--legacy-compat` 标志：跳过 SDK 6+ 门槛 + 自动跳过 Build/Format 层。AST（154 条规则）和项目（跨文件/架构）分析仍可运行；Semantic 需要 `.csproj/.sln` context 才会执行，否则明确标记为跳过。由 `winforms-dev-flow` skill 自动调用 |
 
 ### 5.3 没有问题时
 
@@ -443,7 +479,7 @@ Summary
 
 | 测试 | 断言 |
 |------|------|
-| `tests/test_count_rules.py` | SKILL 声明的规则数（AST 153 + 语义 22 = 175）与代码实际发射数一致 |
+| `tests/test_count_rules.py` | SKILL 声明的规则数（AST 154 + 语义 24 + 测试/安全/专项 8 = 186）与代码实际发射数一致 |
 | `tests/test_dimensions_coverage.py` | dimensions-coverage.md 实际有 6 个维度 section + 序号连续 + SKILL 声明「6 维度」 |
 | `tests/test_owasp_mapping.py` | owasp-mapping.md 覆盖 A01-A10 完整 + 每条有规则覆盖 section |
 | `tests/test_cross_skill_consistency.py` | 与 dotnet-csharp-developer 的 5 条核心 C# 实践口径同向（async/可空/CancellationToken/EF 实体/DI） |
@@ -455,12 +491,12 @@ cd plugins/dotnet-work/skills/dotnet-code-review
 python -m pytest tests/ -v
 ```
 
-当前状态：**16 passed, 0 xfailed**。测试为纯文档/源码解析，不调用 Roslyn、不依赖 .NET SDK，秒级运行。
+当前状态：**51 passed, 0 xfailed**（无 .NET SDK 或未构建 analyzer 时，运行时测试会明确 skip）。测试覆盖 Python 模块/报告契约、规则正反例、跨项目 `.sln` Semantic 引用解析、MSBuild 条件/生成文件/重定向输出，以及编译后 Roslyn AST/Semantic/Project/Build DLL→fetcher 的运行链；CLI smoke review 和插件门禁由 CI workflow 执行。CI 在 Ubuntu 与 Windows runner 上执行。
 
 **历史 drift（已全部修复）**：
 
 - ~~维度名分歧~~：SKILL.md description 已对齐 `dimensions-coverage.md` 的实际 6 维度（性能/可维护性/可测试性/安全/最佳实践·可靠性/架构）。
-- ~~可空盲区~~：`best-practices-catalog.md` §六 已补充可空引用类型章节（`SEM_NULLABLE_NULL_INIT` / `SEM_NULLFORGIVING`），与 `dotnet-csharp-developer` Constraints #2 对齐；`count_rules.py` 正则已修复（漏计的描述性 `SEM_*` 现计入，规则总数 175（AST 153 + 语义 22））。
+- ~~可空盲区~~：`best-practices-catalog.md` §六 已补充可空引用类型章节（`SEM_NULLABLE_NULL_INIT` / `SEM_NULLFORGIVING`），与 `dotnet-csharp-developer` Constraints #2 对齐；`count_rules.py` 现同时统计语义与测试/安全/专项规则，规则总数 186。
 
 ---
 

@@ -104,6 +104,33 @@ ISSUE_EVIDENCE_BY_SOURCE = {
         "requires_build": False,
         "limitations": ["Comment and hint checks are intentionally lightweight."],
     },
+    "test": {
+        "confidence": "medium",
+        "evidence_type": "test_structure_scan",
+        "checker": "test-quality-analyzer",
+        "layer": "test",
+        "deterministic": True,
+        "requires_build": False,
+        "limitations": ["Test gap matching is name/convention based and does not prove behavioral coverage."],
+    },
+    "security": {
+        "confidence": "medium",
+        "evidence_type": "security_sink_scan",
+        "checker": "security-analyzer",
+        "layer": "security",
+        "deterministic": False,
+        "requires_build": False,
+        "limitations": ["Text-level security sinks require context verification."],
+    },
+    "specialized": {
+        "confidence": "medium",
+        "evidence_type": "framework_pattern_scan",
+        "checker": "specialized-analyzer",
+        "layer": "specialized",
+        "deterministic": False,
+        "requires_build": False,
+        "limitations": ["Framework conventions and infrastructure may make a finding intentional."],
+    },
 }
 
 
@@ -140,6 +167,8 @@ def serialize_issue(issue: CodeIssue) -> dict:
         "message": issue.message,
         "source": issue.source,
         "suggestion": issue.suggestion,
+        "cwe": issue.cwe,
+        "owasp": issue.owasp,
         "triage": triage,
         "confidence": evidence["confidence"],
         "evidence_type": evidence["evidence_type"],
@@ -205,6 +234,21 @@ def build_review_integrity(
     coverage_requested: bool,
     netanalyzers_summary: dict | None = None,
 ) -> dict:
+    raw_netanalyzers = netanalyzers_summary or {}
+    injected = bool(raw_netanalyzers.get("injected"))
+    skipped_reason = raw_netanalyzers.get("skipped_reason")
+    if "injected_for_projects" in raw_netanalyzers:
+        normalized_netanalyzers = dict(raw_netanalyzers)
+    else:
+        normalized_netanalyzers = {
+            "injected_for_projects": 1 if injected else 0,
+            "skipped_projects": (
+                [{"reason": skipped_reason}]
+                if skipped_reason else []
+            ),
+            "disabled_by_user": skipped_reason == "--skip-netanalyzers",
+        }
+
     integrity = {
         "dotnet_sdk_checked": True,
         "dotnet_sdk_version": sdk_version if sdk_present else None,
@@ -215,11 +259,7 @@ def build_review_integrity(
         "coverage_conclusion_valid": coverage_conclusion_valid(
             coverage_data, coverage_requested
         ),
-        "netanalyzers": netanalyzers_summary or {
-            "injected_for_projects": 0,
-            "skipped_projects": [],
-            "disabled_by_user": False,
-        },
+        "netanalyzers": normalized_netanalyzers,
     }
 
     # ── CVE database freshness ──
@@ -253,7 +293,9 @@ def build_degradation_notices(
     for detail in skipped_layer_details:
         layer = detail.get("layer", "")
         reason = detail.get("reason", "")
-        if layer == "build" and reason in ("--files mode", "--skip-build"):
+        if layer == "build" and reason in (
+            "--files mode", "--skip-build", "--legacy-compat"
+        ):
             notices.append({
                 "layer": "build",
                 "impact": BUILD_LAYER_APPROX_RULES,
@@ -261,7 +303,8 @@ def build_degradation_notices(
                     "Build layer skipped — compiler diagnostics (CSxxxx) and "
                     "NetAnalyzers (CAxxxx) are not running. Security/reliability "
                     "rules that only exist in the compiler layer will be missed. "
-                    "Use --target <dir> instead of --files to enable this layer."
+                    "Use an SDK-style --target <dir> without --legacy-compat or "
+                    "--files to enable this layer."
                 ),
             })
         elif layer == "format" and reason in ("--files mode", "--skip-format"):
@@ -271,8 +314,8 @@ def build_degradation_notices(
                 "notice": (
                     "Format layer skipped — IDE00xx code style diagnostics are "
                     "not running. Style/naming violations detectable only by "
-                    "dotnet format will be missed. Use --target <dir> instead "
-                    "of --files to enable this layer."
+                    "dotnet format will be missed. Use --target <dir> without "
+                    "--legacy-compat to enable this layer."
                 ),
             })
 

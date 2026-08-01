@@ -57,6 +57,8 @@ def save_report_history(
         "technical_debt_minutes": snapshot.get("technical_debt_minutes", 0),
         "files": cs_files,
         "issue_rules": [i.rule for i in issues],
+        "phase_timings": snapshot.get("phase_timings", {}),
+        "test_quality": snapshot.get("test_quality", {}),
     }
 
     hist_path = Path(_history_file(history_dir))
@@ -153,3 +155,64 @@ def compute_trend(history_dir: str) -> dict:
         "prev_issues": prev_issues,
         "prev_score": prev_score,
     }
+
+
+def build_trend_report(history_dir: str, window: int = 20) -> dict:
+    """Build quality and performance trends for the latest history window."""
+    runs = _load_history(history_dir)[-max(1, window):]
+    if not runs:
+        return {"history_dir": history_dir, "runs": 0, "quality": {}, "performance": {}, "regressions": []}
+    scores = [float(r.get("score", 0) or 0) for r in runs]
+    issues = [int(r.get("total_issues", 0) or 0) for r in runs]
+    phase_names = sorted({name for run in runs for name in (run.get("phase_timings", {}) or {})})
+    phase_averages = {
+        name: round(sum(float((run.get("phase_timings", {}) or {}).get(name, 0) or 0) for run in runs) / len(runs), 4)
+        for name in phase_names
+    }
+    rules: dict[str, int] = {}
+    for run in runs:
+        for rule in run.get("issue_rules", []) or []:
+            rules[rule] = rules.get(rule, 0) + 1
+    previous = runs[-2] if len(runs) > 1 else {}
+    previous_rules = set(previous.get("issue_rules", []) or [])
+    current_rules = set(runs[-1].get("issue_rules", []) or [])
+    return {
+        "history_dir": history_dir,
+        "runs": len(runs),
+        "first_timestamp": runs[0].get("timestamp"),
+        "last_timestamp": runs[-1].get("timestamp"),
+        "quality": {
+            "latest_score": scores[-1],
+            "average_score": round(sum(scores) / len(scores), 2),
+            "score_delta": round(scores[-1] - scores[0], 2),
+            "latest_issues": issues[-1],
+            "issue_delta": issues[-1] - issues[0],
+        },
+        "performance": {
+            "average_phase_seconds": phase_averages,
+            "latest_phase_seconds": runs[-1].get("phase_timings", {}),
+        },
+        "test_quality": runs[-1].get("test_quality", {}),
+        "regressions": sorted(current_rules - previous_rules),
+        "frequent_rules": sorted(rules.items(), key=lambda item: (-item[1], item[0]))[:20],
+    }
+
+
+def format_trend_markdown(report: dict) -> str:
+    quality = report.get("quality", {})
+    performance = report.get("performance", {})
+    lines = [
+        "# dotnet-code-review 趋势报告",
+        "",
+        f"- Runs: {report.get('runs', 0)}",
+        f"- Score: {quality.get('latest_score', 0)} (delta {quality.get('score_delta', 0)})",
+        f"- Issues: {quality.get('latest_issues', 0)} (delta {quality.get('issue_delta', 0)})",
+        "",
+        "## 平均阶段耗时",
+        "",
+    ]
+    for name, seconds in (performance.get("average_phase_seconds", {}) or {}).items():
+        lines.append(f"- {name}: {seconds:.4f}s")
+    lines.extend(["", "## 最近新增规则", ""])
+    lines.extend(f"- {rule}" for rule in report.get("regressions", []) or [])
+    return "\n".join(lines) + "\n"

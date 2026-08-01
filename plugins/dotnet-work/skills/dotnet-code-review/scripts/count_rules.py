@@ -29,13 +29,16 @@ def categorize(rules: list[dict]) -> dict[str, list[str]]:
     """Group rules by source (ast/semantic)."""
     ast = []
     sem = []
+    repository = []
     for r in rules:
         rid = r["id"]
         if rid.startswith("LEGACY_"):
             ast.append(rid)
-        else:
+        elif rid.startswith(("SEM", "EF", "ASP", "P", "RCS")):
             sem.append(rid)
-    return {"ast": sorted(ast), "semantic": sorted(sem)}
+        else:
+            repository.append(rid)
+    return {"ast": sorted(ast), "semantic": sorted(sem), "repository": sorted(repository)}
 
 
 def main() -> int:
@@ -55,6 +58,7 @@ def main() -> int:
     for prefix in ["SEM", "EF", "ASP", "P", "RCS"]:
         count = sum(1 for i in sem if i.startswith(prefix))
         print(f"  - {prefix}_*                        : {count:4d}")
+    print(f"Repository/security/test rules  : {len(groups['repository']):4d}")
     print(f"  Total unique active           : {len(rules):4d}")
     print()
     return 0

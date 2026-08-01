@@ -244,11 +244,11 @@ Summary
 | `--target-framework` 显式传入 | 覆盖 csproj 自动检测结果 |
 | 无 OCR | ocr-bridge 自动回退为纯 dotnet-code-review（也可 `--skip-ocr`） |
 | 无 CVE 数据库 | `--cve-check` 返回 `db_present=false` 且带 `warning`；`vulnerabilities` 为空表示"未扫描"而非"安全"，禁止据此报无漏洞 |
-| CVE 数据库过期 | `--cve-check` 返回 `db_present=true` 但 `db_age_days > 14`（或 `null`）且带 `warning`；"无漏洞"可能漏报近期漏洞，禁止据此时报可信 clean |
+| CVE 数据库过期 | `--cve-check` 返回 `db_present=true` 但 `db_age_days > 7`（或 `null`）且带 `warning`；"无漏洞"可能漏报近期漏洞，禁止据此时报可信 clean |
 | 工具缺失 | 按 `--fail-on` 处理，不中断其他分析 |
 | 覆盖率文件缺失 | 跳过覆盖率检查，不报错，但在 Summary 中说明 |
-| 抑制文件 `.dotnet-review/suppress.json` 存在 | 匹配的 issue 从 score/输出移除，`suppressed_by_config` 字段记录抑制计数 |
-| 增量语义分析（`--incremental-semantic`） | 复用未变文件的语法树；结果含 `semantic_cache_stats`（hit_rate/compilation_reused）供回归观测 |
+| 抑制文件 `.dotnet-review/suppressions.json` 存在 | 匹配的 issue 从 score/输出移除，`suppressed_by_config` 字段记录抑制计数 |
+| 增量语义分析（默认启用，可用 `--no-incremental-semantic` 关闭） | 复用未变文件的语法树；结果含 `semantic_cache_stats`（hit_rate/compilation_reused）供回归观测 |
 
 ## PR diff-aware 门禁（`--baseline-report`）
 
@@ -294,6 +294,27 @@ python scripts/review.py --target . --format json \
 - `--fail-on-introduced error`：introduced 含 error → exit 1
 - `--fail-on-introduced warning`：introduced 含 warning+ → exit 2
 - 无 `--baseline-report` 时，`--fail-on-introduced` 无效（无 introduced 数据）
+
+## PR 评论与趋势报告
+
+先生成 provider payload，便于在 CI 中审阅或交给平台专用任务发布：
+
+```bash
+python scripts/review.py --target . --diff HEAD \
+  --pr-provider github --pr-comments-out pr-comments.json
+```
+
+`--pr-comments-out` 不发起网络请求；只有显式添加 `--publish-pr-comments` 才发布。GitHub 使用 Reviews API，Azure DevOps 使用 Pull Request Threads API，凭据从对应 CI 环境变量读取。
+
+启用 `--history-dir .review-history` 后，可单独读取历史并生成趋势：
+
+```bash
+python scripts/review.py --trend-report .review-history --trend-format markdown
+```
+
+报告包含质量分数、问题数、规则回归、测试质量和各阶段平均耗时。
+
+本机长期运行模式：在 `scripts/` 目录执行 `python -m review.daemon --port 8765`。它复用 Python 编排进程和 Semantic/Build/Format 结果缓存；当前版本不承诺 Roslyn `Compilation` 进程级常驻，未命中缓存时仍会启动 analyzer 子进程。
 
 ## CI/CD 集成
 

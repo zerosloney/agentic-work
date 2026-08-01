@@ -7,7 +7,7 @@ when_to_use: |
 license: MIT
 metadata:
   author: master0071
-  version: 1.0.0
+  version: 1.0.6
   category: development
 ---
 

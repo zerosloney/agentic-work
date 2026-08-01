@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from ..models import CodeIssue  # import from parent review/ package
+from ..cache import inputs_fingerprint, load_result_cache, save_result_cache
 
 logger = logging.getLogger("dotnet-review.analyzer.fetcher")
 
@@ -29,7 +30,7 @@ def _dotnet_command_exists() -> bool:
     try:
         result = subprocess.run(
             ["dotnet", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
@@ -51,13 +52,24 @@ def get_dotnet_sdk_version() -> str | None:
     try:
         result = subprocess.run(
             ["dotnet", "--version"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
         )
         if result.returncode == 0:
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         pass
     return None
+
+
+def dotnet_sdk_meets_minimum(min_major: int = 6) -> bool:
+    """Return whether the installed SDK meets the normal review minimum."""
+    version = get_dotnet_sdk_version()
+    if not version:
+        return False
+    match = re.match(r"^(\d+)(?:\.(\d+))?", version.strip())
+    if not match:
+        return False
+    return int(match.group(1)) >= min_major
 
 
 # ============================================================
@@ -95,34 +107,69 @@ def _write_file_list(paths: list[str]) -> str:
     return path
 
 
-def _build_analyzer_command(analyzer_name: str, extra_args: list[str]) -> list[str]:
-    """Build the dotnet run command for a C# analyzer project.
+def _ast_cache_payload(output: str, filepath: str) -> str:
+    """Keep only one file's diagnostics when caching a multi-file chunk."""
+    try:
+        json_start = output.find("{")
+        if json_start < 0:
+            return output
+        data = json.loads(output[json_start:])
+        target = str(Path(filepath).resolve())
+        data["diagnostics"] = [
+            item for item in data.get("diagnostics", [])
+            if str(Path(item.get("file", "")).resolve()) == target
+        ]
+        return json.dumps(data, ensure_ascii=False)
+    except (json.JSONDecodeError, OSError, TypeError):
+        return output
 
-    Uses csharp-unified-analyzer when available (combines AST + Semantic + Project
-    in a single process). Falls back to individual analyzers for backward compat.
+
+def _build_analyzer_command(analyzer_name: str, extra_args: list[str]) -> list[str]:
+    """Build a command for the authoritative individual analyzer.
+
+    The three individual analyzers are the source of truth for the 186-rule
+    catalog. Prefer a previously built DLL for speed, and use ``dotnet run``
+    as a functional fallback when a checkout has not been built yet. The
+    experimental unified analyzer is intentionally not selected here until it
+    has parity tests against the individual analyzers.
     """
     script_dir = Path(__file__).resolve().parent.parent.parent
-    # Prefer unified analyzer
-    unified_dir = script_dir / "csharp-unified-analyzer"
-    if (unified_dir / "csharp-unified-analyzer.csproj").exists():
-        cmd = [
-            "dotnet", "run",
-            "--project", str(unified_dir / "csharp-unified-analyzer.csproj"),
-            "--no-restore",
-            "--",
-        ]
-        cmd.extend(extra_args)
-        return cmd
-    # Fallback to individual analyzer
     analyzer_dir = script_dir / analyzer_name
-    cmd = [
-        "dotnet", "run",
-        "--project", str(analyzer_dir / f"{analyzer_name}.csproj"),
-        "--no-restore",
-        "--",
-    ]
+    project = analyzer_dir / f"{analyzer_name}.csproj"
+
+    dlls = sorted(
+        (p for p in analyzer_dir.glob("bin/*/*/*.dll") if p.name == f"{analyzer_name}.dll"),
+        key=_analyzer_dll_sort_key,
+        reverse=True,
+    )
+    if dlls:
+        cmd = ["dotnet", str(dlls[0])]
+    else:
+        # Allow restore on the slow path; --no-restore made a clean checkout
+        # fail before the analyzer could be built.
+        cmd = ["dotnet", "run", "--project", str(project)]
+        if analyzer_name == "csharp-semantic-analyzer":
+            sdk = get_dotnet_sdk_version() or ""
+            major_match = re.match(r"^(\d+)", sdk)
+            target = "net8.0" if major_match and int(major_match.group(1)) >= 8 else "net6.0"
+            cmd.extend(["-f", target])
+        cmd.append("--")
     cmd.extend(extra_args)
     return cmd
+
+
+def _analyzer_dll_sort_key(path: Path) -> tuple[int, float]:
+    """Prefer the newest compatible runtime, with net8 taking precedence.
+
+    The semantic analyzer is multi-targeted: net6 keeps the historical
+    AdhocWorkspace path, while net8 includes MSBuildWorkspace.  Selecting only
+    by mtime could silently run net6 after an unrelated rebuild and lose the
+    evaluated-project behavior.
+    """
+    tfm = path.parent.name.lower()
+    match = re.match(r"net(\d+)(?:\.(\d+))?$", tfm)
+    version = (int(match.group(1)), int(match.group(2) or 0)) if match else (0, 0)
+    return (version[0] * 100 + version[1], path.stat().st_mtime)
 
 
 # ============================================================
@@ -174,7 +221,7 @@ def analyze_ast(files: list[str], project_root: str = "",
         try:
             cmd = _build_analyzer_command("csharp-ast-analyzer", chunk)
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=120,
+                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
             )
             chunk_issues = _parse_ast_diagnostics(result.stdout, project_root, files)
             all_new_issues.extend(chunk_issues)
@@ -183,7 +230,7 @@ def analyze_ast(files: list[str], project_root: str = "",
             if cache_dir:
                 from ..cache import save_cache
                 for abs_f in chunk:
-                    save_cache(cache_dir, abs_f, result.stdout)
+                    save_cache(cache_dir, abs_f, _ast_cache_payload(result.stdout, abs_f))
         except (subprocess.TimeoutExpired, OSError) as e:
             logger.warning("AST analyzer chunk %d failed: %s", chunk_idx, e)
 
@@ -234,7 +281,7 @@ def _parse_ast_diagnostics(output: str, project_root: str,
 def analyze_semantic(
     files: list[str], incremental: bool = False, cache_dir: str | None = None,
     project_root: str = "", references: list[str] | None = None,
-    solution_path: str | None = None,
+    solution_path: str | None = None, project_path: str | None = None,
 ) -> tuple[list[CodeIssue], dict]:
     """Run Roslyn SemanticModel-based analyzer (requires .NET SDK).
 
@@ -252,6 +299,28 @@ def analyze_semantic(
 
     abs_files = [str(Path(f).resolve()) for f in files]
 
+    # A complete semantic result is reusable only when all source and MSBuild
+    # inputs are unchanged. This avoids starting Roslyn at all on warm reviews.
+    input_paths = list(abs_files) + list(references or [])
+    for pattern in ("*.csproj", "*.sln", "Directory.Build.*", "global.json"):
+        input_paths.extend(str(p) for p in Path(project_root).glob(pattern))
+    input_paths.extend(str(Path(project_root) / "obj" / "project.assets.json") for _ in [0])
+    semantic_fp = inputs_fingerprint(input_paths, salt=f"semantic-v2|{solution_path or ''}|{project_path or ''}")
+    if incremental and cache_dir:
+        cached = load_result_cache(cache_dir, "semantic-result", semantic_fp)
+        if cached:
+            cached_issues = [
+                CodeIssue(**item) for item in cached.get("issues", [])
+                if isinstance(item, dict) and item.get("file") is not None
+            ]
+            cached_extra = dict(cached.get("extra", {}))
+            cached_extra["cache_stats"] = {
+                **cached_extra.get("cache_stats", {}),
+                "whole_result_hit": True,
+                "fingerprint": semantic_fp,
+            }
+            return cached_issues, cached_extra
+
     filelist_path = _write_file_list(abs_files)
     extra = ["--file-list", filelist_path]
     refs_path = None
@@ -264,10 +333,15 @@ def analyze_semantic(
             extra.extend(["--cache-dir", cache_dir])
     if solution_path:
         extra += ["--solution", solution_path]
+    if project_path and solution_path:
+        extra += ["--project", project_path]
     cmd = _build_analyzer_command("csharp-semantic-analyzer", extra)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
+        )
 
         # Prefer stdout JSON (analyzer emits findings on stdout even when it
         # logs warnings on stderr). Only consult stderr if stdout is empty.
@@ -312,11 +386,24 @@ def analyze_semantic(
         extra_data: dict = {}
         if "cache_stats" in data:
             extra_data["cache_stats"] = data["cache_stats"]
+        if "semantic_workspace" in data:
+            extra_data["semantic_workspace"] = data["semantic_workspace"]
         comp_err_count = data.get("compilation_error_count", 0)
         if comp_err_count:
             extra_data["compilation_error_count"] = comp_err_count
             logger.warning("Semantic analyzer: %d compilation errors — "
-                           "type-dependent rules (SEM_*) may be degraded", comp_err_count)
+                "type-dependent rules (SEM_*) may be degraded", comp_err_count)
+
+        if incremental and cache_dir and result.returncode == 0:
+            save_result_cache(
+                cache_dir,
+                "semantic-result",
+                semantic_fp,
+                {
+                    "issues": [issue.__dict__ for issue in issues],
+                    "extra": extra_data,
+                },
+            )
 
         return issues, extra_data
     except (json.JSONDecodeError, subprocess.TimeoutExpired, OSError) as e:
@@ -377,7 +464,10 @@ def analyze_project(files: list[str]) -> dict:
     cmd = _build_analyzer_command("csharp-project-analyzer", extra)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120,
+        )
         # Prefer stdout JSON; only fall back to stderr if stdout is empty.
         output = result.stdout if result.stdout.strip() else result.stderr
 
@@ -465,6 +555,8 @@ def analyze_build(
     project_root: str,
     framework_type: str | None = None,
     enable_netanalyzers: bool = True,
+    cache_dir: str | None = None,
+    source_files: list[str] | None = None,
 ) -> tuple[list[CodeIssue], dict]:
     """Run dotnet build for compile diagnostics.
 
@@ -478,6 +570,23 @@ def analyze_build(
     full_path = Path(project_root) / csproj_path
     if not full_path.exists():
         return [], {"injected": False, "skipped_reason": "csproj not found"}
+
+    cache_inputs = [str(full_path)] + list(source_files or [])
+    cache_inputs += [
+        str(p) for pattern in ("Directory.Build.*", "global.json", "Directory.Packages.props")
+        for p in Path(project_root).glob(pattern)
+    ]
+    build_fp = inputs_fingerprint(
+        cache_inputs,
+        salt=f"build-v1|{framework_type}|{enable_netanalyzers}",
+    )
+    if cache_dir:
+        cached = load_result_cache(cache_dir, "build-result", build_fp)
+        if cached:
+            return (
+                [CodeIssue(**item) for item in cached.get("issues", [])],
+                {**cached.get("info", {}), "cache_hit": True},
+            )
 
     try:
         content = full_path.read_text(encoding="utf-8", errors="ignore")
@@ -511,17 +620,26 @@ def analyze_build(
             ]
 
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120, cwd=project_root
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120, cwd=project_root
         )
         combined = result.stdout + result.stderr
     except (subprocess.TimeoutExpired, OSError):
         return [], {"injected": False, "skipped_reason": "build invocation failed"}
 
     issues = _parse_msbuild_diagnostics(combined)
-    return issues, {
+    info = {
         "injected": inject_na,
         "skipped_reason": no_inject_reason,
     }
+    if cache_dir and (result.returncode == 0 or issues):
+        save_result_cache(
+            cache_dir,
+            "build-result",
+            build_fp,
+            {"issues": [issue.__dict__ for issue in issues], "info": info},
+        )
+    return issues, info
 
 
 def _csproj_disables_netanalyzers(content: str) -> bool:
@@ -655,7 +773,12 @@ def _build_rule_suggestion(code: str, msg: str) -> str:
 # ============================================================
 
 
-def analyze_format(csproj_path: str, project_root: str) -> list[CodeIssue]:
+def analyze_format(
+    csproj_path: str,
+    project_root: str,
+    cache_dir: str | None = None,
+    source_files: list[str] | None = None,
+) -> list[CodeIssue]:
     """Run dotnet format for style diagnostics."""
     if not dotnet_available():
         return []
@@ -664,6 +787,17 @@ def analyze_format(csproj_path: str, project_root: str) -> list[CodeIssue]:
     if not full_path.exists():
         return []
 
+    cache_inputs = [str(full_path)] + list(source_files or [])
+    cache_inputs += [
+        str(p) for pattern in ("Directory.Build.*", "global.json", ".editorconfig")
+        for p in Path(project_root).glob(pattern)
+    ]
+    format_fp = inputs_fingerprint(cache_inputs, salt="format-v1")
+    if cache_dir:
+        cached = load_result_cache(cache_dir, "format-result", format_fp)
+        if cached:
+            return [CodeIssue(**item) for item in cached.get("issues", [])]
+
     try:
         # Cross-platform temp dir: /tmp on Unix, %TEMP% on Windows.
         import tempfile
@@ -671,7 +805,8 @@ def analyze_format(csproj_path: str, project_root: str) -> list[CodeIssue]:
         result = subprocess.run(
             ["dotnet", "format", csproj_path, "--verify-no-changes",
              "--no-restore", "-nologo", "--report", report_path],
-            capture_output=True, text=True, timeout=120, cwd=project_root,
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=120, cwd=project_root,
         )
         # Parse format output for style issues
         issues: list[CodeIssue] = []
@@ -695,6 +830,13 @@ def analyze_format(csproj_path: str, project_root: str) -> list[CodeIssue]:
                 source="format",
                 suggestion="Run `dotnet format` to auto-fix style issues.",
             ))
+        if cache_dir and (result.returncode == 0 or issues):
+            save_result_cache(
+                cache_dir,
+                "format-result",
+                format_fp,
+                {"issues": [issue.__dict__ for issue in issues]},
+            )
         return issues
     except (subprocess.TimeoutExpired, OSError):
         return []

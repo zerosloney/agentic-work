@@ -6,7 +6,7 @@
 
 1. **SKILL.md 是轻量入口**：每次技能激活都会被模型完整读入。SKILL.md 应只包含"调用前必须知道的事"——环境门禁、调用入口、强制约束、安全边界。深度知识放 `references/`，按需加载。
 2. **能做与不能做显式分离**：在 SKILL.md 列出工具**完全无检测能力**的维度，并要求 Agent **不得**对其给出通过/不通过结论。这是本技能区别于多数"代码审查 agent"的核心姿态。
-3. **执行口径 vs 目录口径分离**：`scripts/review/rules.py` 中的 `AUTO_FIXES` 等是"自动修复映射"口径，**不是**实际执行规则数。实际执行规则数以 `python scripts/count_rules.py` 为准；当前快照为 175 条（AST 153 + 语义 22，另含项目级 + dotnet build/format 诊断）。
+3. **执行口径 vs 目录口径分离**：`scripts/review/rules.py` 中的 `AUTO_FIXES` 等是"自动修复映射"口径，**不是**实际执行规则数。实际执行规则数以 `python scripts/count_rules.py` 为准；当前快照为 186 条（AST 154 + 语义 24 + 测试/安全/专项 8，另含项目级 + dotnet build/format 诊断）。
 
 ## 检测维度
 
@@ -64,7 +64,7 @@
 
 ## 6 维度覆盖度证明
 
-本工具在 6 维度上提供分层规则覆盖。实际 C# 审查结论来自 **Roslyn（AST/语义/项目级）+ dotnet build/format**；规则数量以 `python scripts/count_rules.py` 为准，当前快照为 **175 条**（AST 153 + 语义 22）。
+本工具在 6 维度上提供分层规则覆盖。实际 C# 审查结论来自 **Roslyn（AST/语义/项目级）+ dotnet build/format**；规则数量以 `python scripts/count_rules.py` 为准，当前快照为 **186 条**（AST 154 + 语义 24 + 测试/安全/专项 8）。
 
 | 维度 | 当前执行层 | 详细映射 |
 |------|------------|----------|
@@ -94,8 +94,8 @@
 
 | Layer | 引擎 | 说明 |
 |-------|------|------|
-| **3 AST** | **Roslyn** `CSharpSyntaxWalker`（`csharp-ast-analyzer`） | 语法树级，`LEGACY_*` 规则，153 条，忽略注释/字符串 |
-| **3b 语义** | **Roslyn** `SemanticModel`（`csharp-semantic-analyzer`） | 类型/符号级，`SEM_*`/`EF*`/`ASP*`/`P*`/`RCS*` 规则，22 条（8 SEM + 5 EF + 3 ASP + 1 P + 5 RCS） |
+| **3 AST** | **Roslyn** `CSharpSyntaxWalker`（`csharp-ast-analyzer`） | 语法树级，`LEGACY_*` 规则，154 条，忽略注释/字符串 |
+| **3b 语义** | **Roslyn** `SemanticModel`（`csharp-semantic-analyzer`） | 类型/符号级，`SEM_*`/`EF*`/`ASP*`/`P*`/`RCS*` 规则，24 条（8 SEM + 6 EF + 4 ASP + 1 P + 5 RCS） |
 | **3c 项目级** | **Roslyn** 跨文件（`csharp-project-analyzer`） | 依赖循环 / 跨层违规 / god class |
 | **4 编译** | `dotnet build` | CSxxxx 诊断 + NetAnalyzers CAxxxx（~500 条） |
 | **5 格式** | `dotnet format` | IDE00xx 代码风格 |

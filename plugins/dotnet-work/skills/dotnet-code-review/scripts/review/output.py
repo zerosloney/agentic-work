@@ -59,6 +59,8 @@ def format_sarif(result: dict) -> str:
                         "severity": sev,
                         "confidence": issue.get("confidence", ""),
                         "evidence_type": issue.get("evidence_type", ""),
+                        "cwe": issue.get("cwe", ""),
+                        "owasp": issue.get("owasp", ""),
                     },
                 }
             )
@@ -178,9 +180,23 @@ def format_markdown(result: dict) -> str:
             f"- 编译诊断: {layers.get('build', 0)}",
             f"- 代码风格: {layers.get('format', 0)}",
             "",
-            "## 可信度与边界",
+            "## 测试质量与缺口",
         ]
     )
+    test_quality = result.get("test_quality", {}) or {}
+    if test_quality:
+        lines.extend([
+            f"- 测试文件: {test_quality.get('test_files', 0)}",
+            f"- 测试方法: {test_quality.get('test_methods', 0)}",
+            f"- 含断言比例: {test_quality.get('assertion_ratio', 0) * 100:.1f}%",
+            f"- 未发现同名测试的生产类型: {test_quality.get('gap_count', 0)}",
+            "",
+        ])
+    else:
+        lines.extend(["(未识别到测试代码)", ""])
+    lines.extend([
+            "## 可信度与边界",
+    ])
 
     integrity = result.get("review_integrity", {})
     if integrity:
