@@ -36,7 +36,11 @@ const PROFILE_TEMPLATES = {
   orchestrator: {
     permissionMode: 'default',
     approvalMode: 'default',
-    codebuddyTools: 'Bash, Read, Glob, Grep',
+    // The baseline permission.task block grants the orchestrator delegation
+    // to its worker/reviewer agents. Keep the platform tool allow-list aligned
+    // with that capability; omitting Task makes the pipeline stop before the
+    // first DELEGATE on CodeBuddy/Qoder.
+    codebuddyTools: 'Bash, Read, Glob, Grep, Task',
     qwenTools: ['read_file', 'read_many_files', 'glob', 'grep_search', 'list_directory', 'run_shell_command', 'task'],
   },
   reviewer: {

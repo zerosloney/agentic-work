@@ -11,10 +11,11 @@
 //           exit 0 = allow, exit 2 = deny. Internal errors fail open.
 //
 // Match semantics: forbidden_scope entries are glob patterns matched against
-// the normalized (forward-slash) absolute OR repo-relative path. A pattern
-// ending in /* matches everything under that dir; a bare path segment matches
-// exactly. Minimal glob (/* suffix + exact) — no deep ** support, intentional
-// simplicity for the small scope lists these pipelines use.
+// both the normalized absolute path and the current-workspace-relative path.
+// A pattern ending in /* matches the directory and everything below it; a
+// bare path segment matches exactly (or the same suffix in an absolute path).
+// Minimal glob support is intentional for the small scope lists these
+// pipelines use.
 
 const fs = require('fs');
 const path = require('path');
@@ -65,21 +66,45 @@ function collectForbiddenScopes() {
 // Minimal glob (gitignore-flavored subset):
 //   - ** → matches across path segments (.* equivalent)
 //   - *  → matches within one segment ([^/]* — does NOT cross /)
-//   - trailing /*  (no other wildcards) → everything directly under that dir
+//   - trailing /*  (no other wildcards) → directory and everything below it
 //   - trailing /   → dir prefix
 //   - otherwise    → exact path or suffix match
 // Path separators normalized to '/' for cross-platform match.
 // intentional-simple: no brace expansion, no character classes. Fine for the
 // small scope lists these pipelines use.
 //
-// * NOT crossing / is the gitignore/POSIX glob convention: `src/*` matches
-// `src/a` but NOT `src/a/b` — use `src/**` for recursive. Earlier versions
-// mapped * to .* (cross-segment), which over-blocked `src/*` to match nested
-// paths. Fixed so single-segment * stays single-segment.
+// A normal `*` stays within one path segment. The trailing `/*` form is the
+// explicit recursive directory shorthand used by forbidden_scope declarations.
 function matchesPattern(filePath, pattern) {
-  const normalized = filePath.replace(/\\/g, '/');
-  const rel = normalized.replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
-  const cleanPattern = pattern.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^[A-Za-z]:\//, '');
+  if (typeof filePath !== 'string' || typeof pattern !== 'string') return false;
+
+  const normalize = (value) => value.replace(/\\/g, '/');
+  const stripDotPrefix = (value) => value.replace(/^\.\//, '');
+  const normalized = normalize(filePath);
+  const isAbsolute = (value) => value.startsWith('/') || /^[A-Za-z]:\//.test(value);
+  const absolutePath = isAbsolute(normalized)
+    ? normalized
+    : normalize(path.resolve(filePath));
+  const relativePath = normalize(path.relative(process.cwd(), absolutePath)).replace(/^\.\//, '');
+  const cleanPattern = stripDotPrefix(normalize(pattern));
+  const patternIsAbsolute = isAbsolute(cleanPattern);
+  const patternPath = patternIsAbsolute
+    ? cleanPattern
+    : stripDotPrefix(cleanPattern);
+
+  // Relative scope declarations are normally repo-relative. Absolute target
+  // paths from Write/Edit therefore must be compared with relativePath too.
+  // Absolute declarations continue to match absolutePath directly.
+  const candidates = patternIsAbsolute
+    ? [absolutePath, normalized]
+    : [relativePath, normalized.replace(/^[A-Za-z]:\//, '')];
+
+  // `dir/*` is a recursive directory shorthand. Handle it before the generic
+  // wildcard branch; otherwise the `*` branch would make this code unreachable.
+  if (patternPath.endsWith('/*') && !patternPath.slice(0, -2).includes('*')) {
+    const prefix = patternPath.slice(0, -2).replace(/\/$/, '');
+    return candidates.some((candidate) => candidate === prefix || candidate.startsWith(prefix + '/'));
+  }
 
   // wildcard patterns (incl. **/x/*) → regex.
   // Escape regex specials first, then map ** → .* (cross-segment) and
@@ -93,17 +118,12 @@ function matchesPattern(filePath, pattern) {
       .replace(/\*/g, '[^/]*')
       .replace(new RegExp(PLACEHOLDER, 'g'), '.*');
     const re = new RegExp('^' + reSrc + '$');
-    const basename = rel.split('/').pop();
-    return re.test(basename) || re.test(rel);
+    return candidates.some((candidate) => re.test(candidate) || re.test(candidate.split('/').pop()));
   }
-  if (cleanPattern.endsWith('/*')) {
-    const prefix = cleanPattern.slice(0, -2);
-    return rel === prefix || rel.startsWith(prefix + '/');
+  if (patternPath.endsWith('/')) {
+    return candidates.some((candidate) => candidate.startsWith(patternPath));
   }
-  if (cleanPattern.endsWith('/')) {
-    return rel.startsWith(cleanPattern);
-  }
-  return rel === cleanPattern || rel.endsWith('/' + cleanPattern);
+  return candidates.some((candidate) => candidate === patternPath || candidate.endsWith('/' + patternPath));
 }
 
 async function main() {

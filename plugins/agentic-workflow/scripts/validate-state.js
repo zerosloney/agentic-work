@@ -77,6 +77,13 @@ const fieldsV2 = {
   verification_status: fieldsV1.verification_status,
 };
 
+function unknownFields(obj, allowed, label) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return [];
+  return Object.keys(obj)
+    .filter((key) => !allowed.has(key))
+    .map((key) => `${label}.${key}: unknown field`);
+}
+
 const taskFieldsV1 = {
   id: v => typeof v === 'string' && v.length > 0 ? null : `task.id must be non-empty string, got ${JSON.stringify(v)}`,
   title: v => typeof v === 'string' ? null : `task.title must be string, got ${typeof v}`,
@@ -92,7 +99,13 @@ const nodeFieldsV2 = {
   status: taskFieldsV1.status,
   failures: taskFieldsV1.failures,
   result: v => v === null || typeof v === 'string' || typeof v === 'object' ? null : `node.result must be null|string|object`,
+  subtask_of: taskFieldsV1.subtask_of,
 };
+
+const ROOT_FIELDS_V1 = new Set(Object.keys(fieldsV1));
+const ROOT_FIELDS_V2 = new Set(Object.keys(fieldsV2));
+const TASK_FIELDS = new Set(Object.keys(taskFieldsV1));
+const NODE_FIELDS = new Set(Object.keys(nodeFieldsV2));
 
 function validate(obj, fieldMap, label) {
   const errors = [];
@@ -110,6 +123,7 @@ function validateTasks(tasks) {
   for (let i = 0; i < tasks.length; i++) {
     const t = tasks[i];
     if (!t || typeof t !== 'object') { errors.push(`tasks[${i}] must be object`); continue; }
+    errors.push(...unknownFields(t, TASK_FIELDS, `tasks[${i}]`));
     for (const [key, validator] of Object.entries(taskFieldsV1)) {
       const err = validator(t[key]);
       if (err) errors.push(`tasks[${i}].${key}: ${err}`);
@@ -160,6 +174,7 @@ function validateNodes(nodes) {
   for (const [id, n] of Object.entries(nodes)) {
     seenIds.add(id);
     if (!n || typeof n !== 'object') { errors.push(`nodes.${id} must be object`); continue; }
+    errors.push(...unknownFields(n, NODE_FIELDS, `nodes.${id}`));
     for (const [key, validator] of Object.entries(nodeFieldsV2)) {
       const err = validator(n[key]);
       if (err) errors.push(`nodes.${id}.${key}: ${err}`);
@@ -167,20 +182,27 @@ function validateNodes(nodes) {
   }
   return errors;
 }
-const failHistoryItemFields = {
+const failHistoryItemFieldsV1 = {
   task_id: v => typeof v === 'string' && v.length > 0 ? null : `fail_history[].task_id must be non-empty string, got ${JSON.stringify(v)}`,
   round: v => Number.isInteger(v) && v >= 0 ? null : `fail_history[].round must be non-negative integer, got ${v}`,
   reason: v => typeof v === 'string' ? null : `fail_history[].reason must be string, got ${typeof v}`,
 };
 
-function validateFailHistory(history) {
+const failHistoryItemFieldsV2 = {
+  node_id: v => typeof v === 'string' && v.length > 0 ? null : `fail_history[].node_id must be non-empty string, got ${JSON.stringify(v)}`,
+  round: failHistoryItemFieldsV1.round,
+  reason: failHistoryItemFieldsV1.reason,
+};
+
+function validateFailHistory(history, fieldMap) {
   const errors = [];
   if (!Array.isArray(history)) return errors;
   if (history.length > 10) errors.push(`fail_history must have at most 10 items, got ${history.length}`);
   for (let i = 0; i < history.length; i++) {
     const item = history[i];
     if (!item || typeof item !== 'object') { errors.push(`fail_history[${i}] must be object`); continue; }
-    for (const [key, validator] of Object.entries(failHistoryItemFields)) {
+    errors.push(...unknownFields(item, new Set(Object.keys(fieldMap)), `fail_history[${i}]`));
+    for (const [key, validator] of Object.entries(fieldMap)) {
       const err = validator(item[key]);
       if (err) errors.push(`fail_history[${i}].${key}: ${err}`);
     }
@@ -223,16 +245,18 @@ function main() {
   let errors = [];
   if (version === 1) {
     errors = validate(obj, fieldsV1, 'root');
+    errors.push(...unknownFields(obj, ROOT_FIELDS_V1, 'root'));
     if (Array.isArray(obj.tasks)) errors.push(...validateTasks(obj.tasks));
     if (Array.isArray(obj.tasks)) {
       const cycle = checkCycles(obj.tasks);
       if (cycle) errors.push(`Circular dependency detected: ${cycle.join(' → ')} → ${cycle[0]}`);
     }
-    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history));
+    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history, failHistoryItemFieldsV1));
   } else if (version === 2) {
     errors = validate(obj, fieldsV2, 'root');
+    errors.push(...unknownFields(obj, ROOT_FIELDS_V2, 'root'));
     if (obj.nodes) errors.push(...validateNodes(obj.nodes));
-    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history));
+    if (Array.isArray(obj.fail_history)) errors.push(...validateFailHistory(obj.fail_history, failHistoryItemFieldsV2));
   }
 
   if (errors.length === 0) {

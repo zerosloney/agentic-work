@@ -87,7 +87,7 @@ consecutive_failures: N
 2. **WAIT_REVIEW**：调用 `task` 工具，target=`ralph-reviewer`，把 `=== 目标 / 当前任务 / 执行者产出 / 本轮变更 / 审查轮次 ===` 注入 query 字段。
 3. **JUDGE**：根据 review verdict 写入状态文件，决定下一轮 action。
 
-**Completion promise 检查**：若状态文件 `completion_promise` 非空，每轮 JUDGE 阶段检查执行者输出的**末尾非空行**是否为独占一行的 `<promise>...</promise>` 标签（内容与 `completion_promise` 值完全一致）。嵌在代码块/文件内容/引用中或出现在中间位置的标签一律不算——防止任务本身产出含该文本时误判完成。匹配则立即设置 `stop_reason="DONE"`，跳过后续任务。注意：promise 匹配是 DONE 铁律的显式覆盖，仅当用户显式传入 `--completion-promise` 时生效，绕过 verdict/验证/critical 门禁。
+**Completion promise 检查**：若状态文件 `completion_promise` 非空，每轮 JUDGE 阶段检查执行者输出的**末尾非空行**是否为独占一行的 `<promise>...</promise>` 标签（内容与 `completion_promise` 值完全一致）。嵌在代码块/文件内容/引用中或出现在中间位置的标签一律不算。promise 只作为用户请求的完成信号，不能替代正常 DONE 门禁；匹配后仍必须完成所有任务，并通过 reviewer verdict、验证、critical 和人工确认检查，才可设置 `stop_reason="DONE"`。
 工具参数统一为 `description`（3-5 个词的任务标题）、`query`（完整上下文）、`response_language: "zh"`。
 
 ## 状态管理
