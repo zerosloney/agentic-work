@@ -17,6 +17,7 @@ __pycache__/
 obj/
 bin/
 reports/
+.review-cache/
 
 # 审查报告(放插件目录也忽略,避免 REVIEW-*.md 入库)
 REVIEW-*.md
