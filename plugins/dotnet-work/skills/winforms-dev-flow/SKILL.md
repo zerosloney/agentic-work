@@ -4,19 +4,20 @@ description: |
   WinForm + DevExpress 业务窗体生成（.NET Framework 4.7.2）。
 
   **何时使用（按场景）**：
-  - **创建**：user says "create a business form" / "generate form and bind data" / "create presenter/ser"；或描述 建列表窗体、主从结构、编辑弹窗、查询/新增/修改/删除 界面
-  - **维护/扩展**：user says "加个列" / "加个导出按钮" / "改成泛型风格" / "换成 ORM"；或对既有窗体做增量编辑、架构迁移、ucl 抽取
-  - **按风格生成**：user says "按 X 模块风格" / "跟 frmXXX 一样"，参照项目既有窗体模式生成
-  - **故障修复**：生成的窗体编译/运行报错，如 `SqlOperate 找不到` / `GridStyle 未注册` / `DALBase<T> 编译失败` / `控件挤一起/Tab 乱` — 此时先查 `references/failure-modes.md` 顶部「症状→案例速查表」定位根因
+  - **创建**：user says "create a business form" / "generate form and bind data" / "create presenter/ser" / "add a column" / "master-detail form" / "edit dialog" / "query/create/update/delete UI"；或描述 建列表窗体、主从结构、编辑弹窗、查询/新增/修改/删除 界面
+  - **维护/扩展**：user says "加个列" / "加个导出按钮" / "改成泛型风格" / "换成 ORM" / "add an export button" / "refactor to generic style" / "switch to ORM"；或对既有窗体做增量编辑、架构迁移、ucl 抽取
+  - **按风格生成**：user says "按 X 模块风格" / "跟 frmXXX 一样" / "match the style of module X"，参照项目既有窗体模式生成
+  - **故障修复**：生成的窗体编译/运行报错，如 `SqlOperate 找不到` / `GridStyle 未注册` / `DALBase<T> 编译失败` / `控件挤一起/Tab 乱` / "SqlOperate not found" / "GridStyle unregistered" / "DALBase<T> compile error" / "controls overlapping / tab order broken" — 此时先查 `references/failure-modes.md` 顶部「症状→案例速查表」定位根因
 
   **不要用于**：简单对话框、纯 API 调用、无 DevExpress 的基础 WinForms。
 when_to_use: |
   用户需要生成 WinForms + DevExpress 业务窗体、增量编辑现有窗体、架构迁移、故障修复时使用。
-  触发词："生成窗体"、"WinForms"、"DevExpress"、"加个列"、"主从结构"、"编辑弹窗"。
+  触发词："生成窗体"、"WinForms"、"DevExpress"、"加个列"、"主从结构"、"编辑弹窗"；
+  English: "generate form", "add a column", "master-detail", "edit dialog", "refactor to generic", "switch to ORM"。
 license: MIT
 metadata:
   author: master0071
-  version: 1.0.0
+  version: 1.0.5
   category: code-generation
 ---
 
@@ -50,7 +51,7 @@ metadata:
 | 控件使用规范、项目家族特定配置 | `references/devexpress-controls.md` |
 | Designer 模板选择、InitializeComponent 片段库 | `references/designer-template-list.md` + `references/designer-patterns.md` |
 | 三层架构 + 命名规范 | `references/three-tier-mvp.md` |
-| 项目指纹扫描 | **权威**：`python scripts/scan_project.py --root "<项目根>"`（脚本为准，PowerShell 命令仅作降级）。**降级条件**：Python 不可用或脚本失败时，用 `references/project-fingerprint.md §0.2` 的 PowerShell glance 命令（与脚本同源，修改时需同步两处） |
+| 项目指纹扫描 | **权威**：`python scripts/scan_project.py --root "<项目根>"`（脚本内建 rg→pure-Python 降级）。**降级**：Python 不可用时报错让用户安装 Python 3.8+，不维护 PowerShell 平行命令 |
 | 失败案例排查 | `references/failure-modes.md` |
 | Entity/字段缺失，需连库查 schema | **首选** `python skill://database-explorer/scripts/db_tool.py explore --semantic <关键词> --format json-compact` 找表，再 `explore --object-type column --table <表名> --detail full` 拉列定义；DB 不可达 / 用户拒绝连库时回退到让用户粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
 | 增量编辑现有窗体（加列/加按钮/修改 Designer） | `scripts/incremental_designer.py`（VisibleIndex 自动计算 + 代码生成） |
@@ -91,9 +92,10 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 | 2 | **Entity 或字段来源** | `Entity.PartInfo` / 表名 / 字段清单 | 现有 Entity / DB schema（**首选走 database-explorer** skill 连库查）/ 用户提供字段 |
 | 3 | **项目根 + 目标目录** | `.sln` 所在目录 + 业务模块目录 | 用户指定；无法推断时问 |
 | 4 | **构建入口** | `.sln` / `.csproj` + Configuration/Platform | 优先项目现有配置；多候选时问 |
-| 5 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，**首选 database-explorer**（`python skill://database-explorer/scripts/db_tool.py ...`）；DB 不可达 / 用户拒绝连库时回退到让用户直接粘贴字段定义，不阻塞 |
+| 5 | **目标框架版本** | `.NET Framework 4.7.2`（本 skill 限定） | 读 `.csproj` `<TargetFrameworkVersion>`；非 4.7.2（如 4.8 / `net6.0-windows`）→ **停下来告知用户本 skill 针对 4.7.2 + DevExpress 21.2 验证，其他版本未覆盖，确认是否继续** |
+| 6 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，**首选 database-explorer**（`python skill://database-explorer/scripts/db_tool.py ...`）；DB 不可达 / 用户拒绝连库时回退到让用户直接粘贴字段定义，不阻塞 |
 
-缺少 1/2/3 时先问用户；**缺少 4（构建入口）时阻断，不进入 Step 1**。无法确认 `.sln` / `.csproj` 路径及 Configuration/Platform，Step 5b MSBuild 验证无法执行，交付物不可验证。
+缺少 1/2/3 时先问用户；**缺少 4（构建入口）时阻断，不进入 Step 1**。无法确认 `.sln` / `.csproj` 路径及 Configuration/Platform，Step 5b MSBuild 验证无法执行，交付物不可验证。**第 5 项（目标框架版本）非 4.7.2 时必须停下确认**——用户同意才继续，不同意则交人工。
 
 **Designer 强制门**：Step 4 前必加载 `references/dev-21.2-reference.md`「输出文件精确规范」节 + `designer-template-list.md` + `designer-patterns.md`，按选中模板复制，不凭印象拼 InitializeComponent。
 
@@ -101,8 +103,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 
 > **必跑**。**全项目扫描**(不只 1-2 个对照窗体),输出项目家族 + 异质性等级,作为 Step 1 的输入。
 > **权威来源**：指纹扫描以 `python scripts/scan_project.py --root "<项目根>"` 为准，直接输出指纹卡。
-> **降级路径**：Python 不可用或需调试时，用 `references/project-fingerprint.md §0.2` 的 PowerShell glance 命令（与脚本同源）。
-> ⚠️ **修改指纹逻辑时必须同步改脚本和 PowerShell 命令两处**，避免漂移。
+> **降级**：仅当 Python 不可用时——报错提示用户安装 Python 3.8+，不回退 PowerShell（脚本已内建 rg→pure-Python 降级，单源维护）。
 > 异质性等级 🟢 → 直接进 Step 1；🟡/🔴 → 按提示用户二选一。
 
 #### 两档命令一览
@@ -114,9 +115,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 
 #### glance 命令
 
-> **权威命令在 `references/project-fingerprint.md`**：§0.2 = `rg` 版（推荐，8s），§0.3 = Select-String 兜底版（`rg` 不可用时，递归扫描）。
-> ⚠️ **必须用文件级去重 + `SkipComment` 过滤注释**，不要用简化版行级计数（`rg -l ... .Count`）——否则会把注释残留当真实调用（实测 `varlist.ASSConn` 误扫 311 次全是注释）。
-> ⚠️ 修改指纹逻辑时必须同步改 `scripts/scan_project.py` 与 reference §0.2/§0.3 两处，避免漂移。
+> **权威命令**：`python scripts/scan_project.py --root "<项目根>"`（脚本内建 rg→pure-Python 降级 + 文件级去重 + 注释过滤，单源维护，无平行 PowerShell 命令）。
 
 #### 输出与决策
 
@@ -220,6 +219,19 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 5. **View 接口** `I{业务名}View`：**成员风格保持与参照窗体一致**——参照用单向 `set` 属性就用 `set` 属性；参照用方法式（`Set{X}(List<..>)` / `ShowMessage(..)` / `ConfirmYesNo(..)` / `Refresh{X}()`）+ get-only 输入属性时也用方法式，不强改为 set-only（实测 WHXL/CSS.*.Extend 全线方法式，CRS 全线 set 属性，二者都合法）
 6. **窗体/Designer**：实现 View 接口，`_Load` 中创建 Presenter，绑定控件
 
+   **Designer 生成路由**（按场景选途径，不混用）：
+
+   | 场景判定 | 途径 | 命令/文件 |
+   |---------|------|----------|
+   | 全新窗体 + 场景 ∈ {grid/tree/layout}（脚本覆盖的 3 场景） | 脚本生成草稿 → 按参照微调 | `python scripts/designer_generator.py generate --family <X> --scenario <Y> ...` |
+   | 全新窗体 + 场景 ∈ {RepositoryItem 套件/SplitContainer+DockManager/XtraTabControl}（脚本未覆盖） | 手抄片段 | `references/designer-patterns.md` 对应 § + `designer-template-list.md` |
+   | 全新窗体走 CRUD 主从 / 表单弹窗模板 | 手抄模板 | `designer-template-a-crud.md` / `designer-template-b-form.md` |
+   | 增量编辑既有窗体（加列/加按钮，不改基类/GridStyle） | 脚本生成增量补丁 | `python scripts/incremental_designer.py patch --designer <X.Designer.cs> --columns ... --buttons ...` |
+   | 增量但需大改结构（换基类/换 GridStyle） | 回退全量生成 | 走 Step 0 重新生成 |
+
+   > **覆盖范围差异**：`designer_generator.py` 支持 grid/tree/layout 三场景；RepositoryItem 套件、SplitContainer+DockManager、XtraTabControl 多 Tab 三场景**仅 designer-patterns.md 有片段**，脚本未实现——遇这三场景必走手抄。
+   > **生成后必须**：对照参照窗体核对 GridStyle 第一参数、基类、命名空间（Step 1 提取项），脚本草稿是起点不是终点。
+
 > 代码严格遵循 Step 1 真实模式，不套静态模板。需架构/绑定规范时加载 `three-tier-mvp.md`。
 
 **⚠️ Presenter 事件退订规范（防内存泄漏）**：
@@ -272,7 +284,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
   - 构建失败时只修复本次生成/修改导致的错误；若是预先存在或环境缺依赖，交付时明确列出
   - **命令模板**：用 `vswhere.exe` 动态探测 MSBuild.exe 路径（覆盖 Community/Professional/Enterprise/BuildTools，注册表降级）再构建——完整可执行命令（探测 + `.sln`/`.csproj` 构建 + 失败诊断）见 `references/msbuild-commands.md`。
 - **5b-roslyn** MSBuild 通过后，调用 **dotnet-code-review** skill 做静态分析（.NET Framework 项目专用模式）：
-  - .NET Framework 项目无法使用 code-review 的完整模式（Build/Format 层需要 SDK 风格项目 + .NET 6+ SDK），但 AST/语义/项目三级分析器是预编译 DLL，通过 Roslyn AdHocWorkspace 直接分析源码，不需要构建目标项目。
+  - .NET Framework 项目无法使用 code-review 的完整模式（Build/Format 层需要 SDK 风格项目 + .NET 6+ SDK），但 AST/语义/项目三级分析器通过 Roslyn DLL 直接分析源码，不需要构建目标项目；首次使用若 DLL 不存在会自动构建运行。
   - 使用 `--legacy-compat` 标志跳过 SDK 硬门槛 + 自动跳过 Build/Format 层：
     ```bash
     python skill://dotnet-code-review/scripts/review.py \
@@ -343,12 +355,16 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 
 | 文件 | 触发条件 |
 |------|---------|
-| `references/advanced-features.md` | 用户要求以下任一：状态颜色/分页/右键菜单/TreeList 拖拽/级联填充/报表打印/多选下拉/等待窗体/HTML 模板/VGridControl/Accordion/DirectX Form 等 37 个高级特性（顶部有关键词索引表） |
-| `references/gridview-advanced.md` | 用户要求 GridView 条件格式/汇总/排序/筛选/行高/外观时 |
-| `references/treelist-advanced.md` | 用户要求 TreeList 节点操作/主从联动/拖拽/筛选时 |
+| `references/advanced-features.md` | 用户要求项目特有杂项功能：右键菜单/分页加载/导出 Excel/深拷贝/CRS 权限菜单/GridControl 空数据保护/验证输入/GridLookUpEdit 多选/varlist_Dialog/报表打印/CSS DALBase\<T\>/RepositoryItem 编辑器/Grid+TreeList 联动验证/TreeListLookUpEdit 下拉树/SplitContainer+DockPanel/XtraTabControl 多 Tab（顶部有关键词索引表） |
+| `references/gridview-advanced.md` | 用户要求 GridView 条件格式/状态颜色/汇总/排序/筛选/行高/行号/外观时 |
+| `references/treelist-advanced.md` | 用户要求 TreeList 节点操作/主从联动/拖拽/展开收缩菜单/筛选时 |
 | `references/editors-reference.md` | 需要 14 种编辑器（TextEdit/DateEdit/LookUpEdit 等）精确配置时 |
 | `references/layout-advanced.md` | 用户要求 LayoutControl 三种布局/分组/保存恢复/可见性控制时 |
 | `references/print-export.md` | 用户要求导出 Excel/CSV、打印预览时 |
+| `references/html-template-advanced.md` | 用户要求 HTML & CSS 模板：TileView/CardView/WinExplorerView HTML 渲染、DrawHTML 降级方案（v21.2+） |
+| `references/vgrid-control-advanced.md` | 用户要求 VGridControl 垂直网格（属性面板式编辑，四种布局模式） |
+| `references/accordion-control-advanced.md` | 用户要求 AccordionControl 手风琴导航（多级折叠菜单 + HTML 模板） |
+| `references/directx-form-advanced.md` | 用户要求 DirectX Form 硬件加速表单（v22.1+，HTML 标题栏模板） |
 
 ## 文件输出 & Output contract
 

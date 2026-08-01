@@ -1,6 +1,7 @@
 # 特殊功能代码模板
 
 > 本文件由 SKILL.md Step 4 按需加载。仅在用户要求对应高级功能时读取；不要全量加载，按下表定位章节。
+> **2026-08 重组**：§1（状态颜色）/§8（行号）/§10（TreeList 拖拽）已移至 gridview/treelist-advanced 避免重复；§20-23（HTML 模板/VGrid/Accordion/DirectX）已抽为独立手册。本文件保留项目特有杂项（右键菜单/分页/导出/权限菜单/级联验证/SplitContainer+DockPanel/XtraTabControl 等）。
 
 ## 需求关键词 → 章节速查(优先用这张表)
 
@@ -8,15 +9,15 @@
 
 | 用户需求 / 关键词 | 章节 |
 |------------------|------|
-| "状态颜色" / "按状态变色" / "审批通过的行高亮" | §1 |
+| "状态颜色" / "按状态变色" / "审批通过的行高亮" | `references/gridview-advanced.md`（GV）/ `references/treelist-advanced.md`（TL） |
 | "右键菜单" / "ContextMenuStrip" / "右键增删改" | §2(Upgrader) / §6(CRS) / §7(空数据保护) |
 | "分页" / "下一页" / "每页 50 条" | §3 |
 | "导出 Excel" / "导出" / "cmsExport" | §4（或见 `references/print-export.md`） |
 | "深拷贝" / "DeepClone" / "编辑时不影响原数据" | §5 |
 | "权限菜单" / "AddControlItemGroupConfig" / "按钮权限" | §6(CRS 专用) |
-| "行号" / "序号列" / "CustomDrawRowIndicator" | §8 |
+| "行号" / "序号列" / "CustomDrawRowIndicator" | `references/gridview-advanced.md` |
 | "校验" / "必填" / "验证输入" / "保存前检查" | §9 / §16 |
-| "拖拽" / "拖动节点" / "TreeList DragDrop" | §10（或见 `references/treelist-advanced.md`） |
+| "拖拽" / "拖动节点" / "TreeList DragDrop" | `references/treelist-advanced.md` |
 | "多选下拉" / "GridLookUpEdit 勾选" / "GridCheckMarksSelection" | §11 |
 | "等待窗体" / "WaitDialog" / "varlist_Dialog" | §12 |
 | "报表" / "打印" / "ReportDesign" / "ShowReportView" | §13 |
@@ -34,25 +35,25 @@
 | "编辑器配置" / "DateEdit" / "LookUpEdit" / "SpinEdit" | `references/editors-reference.md` |
 | "Table Layout" / "网格布局" / "LayoutControl 分组" | `references/layout-advanced.md` |
 | "打印" / "导出 Excel" / "ExportToXlsx" | `references/print-export.md` |
-| "HTML 模板" / "TileView" / "CardView HTML" / "WinExplorer HTML" | §20 |
-| "VGrid" / "垂直网格" / "属性面板" | §21 |
-| "Accordion" / "手风琴" / "折叠菜单" | §22 |
-| "DirectX" / "DirectXForm" / "硬件加速表单" | §23 |
+| "HTML 模板" / "TileView" / "CardView HTML" / "WinExplorer HTML" | `references/html-template-advanced.md` |
+| "VGrid" / "垂直网格" / "属性面板" | `references/vgrid-control-advanced.md` |
+| "Accordion" / "手风琴" / "折叠菜单" | `references/accordion-control-advanced.md` |
+| "DirectX" / "DirectXForm" / "硬件加速表单" | `references/directx-form-advanced.md` |
 
 ## 章节索引(按编号)
 
 | 功能 | 章节 |
 |------|------|
-| 状态颜色渲染 | §1 |
+| 状态颜色渲染 | → `gridview-advanced.md`（GV）/ `treelist-advanced.md`（TL） |
 | 右键菜单 | §2 |
 | 分页加载 | §3 |
 | 导出 Excel | §4 |
 | 深拷贝 | §5 |
 | CRS 权限菜单 | §6 |
 | GridControl 右键菜单空数据保护 | §7 |
-| 行号显示 | §8 |
+| 行号显示 | → `gridview-advanced.md` |
 | 验证输入 | §9 |
-| TreeList 拖拽 / 主从联动 / 展开菜单 | §10 |
+| TreeList 拖拽 / 主从联动 / 展开菜单 | → `treelist-advanced.md` |
 | GridLookUpEdit 多选 | §11 |
 | varlist_Dialog | §12 |
 | 报表打印 | §13 |
@@ -62,47 +63,16 @@
 | TreeListLookUpEdit 下拉树 | §17 |
 | SplitContainer + DockPanel 布局 | §18 |
 | XtraTabControl 多标签页 | §19 |
-| HTML & CSS 模板（v21.2） | §20 |
-| VGridControl 垂直网格 | §21 |
-| Accordion Control 手风琴导航 | §22 |
-| DirectX Form（v22.1） | §23 |
+| HTML & CSS 模板（v21.2） | `references/html-template-advanced.md` |
+| VGridControl 垂直网格 | `references/vgrid-control-advanced.md` |
+| Accordion Control 手风琴导航 | `references/accordion-control-advanced.md` |
+| DirectX Form（v22.1） | `references/directx-form-advanced.md` |
 
 ## 1. 状态颜色渲染
 
-### TreeList 版本
-
-```csharp
-private void tlMain_CustomDrawNodeCell(object sender, CustomDrawNodeCellEventArgs e)
-{
-    if (e.Node == null) return;
-    var view = tlMain.GetDataRecordByNode(e.Node) as TreeNodeView;
-    if (view == null) return;
-
-    if (view.Status == (int)OrderStatus.Submitted)
-        e.Appearance.BackColor = Color.Pink;
-    else if (view.Status == (int)OrderStatus.Approved)
-        e.Appearance.BackColor = Color.LightGreen;
-    else if (view.Status == (int)OrderStatus.Rejected)
-        e.Appearance.BackColor = Color.Red;
-}
-```
-
-### GridView 版本（RowCellStyle 事件，推荐）
-
-```csharp
-private void gvMain_RowCellStyle(object sender, RowCellStyleEventArgs e)
-{
-    var row = gvMain.GetRow(e.RowHandle) as OrderInfo;
-    if (row == null) return;
-
-    if (row.Status == 1)
-        e.Appearance.BackColor = Color.Pink;
-    else if (row.Status == 2)
-        e.Appearance.BackColor = Color.LightGreen;
-    else if (row.Status == 3)
-        e.Appearance.BackColor = Color.Red;
-}
-```
+> 已移至专题手册（避免与 gridview/treelist-advanced 重复）：
+> - GridView 版本（RowCellStyle 事件）：见 `references/gridview-advanced.md` 条件格式节
+> - TreeList 版本（CustomDrawNodeCell）：见 `references/treelist-advanced.md` 条件格式节
 
 ## 2. 右键菜单（ContextMenuStrip）
 
@@ -255,113 +225,15 @@ private void gv_MouseUp(object sender, MouseEventArgs e)
 
 ## 8. 行号显示
 
-```csharp
-private void gv_CustomDrawRowIndicator(object sender, RowIndicatorCustomDrawEventArgs e)
-{
-    if (e.RowHandle < 0) return;
-    e.Info.DisplayText = (gv.GetVisibleIndex(e.RowHandle) + 1).ToString();
-}
-```
+> 已移至 `references/gridview-advanced.md` 行号显示节（CustomDrawRowIndicator 实现，避免重复）。
 
 ## 9. 验证输入
 
 输入校验：按参照窗体的校验风格实现，常见为 `string.IsNullOrEmpty` 检查 + 消息提示。
 
-## 10. TreeList 拖拽功能（完整模式）
+## 10. TreeList 拖拽 / 主从联动 / 展开菜单
 
-### 标准拖放（节点类型验证 + DB 同步）
-
-```csharp
-private TreeListHitInfo _tlHitInfo;
-private bool _dragInner = false;
-
-private void tlMain_MouseDown(object sender, MouseEventArgs e)
-{
-    _tlHitInfo = tlMain.CalcHitInfo(new Point(e.X, e.Y));
-}
-
-private void tlMain_MouseMove(object sender, MouseEventArgs e)
-{
-    if (e.Button != MouseButtons.Left) return;
-    if (tlMain.Selection.Count < 1) return;
-    if (_tlHitInfo.HitInfoType != HitInfoType.Cell) return;
-
-    // 验证：仅允许特定类型的节点拖动
-    foreach (TreeListNode tn in tlMain.Selection)
-    {
-        var row = (tlMain.GetDataRecordByNode(tn) as DataRowView)?.Row;
-        if (row["Type"].ToString() != "可拖动类型")
-            return;
-    }
-    _dragInner = true;
-    tlMain.DoDragDrop(tlMain.Selection, DragDropEffects.Move);
-}
-
-private void tlMain_DragEnter(object sender, DragEventArgs e)
-{
-    e.Effect = DragDropEffects.Move;
-}
-
-private void tlMain_DragDrop(object sender, DragEventArgs e)
-{
-    TreeListHitInfo HI = tlMain.CalcHitInfo(
-        tlMain.PointToClient(new Point(e.X, e.Y)));
-    TreeListNode targetNode = HI.Node;
-    if (targetNode == null) return;
-
-    foreach (TreeListNode tn in tlMain.Selection)
-    {
-        // 验证目标类型
-        var targetRow = GetNodeRow(tlMain, targetNode);
-        if (targetNode != tn.ParentNode
-            && targetRow["Type"].ToString() != "禁止目标类型")
-        {
-            // 1. 更新数据库
-            string sql = $"UPDATE TableName SET ParentID='{targetRow["ID"]}' WHERE ID='{GetNodeRow(tlMain,tn)["ID"]}'";
-            _so.SqlExcuteNoQuery(sql, varlist.ASSConn);
-            // 2. 移动节点
-            tlMain.MoveNode(tn, targetNode);
-        }
-    }
-}
-
-// TreeList GetDataRecordByNode 辅助
-private DataRow GetNodeRow(TreeList tl, TreeListNode node)
-{
-    return ((DataRowView)tl.GetDataRecordByNode(node)).Row;
-}
-```
-
-### TreeList FocusedNodeChanged（主从联动）
-
-```csharp
-private void tlMain_FocusedNodeChanged(object sender, FocusedNodeChangedEventArgs e)
-{
-    // 排除筛选行
-    if (e.Node is TreeListAutoFilterNode || e.Node == null) return;
-
-    var row = GetNodeRow(tlMain, e.Node);
-    string nodeType = row["NodeType"].ToString();
-    string imageIndex = row["ImageIndex"].ToString();
-
-    if (nodeType == "业务类型A" && imageIndex == ((int)ImageIndex.TypeA).ToString())
-    {
-        _presenter.LoadDetail(row["ID"].ToString());
-    }
-    else
-    {
-        gcDetail.DataSource = null;
-    }
-}
-```
-
-### TreeList 展开/收缩菜单
-
-```csharp
-// CSSTreeList 扩展方法，自动生成 "展开" | "收缩" | "全部展开" | "全部收缩" 四项菜单
-tlMain.InitExpandAndCollapse(cms);
-// 手动：tlMain.ExpandAll() / tlMain.CollapseAll()
-```
+> 已移至 `references/treelist-advanced.md`（标准拖放节点类型验证 + DB 同步、FocusedNodeChanged 主从联动、InitExpandAndCollapse 展开/收缩菜单，全覆盖，避免重复）。
 
 ## 11. GridLookUpEdit 多选
 
@@ -722,346 +594,3 @@ private void frm_Load(object sender, EventArgs e)
 ```
 
 
-## 20. HTML & CSS 模板（v21.2+ Grid 视图）
-
-> 适用版本：DevExpress v21.2+。需引用 `DevExpress.XtraGrid.v21.2.dll`。以下源码整理自官方文档 `docs.devexpress.com/WindowsForms/119961/` 和官方博客（evget.com v21.2 新特性）。
-
-HTML/CSS 模板让 Grid 的 TileView、CardView、WinExplorerView 支持 Web 风格的卡片渲染，无需 CustomDraw 手动绘制。
-
-### 20.1 TileView HTML 磁贴模板
-
-TileView 支持 `TileHtmlTemplate`（单一模板）或 `TileHtmlTemplates` 集合（多模板 + `QueryItemTemplate` 事件切换）。
-
-```csharp
-// 1. 声明模板（HTML + CSS）
-string tileHtmlTemplate = @"
-<div class='tile'>
-  <div class='title'>${Name}</div>
-  <div class='subtitle'>${Category}</div>
-  <div class='price'>¥${Price}</div>
-  <div class='badge'>${Status}</div>
-</div>";
-
-// 2. 分配给 TileView
-tileView1.TileHtmlTemplate = tileHtmlTemplate;
-
-// 3. 可选：多模板时处理切换事件
-tileView1.QueryItemTemplate += (sender, e) =>
-{
-    var data = tileView1.GetRow(e.RowHandle) as Product;
-    if (data == null) return;
-    e.TemplateId = data.IsFeatured ? "featured" : "normal";
-};
-
-// 4. 可选：响应 HTML 元素点击事件（交互元素）
-tileView1.ElementMouseClick += (s, e) =>
-{
-    if (e.ElementId == "btnDetails")
-        ShowProductDetail(e.RowHandle);
-};
-```
-
-> CSS 示例（支持阴影、圆角等 Web 效果）：
-> ```css
-> .tile { width: 200px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 12px; }
-> .title { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
-> .price { color: #e74c3c; font-size: 16px; font-weight: bold; }
-> .badge { background: #3498db; color: white; border-radius: 4px; padding: 2px 6px; font-size: 11px; }
-> ```
-
-### 20.2 CardView 命名占位符（替代索引占位符）
-
-v21.2 新增：CardCaptionFormat 支持字段名替代列索引 `{0}`、`{1}`。
-
-```csharp
-// 旧写法（v21.1 及之前，按列索引引用）
-cardView1.CardCaptionFormat = "Record # {0}, {1}";
-
-// v21.2+ 新写法（用字段名，更稳定）
-cardView1.CardCaptionFormat = "Record # {0}, {Name}";
-
-// RecordHeaderFormat 同理
-cardView1.RecordHeaderFormat = "{0} - {EmployeeName}";
-```
-
-### 20.3 WinExplorerView HTML 模板
-
-WinExplorerView（文件浏览器视图）支持 `HtmlTemplates` 集合 + `QueryItemTemplate` 事件：
-
-```csharp
-// 每个视图样式（大图标/图块/详细信息）可单独设置模板
-winExplorerView1.Style = WinExplorerViewStyle.Tile;
-winExplorerView1.StyleOptions.HtmlTemplate = tileHtmlTemplate;  // 大图标模板
-winExplorerView1.StyleOptions = WinExplorerViewStyleOptions.Large; // 切到大图标
-
-// 动态模板
-winExplorerView1.HtmlTemplates.Add(new HtmlTemplate { Id = "custom", Content = myTemplate });
-winExplorerView1.QueryItemTemplate += (s, e) =>
-{
-    var item = winExplorerView1.GetRow(e.RowHandle) as MyItem;
-    e.TemplateId = item.IsHighlighted ? "custom" : null;  // null = 使用默认
-};
-```
-
-### 20.4 数据绑定语法
-
-模板中引用数据字段用 `${FieldName}` 占位符（区分大小写）：
-
-```html
-<input class="input" name="emailEdit" value='${Email}'/>
-<div class="text">${FullName} ({Ticker}) 涨跌 ${Direction} ${Percentage}%。当前价格 ${Price}.</div>
-```
-
-> 绑定枚举值：`${Direction}` 配合 `AlertControl.BeforeFormShow` 事件中 `e.HtmlPopup.DataContext = myDataObject`。
-
-### 20.5 CustomDraw~/DrawHTML() 降级方案
-
-并非所有控件都原生支持 HTML 模板，但所有 `CustomDraw~` 事件都带 `DrawHtml()` 方法：
-
-```csharp
-// 在 CustomDrawEmptyForeground 中绘制 HTML 背景（ListBox 等空状态）
-private void listBox_CustomDrawEmptyForeground(object sender, CustomDrawEventArgs e)
-{
-    var htmlTemplate = new HtmlTemplate(myHtml, myCss);
-    var ctx = new DxHtmlPainterContext();
-    e.DrawHtml(htmlTemplate, ctx);
-}
-
-// 处理鼠标悬停/点击（需额外绑定 MouseMove/MouseDown）
-listBox.MouseMove += (s, e) =>
-{
-    if (listBox.ItemCount == 0)
-    {
-        ctx.OnMouseMove(e);
-        listBox.Cursor = ctx.GetCursor(e.Location);
-        listBox.Invalidate();
-    }
-};
-```
-
-### 20.6 已知限制（官方明确）
-
-- **不要**创建超过 2 层嵌套的 flex 布局（性能问题）
-- **不要**使用 CSS 动画（不支持）
-- **不要**在 HTML 元素上直接修改逻辑 → 改用 `ElementId` + 事件处理
-- **不要**直接拿外部 HTML/CSS 来用（可能包含不支持的标签/属性）
-- **不要**在 `CustomDraw~` 事件中修改 HTML 元素结构
-
-## 21. VGridControl（垂直网格）
-
-> 程序集：`DevExpress.XtraVerticalGrid.v21.2.dll`，命名空间：`DevExpress.XtraVerticalGrid`。
-
-VGridControl 将数据旋转 90° 显示（记录为列，字段为行），适合属性面板式编辑或单条记录详情展示。官方文档：`docs.devexpress.com/WindowsForms/116578/`。
-
-### 21.1 四种布局模式
-
-```csharp
-VGridControl vGrid = new VGridControl();
-vGrid.Dock = DockStyle.Fill;
-
-// 1. 单记录布局（默认，PropertyGrid 风格）
-vGrid.LayoutMode = DevExpress.XtraVerticalGrid.LayoutMode.Records;
-// 每条记录一行，字段垂直排列
-
-// 2. 分带布局（Banded）
-vGrid.LayoutMode = DevExpress.XtraVerticalGrid.LayoutMode.Banded;
-// 一个记录跨多列显示
-
-// 3. 多记录布局（反向网格）
-vGrid.LayoutMode = DevExpress.XtraVerticalGrid.LayoutMode.MultiRecords;
-// 多个记录从左到右排列
-
-// 4. 树形模式（分组可折叠）
-vGrid.LayoutMode = DevExpress.XtraVerticalGrid.LayoutMode.Tree;
-// 行可持有子行，展开/折叠
-
-// 分组类别（Category Rows）
-VGridCategoryRow categoryRow = new VGridCategoryRow("基本信息");
-categoryRow.Expanded = true;
-vGrid.Rows.Add(categoryRow);
-
-// 添加字段行
-VGridTextRow rowName = new VGridTextRow { Name = "Name", Caption = "姓名", Properties = { Value = "张三" } };
-VGridTextRow rowAge = new VGridTextRow { Name = "Age", Caption = "年龄" };
-vGrid.Rows.AddRange(new VGridRow[] { rowName, rowAge });
-```
-
-### 21.2 绑定 DataSource
-
-```csharp
-// 绑定 DataTable 或 List<T>
-vGrid.DataSource = myDataTable;  // 每行 = DataTable 列
-
-// 或绑定单条记录对象
-vGrid.DataSource = new List<MyEntity> { currentEntity };
-vGrid.RecordWidth = 300;  // 每条记录的宽度
-```
-
-### 21.3 排序和过滤（v21.1+）
-
-```csharp
-// v21.1 起支持行标题右键排序
-vGrid.OptionsBehavior.AllowSort = true;  // 默认 true，设为 false 禁用
-
-// 列过滤
-vGrid.ActiveFilterString = "[Status] = 'Active'";
-```
-
-### 21.4 与 GridControl 的核心区别
-
-| 特性 | GridControl | VGridControl |
-|------|------------|-------------|
-| 数据方向 | 行=记录，列=字段 | 行=字段，列=记录 |
-| 适合场景 | 数据列表、主从表 | 属性面板、详情编辑 |
-| 主从支持 | 内置 Detail View | 不支持 |
-| 编辑方式 | 单元格编辑器 | 行级编辑器 |
-
-## 22. Accordion Control（手风琴导航）
-
-> 程序集：`DevExpress.XtraBars.v21.2.dll`，命名空间：`DevExpress.XtraBars`。
-
-AccordionControl 是垂直折叠面板，适合做左侧导航菜单，支持多级嵌套、图标、HTML 模板。官方文档：`docs.devexpress.com/WindowsForms/116002/`。
-
-### 22.1 基本结构
-
-```csharp
-// 在 Form 上放 AccordionControl
-accordionControl1.Dock = DockStyle.Left;
-accordionControl1.Width = 250;
-
-// 根级别组
-AccordionControlElement groupMain = new AccordionControlElement();
-groupMain.Text = "主导航";
-groupMain.Expanded = true;
-accordionControl1.Elements.Add(groupMain);
-
-// 子元素
-AccordionControlElement item1 = new AccordionControlElement();
-item1.Text = "首页";
-item1.Style = ElementStyle.Item;  // Item = 可点击行
-item1.Name = "nav_home";
-groupMain.Elements.Add(item1);
-
-AccordionControlElement item2 = new AccordionControlElement();
-item2.Text = "数据管理";
-item2.Style = ElementStyle.Group;  // Group = 可折叠组
-groupMain.Elements.Add(item2);
-
-// 嵌套子项
-AccordionControlElement subItem = new AccordionControlElement();
-subItem.Text = "用户列表";
-subItem.Name = "nav_user_list";
-item2.Elements.Add(subItem);
-```
-
-### 22.2 点击事件
-
-```csharp
-accordionControl1.ElementClick += (s, e) =>
-{
-    var element = e.Element;
-    if (element.Name == "nav_home")
-        ShowHomePage();
-    else if (element.Name == "nav_user_list")
-        ShowUserList();
-};
-```
-
-### 22.3 AccordionControl 支持 HTML 模板
-
-Accordion 各部分（项目、页脚、组、页眉面板等）均支持 HTML 模板：
-
-```csharp
-// 为 Accordion 组设置 HTML 模板
-accordionControl1.HtmlTemplates.Add(new HtmlTemplate
-{
-    Id = "customGroup",
-    Content = "<div class='group-title'>${Text}</div>"
-});
-// 在设计器或代码中关联模板 ID
-```
-
-### 22.4 与 NavBarControl 的区别
-
-| 特性 | NavBarControl | AccordionControl |
-|------|--------------|-----------------|
-| 视觉风格 | Outlook 2007 风格 | 现代扁平折叠面板 |
-| 嵌套层级 | 有限 | 支持更深层级 |
-| HTML 模板 | 不支持 | 支持 |
-| 皮肤支持 | 传统皮肤 | 新版矢量皮肤 |
-| 推荐场景 | 旧项目兼容 | 新项目首选 |
-
-## 23. DirectX Form（v22.1+）
-
-> 适用版本：DevExpress v22.1+。需要 `DevExpress.XtraEditors.v22.1.dll` 及以上。
-
-DirectX Form 为所有子控件启用 DirectX 硬件加速，并支持在表单框架上应用 HTML/CSS 模板。官方博客（evget.com v22.1 新特性）：
-
-### 23.1 启用 DirectX 渲染
-
-```csharp
-// 方式一：项目全局设置（Program.cs）
-DevExpress.XtraEditors.WindowsFormsSettings.ForceDirectXPaint = DefaultBoolean.True;
-
-// 方式二：单个 Form 继承 DirectXForm（v22.1+）
-public partial class MyDirectXForm : DevExpress.XtraEditors.DirectXForm
-{
-    // 所有子控件自动启用 DirectX 渲染
-}
-
-// 方式三：Fluent Design Form（自带 DirectX + Acrylic 效果）
-public partial class MyFluentForm : DevExpress.XtraEditors.FluentDesignForm
-{
-    // 侧边半透明亚克力效果 + DirectX
-}
-```
-
-### 23.2 DirectX Form HTML 模板
-
-DirectX Form 接受 HTML 模板来自定义标题栏和框架：
-
-```csharp
-// 默认模板结构（标准窗口元素，无需 CSS 即可工作）
-string defaultTemplate = @"
-<dx-form-frame id='frame'>
-  <dx-form-titlebar id='titlebar'>
-    <dx-form-icon id='icon'></dx-form-icon>
-    <dx-form-text id='text'></dx-form-text>
-    <dx-form-minimizebutton id='minimizebutton'></dx-form-minimizebutton>
-    <dx-form-maximizebutton id='maximizebutton'></dx-form-maximizebutton>
-    <dx-form-closebutton id='closebutton'></dx-form-closebutton>
-  </dx-form-titlebar>
-  <dx-form-content id='content'></dx-form-content>
-</dx-form-frame>";
-
-// 最小自定义模板（无标准按钮样式）
-string minimalTemplate = @"
-<div id='frame' class='frame'>
-  <div id='content'></div>
-</div>
-<style>.frame { height: 100%; }</style>";
-
-// 最简有效模板（必须有 frame 和 content 元素 ID）
-string bareMinTemplate = @"
-<div id='frame' class='frame'>
-  <div id='content'></div>
-</div>
-<style>.frame { height: 100%; background: #f5f5f5; }</style>";
-
-// 赋值
-this.HtmlTemplate = bareMinTemplate;
-```
-
-### 23.3 DirectX Form vs 标准 XtraForm
-
-| 特性 | XtraForm | DirectXForm |
-|------|---------|-------------|
-| DirectX 渲染 | 需要全局开关 | 表单级启用 |
-| Ribbon/Gallery DirectX | 不支持 | 支持 |
-| HTML 标题栏模板 | 不支持 | 支持 |
-| 调整大小动画 | 标准 | 流畅动画 |
-| SimpleButton DirectX | 不支持 | 支持（表单内） |
-
-### 23.4 已知不支持的控件
-
-以下控件放在 DirectX Form 上**不会**使用 DirectX 渲染（即使放在支持 DirectX 的表单上）：电子表格（SpreadsheetControl）等。放置后它们会以标准 GDI+ 渲染。

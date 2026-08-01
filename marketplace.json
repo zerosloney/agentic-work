@@ -10,11 +10,16 @@
       "name": "dotnet-work-zcode",
       "source": "./plugins/dotnet-work",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
-      "version": "1.0.0",
+      "version": "1.0.5",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "development",
-      "keywords": ["dotnet", "csharp", "development", "skills"],
+      "keywords": [
+        "dotnet",
+        "csharp",
+        "development",
+        "skills"
+      ],
       "strict": true
     },
     {
@@ -25,7 +30,12 @@
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "workflow",
-      "keywords": ["workflow", "loop", "ralph", "coding"],
+      "keywords": [
+        "workflow",
+        "loop",
+        "ralph",
+        "coding"
+      ],
       "strict": true
     },
     {
@@ -36,7 +46,12 @@
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "workflow",
-      "keywords": ["workflow", "loop", "graph", "orchestration"],
+      "keywords": [
+        "workflow",
+        "loop",
+        "graph",
+        "orchestration"
+      ],
       "strict": true
     },
     {
@@ -47,7 +62,12 @@
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "observability",
-      "keywords": ["observability", "tracing", "skill", "telemetry"],
+      "keywords": [
+        "observability",
+        "tracing",
+        "skill",
+        "telemetry"
+      ],
       "strict": true
     }
   ]

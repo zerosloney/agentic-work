@@ -27,131 +27,13 @@
 | **glance**(默认) | 所有任务第一步 | 6 个查询(基类/数据访问/GridStyle/Collection/DAL 完整性/连接名),**全部过滤注释** | 迷你指纹卡(6 行) + 异质性等级 | 🟢 纯一 → 直接进 Step 1<br>🟡 / 🔴 → **自动升级到 deep** |
 | **deep**(完整指纹) | ①glance 输出 🟡/🔴<br>②用户主动说"做完整指纹"<br>③用户描述里有"项目很乱"/"过渡期"/"新模块上线"等关键词 | §1 全套(1.1-1.5) + git log | §4 完整指纹卡 | 按 §3 流程 |
 
-### §0.2 glance 命令(Agent 默认跑这一档:Windows/PowerShell + rg)
+### §0.2 glance 命令(权威:scan_project.py)
 
-```powershell
-# === GLANCE: 6 个查询,所有内容查询都过滤注释(防假阳性) ===
-$projectRoot = "C:\Src\YourProject"
+> **权威命令**：`python scripts/scan_project.py --root "<项目根>" [--subdir <目标子目录>]`
+> 脚本内建 rg→pure-Python 降级（`_has_rg()` 检测 + `_select_string()` pure-Python regex 扫描），无需手动维护 PowerShell 平行命令。
+> 以下 §0.2-glance/§0.3-SelectString 的 PowerShell 命令块已于 2026-08 移除——脚本失败时直接跑 `python scripts/scan_project.py` 调试，不再回退 PowerShell。
+> 探测的 6 个维度（与脚本 `glance` 函数一一对应）：窗体基类家族 / 数据访问方式 / GridStyle 代号 / Collection 层存在性 / DAL 层完整性（dalRatio）/ 连接名（top1，过滤注释）。
 
-# 公用过滤器:rg -n 输出格式 'path:lineNum:content',跳过注释行
-#   覆盖三种 C# 注释:// 单行、* 块注释续行、/// XML 文档注释
-#   根因:rg 默认不区分注释,实测 CRS 项目 varlist.ASSConn 扫到 311 次全是注释残留
-#   ⚠️ 修复(2026-07):同时处理行内注释(varlist.Conn // comment)和字符串内注释
-filter SkipComment {
-    $line = $_
-    # 1. 块注释续行 ' * ...'（行首 * 或行内 /* ... */)
-    if ($line -match ':\d+:\s*\*')  { return }
-    # 2. 行内 // 注释(在字符串之后才算真实注释)
-    if ($line -match '^(.*?):\d+:(.+?)(//.*)$') {
-        $beforeComment = $Matches[2]
-        # 若 // 前有配对双引号数为奇数 → 在字符串内 → 不过滤
-        $dq = ($beforeComment.ToCharArray() | Where-Object { $_ -eq '"' }).Count
-        if ($dq % 2 -eq 0) {
-            # 双数引号 → // 在字符串外 → 过滤
-            return
-        }
-    }
-    # 3. XML 文档注释行首
-    if ($line -match ':\d+:\s*///') { return }
-    $line
-}
-
-# 1. 窗体基类家族(纯一 vs 泛型)— 文件级去重计数
-$fBase = @(& rg -n -g "*.cs" ":\s*frmBase\b" $projectRoot 2>$null | SkipComment |
-           ForEach-Object { ($_ -split ':\d+:')[0] } | Sort-Object -Unique).Count
-$fGen  = @(& rg -n -g "*.cs" ":\s*frm_Base<" $projectRoot 2>$null | SkipComment |
-           ForEach-Object { ($_ -split ':\d+:')[0] } | Sort-Object -Unique).Count
-
-# 2. 数据访问方式(SQL vs ORM)
-$fSql = @(& rg -n -g "*.cs" "SqlOperate\s+_so\s*=" $projectRoot 2>$null | SkipComment |
-          ForEach-Object { ($_ -split ':\d+:')[0] } | Sort-Object -Unique).Count
-$fOrm = @(& rg -n -g "*.cs" "DbHelp\.Query<" $projectRoot 2>$null | SkipComment |
-          ForEach-Object { ($_ -split ':\d+:')[0] } | Sort-Object -Unique).Count
-
-# 3. GridStyle 代号多值(看是否 >=2 种)
-#    注意:正则里只匹配 'new GridStyle(' 前缀(避开 PowerShell 单引号字符串里的 " 解析陷阱),
-#    代号在后处理用 '"([A-Z]+)"' 提取
-$grid = @(& rg -n -g "*.cs" 'new GridStyle\(' $projectRoot 2>$null | SkipComment |
-          ForEach-Object { if ($_ -match '"([A-Z]+)"') { $Matches[1] } } |
-          Sort-Object -Unique) -join ","
-
-# 4. Collection 层存在性(防 step 4 假设错误)
-$coll = @(& rg -n -g "*.cs" "class\s+Collection_" $projectRoot 2>$null | SkipComment |
-          ForEach-Object { ($_ -split ':\d+:')[0] } | Sort-Object -Unique).Count
-
-# 5. DAL 层完整性(文件级,无需过滤注释)
-$dalCount = @(Get-ChildItem -Path $projectRoot -Recurse -Filter "*DAL.cs" -File -ErrorAction SilentlyContinue).Count
-$serCount = @(Get-ChildItem -Path $projectRoot -Recurse -Filter "*Ser.cs" -File -ErrorAction SilentlyContinue).Count
-# 比例 < 0.1 → 项目无独立 DAL 层(数据访问塞进 Ser),Step 4 不应生成独立 DAL 文件
-$dalRatio = if ($serCount -gt 0) { [math]::Round($dalCount / $serCount, 2) } else { 0 }
-
-# 6. 连接名(必过滤注释!否则会把从别处复制过来的注释残留当真实用法)
-#    实测案例:CRS 项目 varlist.ASSConn 扫到 311 次全是注释,非注释调用为 0
-$connNames = & rg -n -g "*.cs" 'varlist\.[A-Za-z]+(Conn|DBHelp)' $projectRoot 2>$null | SkipComment |
-    ForEach-Object { if ($_ -match '(varlist\.[A-Za-z]+(?:Conn|DBHelp))') { $Matches[1] } } |
-    Group-Object | Sort-Object Count -Descending | ForEach-Object { "$($_.Name)=$($_.Count)" }
-$connTop = $connNames | Select-Object -First 1   # 真实 top1(非注释)
-```
-
-> ⚠️ **为什么所有内容查询都要过滤注释**:`rg` 默认扫整行不区分注释。老 WinForms 项目里大量"从别处复制后被注释掉的死代码"会被误统计——**实测 CRS 项目 `varlist.ASSConn` 扫到 311 次全是 `//` 注释,真实非注释调用为 0**,直接套用会编译错。`SkipComment` 过滤器覆盖三种 C# 注释形态(`//`、` * `、`///`),从根上堵住这类假阳性。
->
-> **路径拆分**:`($_ -split ':\d+:')[0]` 利用 `rg -n` 输出的 `路径:行号:内容` 格式,按 `:数字:` 切分留下路径段。Windows 盘符 `E:\` 后跟反斜杠,不会被这个正则误匹配。
-
-### §0.3 Select-String 兜底(`rg` 不可用时)
-
-> Windows 上优先用 `rg`;如果目标机器没有安装 `rg`,再用 `Select-String`(慢 3-5 倍但兼容)。
-> 同 §0.2,**所有内容查询都过滤注释**(`Select-String` 的 `Where-Object { $_.Line -notmatch ... }`)。
-
-```powershell
-$projectRoot = "C:\Src\YourProject"
-
-# 公用注释过滤器(覆盖 // 单行、* 块注释续行、/// XML 文档、行内注释)
-filter SkipCsComment {
-    $line = $_.Line
-    # 1. 行首 // 或 ///
-    if ($line -match '^\s*//')  { return }
-    # 2. 行首块注释续行 ' * ...'
-    if ($line -match '^\s*\*')  { return }
-    # 3. 行内 // 注释(区分是否在字符串内)
-    if ($line -match '(.+?)(//.*)$') {
-        $beforeComment = $Matches[1]
-        $dq = ($beforeComment.ToCharArray() | Where-Object { $_ -eq '"' }).Count
-        if ($dq % 2 -eq 0) { return }  # 双数引号 → // 在字符串外 → 过滤
-    }
-    $_
-}
-
-$fBase = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern ":\s*frmBase\b" | SkipCsComment |
-          Select-Object -ExpandProperty Path -Unique).Count
-$fGen  = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern ":\s*frm_Base<" | SkipCsComment |
-          Select-Object -ExpandProperty Path -Unique).Count
-$fSql  = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern "SqlOperate\s+_so\s*=" | SkipCsComment |
-          Select-Object -ExpandProperty Path -Unique).Count
-$fOrm  = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern "DbHelp\.Query<" | SkipCsComment |
-          Select-Object -ExpandProperty Path -Unique).Count
-$grid  = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern 'new GridStyle\(' | SkipCsComment |
-          ForEach-Object { if ($_.Line -match '"([A-Z]+)"') { $Matches[1] } } |
-          Sort-Object -Unique) -join ","
-$coll  = (Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-          Select-String -Pattern "class\s+Collection_" | SkipCsComment |
-          Select-Object -ExpandProperty Path -Unique).Count
-$dalFiles = @(Get-ChildItem -Path $projectRoot -Recurse -Filter "*DAL.cs" -File -ErrorAction SilentlyContinue)
-$serFiles = @(Get-ChildItem -Path $projectRoot -Recurse -Filter "*Ser.cs" -File -ErrorAction SilentlyContinue)
-$dalCount = $dalFiles.Count
-$serCount = $serFiles.Count
-$dalRatio = if ($serCount -gt 0) { [math]::Round($dalCount / $serCount, 2) } else { 0 }
-# 连接名(同 §0.2 查询 6,过滤注释后取 top1)
-$connNames = Get-ChildItem -Recurse -Filter *.cs $projectRoot |
-    Select-String -Pattern 'varlist\.[A-Za-z]+(Conn|DBHelp)' | SkipCsComment |
-    ForEach-Object { if ($_.Line -match '(varlist\.[A-Za-z]+(?:Conn|DBHelp))') { $Matches[1] } } |
-    Group-Object | Sort-Object Count -Descending | ForEach-Object { "$($_.Name)=$($_.Count)" }
-$connTop = $connNames | Select-Object -First 1
-```
 
 ### §0.4 glance 输出格式(迷你指纹卡)
 
