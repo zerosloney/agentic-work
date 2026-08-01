@@ -103,9 +103,11 @@ validate_verify_config() {
     echo "  [verify] 错误: VERIFY_CMD 不能为空白" >&2
     return 125
   }
+  # Reject absolute paths, backslash separators, and parent-dir traversal.
+  # Relative repo-local paths (./scripts/x.sh, vendor/bin/phpunit) are allowed.
   case "$verify_bin" in
-    /*|*'/'*|*'\\'*)
-      echo "  [verify] 错误: VERIFY_CMD 只能调用仓库环境中的命令名，不允许绝对路径或路径分隔符" >&2
+    /* | *[\\]* | */../* | ../* | */.. )
+      echo "  [verify] 错误: VERIFY_CMD 禁止绝对路径、反斜杠路径或父目录遍历" >&2
       return 125
       ;;
   esac
