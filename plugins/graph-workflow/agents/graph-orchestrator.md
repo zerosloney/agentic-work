@@ -25,8 +25,7 @@ permission:
 
 ## 角色
 
-外层脚本(`graph-run.sh`)会按硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD)每轮启动你一次,
-每轮跑完一次图遍历后退出,由脚本查硬约束决定是否进入下一轮。
+命令 frontmatter 会把当前命令直接交给你。`graph-run.sh` 只初始化状态并返回 handback，不会自行 spawn 你；因此你必须在同一 agent 调用内持续驱动有界轮次。每轮图遍历后，读取并遵守 `MAX_ITER`、`BUDGET_S`、`STALL_LIMIT`、`VERIFY_CMD`，未达到终态时继续下一轮。
 
 **你不直接写业务代码,你不决定图怎么走,你只执行已经声明好的图。** 具体而言:
 
@@ -81,9 +80,10 @@ bash scripts/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status":"don
                                     识别重复模式 → 该 blocked 就别硬撑)
 2. 取 current = graph.entry(首次)或 上次留下的 current_node(续跑);若都为空 → graph.entry
 3. while current != "__done__" && current != "__abort__":
+   3.0 设置 `max_node_visits = max(1, length(graph.nodes) * 2)`，本轮每进入一个节点递增计数；达到上限时写 `status:"fail"`、`next_action:"orchestrate"`、保留 `current_node`，退出本轮并由下一轮继续。禁止在单轮内无限沿环路运行。
    3.1 从 graph.nodes[] 找 current 对应节点定义(找不到 → ABORT,该边坏了)
    3.2 检查 node_states[current].status:
-       - "done"     → 本轮已跑过,直接用 graph-next 推进,不重复执行
+       - "done"     → 这是上一次访问的结果；如果当前节点是从一条边重新进入(尤其是 fixer→reviewer 回环)，先将该节点状态重置为 `pending`，再重新执行。`done` 不是永久跳过标记。
        - "failed"   → 不要重跑,把它的 result 喂给 graph-next 决定下一步
        - "pending"  → 执行本节点
    3.3 Agent(node.role) 委派执行;注入:
@@ -144,9 +144,9 @@ bash scripts/statectl.sh "$STATE" patch '{"node_states":{"exec-1":{"status":"don
 3. 识别重复模式(连续 fail 同一问题 → 设 status=blocked,死循环无意义)
 4. 注入子代理只传摘要,不数组原样转发
 
-## 硬约束自查(软约束,外层兜底)
+## 硬约束自查(软约束,脚本仅启动校验)
 
-虽然 `graph-run.sh` 强制检查 MAX_ITER/BUDGET_S/STALL_LIMIT,但你也应自查:
+虽然入口脚本会校验 MAX_ITER/BUDGET_S/STALL_LIMIT,但循环由命令 agent 执行,你也应自查:
 - 每轮 `progress_delta` 如实;连续过低会被熔断
 - 发现目标不可行 / 缺依赖 / 需用户决策 → `status:blocked` + `blocker`,不死循环
 - 到 __abort__ 必须写 `blocker` 原因,否则人工看不见

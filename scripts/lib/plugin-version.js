@@ -137,6 +137,29 @@ function collectVersionSites(pluginName) {
     }
   }
 
+  // 6b. pyproject.toml (`version = "X.Y.Z"` under [project])
+  //     Only tracked when the version is a literal string. pyproject.toml files
+  //     that declare `dynamic = ["version"]` (version sourced from a module
+  //     attribute) are skipped — there is no literal to sync.
+  if (fs.existsSync(skillsDir)) {
+    for (const entry of fs.readdirSync(skillsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const pyproject = path.join(skillsDir, entry.name, 'pyproject.toml');
+      if (!fs.existsSync(pyproject)) continue;
+      const content = fs.readFileSync(pyproject, 'utf-8');
+      const isDynamic = /^dynamic\s*=.*"version"/m.test(content);
+      if (isDynamic) continue;
+      const match = content.match(/^version\s*=\s*"([^"]+)"/m);
+      if (!match) continue;
+      sites.push({
+        file: path.join('plugins', pluginName, 'skills', entry.name, 'pyproject.toml'),
+        current: match[1],
+        pattern: 'pyproject-toml',
+        isSource: false,
+      });
+    }
+  }
+
   // 7. marketplace.json (the root .codebuddy-plugin/marketplace.json)
   const marketplaceFile = path.join(REPO_ROOT, '.codebuddy-plugin', 'marketplace.json');
   if (fs.existsSync(marketplaceFile)) {

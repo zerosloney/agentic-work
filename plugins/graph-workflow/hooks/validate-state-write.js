@@ -21,24 +21,71 @@ const VALID_REVIEWS = ['pending', 'approved', 'changes_requested'];
 function readStdin() {
   return new Promise((resolve, reject) => {
     let data = '';
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      process.stdin.destroy();
+      reject(new Error('Timed out waiting for hook input'));
+    }, 3000);
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
     process.stdin.setEncoding('utf-8');
     process.stdin.on('data', chunk => { data += chunk; });
     process.stdin.on('end', () => {
-      try { resolve(JSON.parse(data)); }
-      catch (e) { reject(new Error('Invalid JSON on stdin: ' + e.message)); }
+      try { finish(resolve, JSON.parse(data)); }
+      catch (e) { finish(reject, new Error('Invalid JSON on stdin: ' + e.message)); }
     });
-    process.stdin.on('error', reject);
+    process.stdin.on('error', e => finish(reject, e));
   });
 }
 
 function isStateFile(filePath) {
   if (!filePath) return false;
-  const normalized = filePath.replace(/\\/g, '/');
-  return /loop-state\/[^/]+\.json$/.test(normalized);
+  const relative = filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (/^scripts\/loop-state\/[^/]+\.json$/i.test(relative)) return true;
+  const resolved = path.resolve(filePath);
+  const pluginRoots = [
+    process.env.ZCODE_PLUGIN_ROOT,
+    process.env.CODEBUDDY_PLUGIN_ROOT,
+    process.env.TRAE_PLUGIN_ROOT,
+    process.env.QODER_PLUGIN_ROOT,
+    process.env.CLAUDE_PLUGIN_ROOT
+  ].filter(Boolean).map(root => path.resolve(root, 'scripts', 'loop-state'));
+  // Fallback supports local development and platforms that omit the root env.
+  pluginRoots.push(path.resolve('scripts', 'loop-state'));
+  const normalize = value => {
+    const normalized = path.normalize(value);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+  return path.basename(resolved).endsWith('.json') &&
+    pluginRoots.some(root => normalize(path.dirname(resolved)) === normalize(root));
+}
+
+function materializeEdit(filePath, toolInput) {
+  if (typeof toolInput.old_string !== 'string' || typeof toolInput.new_string !== 'string') {
+    throw new Error('Edit state writes must include old_string and new_string');
+  }
+  const resolved = path.resolve(filePath);
+  const current = fs.readFileSync(resolved, 'utf-8');
+  const start = current.indexOf(toolInput.old_string);
+  if (start < 0) throw new Error('old_string was not found in the state file');
+  if (current.indexOf(toolInput.old_string, start + toolInput.old_string.length) >= 0) {
+    throw new Error('old_string is ambiguous in the state file');
+  }
+  return current.slice(0, start) + toolInput.new_string + current.slice(start + toolInput.old_string.length);
 }
 
 function validateState(json) {
   const errors = [];
+
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    return ['State content must be a JSON object'];
+  }
 
   for (const field of REQUIRED_FIELDS) {
     if (!(field in json)) {
@@ -46,16 +93,16 @@ function validateState(json) {
     }
   }
 
-  if (json.status && !VALID_STATUSES.includes(json.status)) {
+  if (json.status === undefined || !VALID_STATUSES.includes(json.status)) {
     errors.push(`Invalid status: "${json.status}" (expected: ${VALID_STATUSES.join(' | ')})`);
   }
-  if (json.phase && !VALID_PHASES.includes(json.phase)) {
+  if (json.phase === undefined || !VALID_PHASES.includes(json.phase)) {
     errors.push(`Invalid phase: "${json.phase}" (expected: ${VALID_PHASES.join(' | ')})`);
   }
-  if (json.task_type && !VALID_TASK_TYPES.includes(json.task_type)) {
+  if (json.task_type === undefined || !VALID_TASK_TYPES.includes(json.task_type)) {
     errors.push(`Invalid task_type: "${json.task_type}" (expected: ${VALID_TASK_TYPES.join(' | ')})`);
   }
-  if (json.review && !VALID_REVIEWS.includes(json.review)) {
+  if (json.review === undefined || !VALID_REVIEWS.includes(json.review)) {
     errors.push(`Invalid review: "${json.review}" (expected: ${VALID_REVIEWS.join(' | ')})`);
   }
   if (json.goal_met !== undefined && typeof json.goal_met !== 'boolean') {
@@ -66,8 +113,14 @@ function validateState(json) {
       errors.push(`Invalid progress_delta: expected number 0~1, got ${json.progress_delta}`);
     }
   }
-  if (json.version !== undefined && ![1, 2].includes(json.version)) {
+  if (json.version === undefined || ![1, 2].includes(json.version)) {
     errors.push(`Invalid version: ${json.version} (expected: 1 | 2)`);
+  }
+  if (json.version === 1 && json.task_type !== 'task') {
+    errors.push('Version 1 state must have task_type "task"');
+  }
+  if (json.version === 2 && json.task_type !== 'graph') {
+    errors.push('Version 2 state must have task_type "graph"');
   }
 
   return errors;
@@ -86,13 +139,11 @@ async function main() {
   // Read the new content being written
   let newContent;
   try {
-    if (input.tool_input && input.tool_input.content) {
+    if (input.tool_input && typeof input.tool_input.content === 'string') {
       newContent = JSON.parse(input.tool_input.content);
-    } else if (input.tool_input && input.tool_input.new_string) {
-      // Edit operation — new_string is partial, can't fully validate
-      // Just check it's valid JSON
-      JSON.parse(input.tool_input.new_string);
-      process.exit(0);
+    } else if (input.tool_input && typeof input.tool_input.new_string === 'string') {
+      const finalContent = materializeEdit(filePath, input.tool_input);
+      newContent = JSON.parse(finalContent);
     } else {
       // Can't determine content — allow
       process.exit(0);

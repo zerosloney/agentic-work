@@ -1,5 +1,7 @@
 ---
-description: "用自然语言描述一个任务,自动初始化状态并启动 Loop Engineering 闭环(外层脚本管硬约束 + 编排者管决策 + 三角色协作)"
+description: "用自然语言描述一个任务,自动初始化状态并启动 Loop Engineering 闭环(编排者管有界循环与决策 + 三角色协作)"
+agent: graph-workflow-orchestrator
+subtask: false
 ---
 
 用户请求:{{input}}
@@ -21,12 +23,12 @@ description: "用自然语言描述一个任务,自动初始化状态并启动 L
    MAX_ITER=5 BUDGET_S=120 bash scripts/loop-task.sh "<objective>" "<goal_criteria>"
    ```
 
-3. 脚本会启动编排者(orchestrator)跑闭环,你作为编排者需要:
+3. 当前命令由 `graph-workflow-orchestrator` 执行。脚本只负责初始化状态并返回状态路径；脚本不会自行 spawn agent。编排者拿到 handback 后继续驱动有界闭环，需要:
    - 读取脚本附带的 `$STATE` 状态文件(`task_type=task, version=1`)
-   - 按 `zcode/agents/orchestrator.md` 的职责执行
-   - 每轮结束写回状态,由脚本查硬约束决定是否继续
+   - 按 `agents/orchestrator.md` 的职责执行
+   - 每轮结束写回状态，并在同一 agent 调用内遵守 `MAX_ITER/BUDGET_S/STALL_LIMIT`
 
 4. 闭环结束后,把 `task_id` 与最终状态回显给用户,并说明可用 `/loop-review` 复盘进展。
 
 注意:
-- 闭环的硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT)由脚本控制,不要在此命令里自行实现循环逻辑或绕过硬约束。
+- 闭环的硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT)由编排者在同一 agent 调用内执行,不要绕过硬约束。

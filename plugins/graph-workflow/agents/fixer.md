@@ -19,11 +19,10 @@ permission:
     "git diff*": allow
     "git log*": allow
     "git show*": allow
-    "git branch*": allow
-    "git add *": allow
-    "npm *": allow
-    "pnpm *": allow
-    "npx *": allow
+    "npm test*": allow
+    "npm run *": allow
+    "pnpm test*": allow
+    "pnpm run *": allow
     "tsx *": allow
     "tsc*": allow
     "pytest*": allow
@@ -83,7 +82,7 @@ bash scripts/statectl.sh "$STATE" patch '{"phase":"fix","progress_delta":0.2,"ne
 ## 安全红线(命令白名单)
 
 与 executor 相同:
-- **只允许**开发闭环所需的命令:文件查看 / 文本处理、git 只读操作、包管理与构建测试。
+- **只允许**开发闭环所需的命令:文件查看 / 文本处理、git 只读操作、测试脚本与构建工具。禁止通过 `git add`/`git branch` 修改仓库元数据，禁止 `npx` 下载并执行远程包。
 - **白名单不含通用解释器**(`node`/`python`/`python3` 的裸调用)。
 - **一律禁止**白名单外的命令:不可逆删除、远程推送/历史改写/清工作区、从网络下载后直接执行远程脚本、提权、危险磁盘操作。
 - **不要试图绕过**(变量展开 / 命令替换 / 引号 / 分号续行等)。

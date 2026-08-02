@@ -1,8 +1,8 @@
 # graph-workflow
 
-Loop Engineering + Graph Engineering 双档位闭环:外层脚本管硬约束(MAX_ITER / BUDGET_S / STALL_LIMIT / VERIFY_CMD),内层三角色(executor / reviewer / fixer)协作完成任务。
+Loop Engineering + Graph Engineering 双档位闭环:命令绑定的编排 agent 负责有界循环(MAX_ITER / BUDGET_S / STALL_LIMIT / VERIFY_CMD),初始化脚本负责状态创建,内层三角色(executor / reviewer / fixer)协作完成任务。
 
-适用于**无人值守**的长任务:你给目标和达成标准,脚本驱动 agent 反复执行→审查→修复直到收敛或熔断。
+适用于**无人值守**的长任务:你给目标和达成标准,命令绑定的编排 agent 反复执行→审查→修复直到收敛或熔断;入口脚本负责初始化状态并验证运行参数。
 
 ## 两个入口
 
@@ -18,8 +18,8 @@ Loop Engineering + Graph Engineering 双档位闭环:外层脚本管硬约束(MA
 ## 三角色协作
 
 ```
-        ┌─────────── loop-task.sh / graph-run.sh (外层硬约束) ───────────┐
-        │  每轮 spawn 编排者 → 查硬约束 → 决定下一轮                       │
+        ┌──── command agent (有界循环) + init script (状态初始化) ──────┐
+        │  agent 初始化状态 → 委派角色 → 查硬约束 → 决定下一轮             │
         └───────────────────────────┬───────────────────────────────────┘
                                     ▼
                          orchestrator / graph-orchestrator
@@ -39,7 +39,7 @@ Loop Engineering + Graph Engineering 双档位闭环:外层脚本管硬约束(MA
 
 - **executor / fixer**:有文件读写 + shell 权限,但受**命令白名单**约束(见安全红线)。
 - **reviewer**:只读业务代码,跑测试/编译/静态检查 + 语义审查,判 `status` / `goal_met` / `review`。
-- **orchestrator / graph-orchestrator**:只读,不写业务代码,只拆步骤 + 委派 + 写状态。
+- **orchestrator / graph-orchestrator**:只读,不写业务代码,只拆步骤 + 委派 + 写状态；命令通过 frontmatter 将入口绑定到对应编排 agent。
 
 ## 硬约束参数(环境变量覆盖)
 
@@ -50,6 +50,7 @@ Loop Engineering + Graph Engineering 双档位闭环:外层脚本管硬约束(MA
 | `STALL_LIMIT` | 3 | 连续无进展轮数,触发停滞熔断 |
 | `VERIFY_CMD` | (空) | 客观验证命令;只能是仓库环境中的单个命令名加参数,禁止 shell 连接符/重定向/命令替换 |
 | `VERIFY_TIMEOUT` | 300 | VERIFY_CMD 强制超时秒数;找不到 `timeout`/`gtimeout` 时拒绝执行 |
+| `PROJECT_ROOT` | 当前工作目录 | 被管理项目根目录;用于 VCS、变更检测和 VERIFY_CMD |
 | `MOCK` | 0 | =1 用 mock 推进(测试用,不调真实 agent) |
 
 示例:
@@ -72,6 +73,8 @@ MAX_ITER=5 BUDGET_S=120 VERIFY_CMD="npm test" bash scripts/loop-task.sh "目标"
 
 ## 安全红线(无人值守循环)
 
+**硬约束执行模型**：MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD 由命令编排 agent 在单会话内**自查执行**；入口脚本（`loop-task.sh`/`graph-run.sh`）仅初始化状态并校验参数合法性（fail-fast），**不 spawn agent、不强制每轮兜底**。agent 自查是硬约束的主要执行者，脚本/HOOK 作辅助校验。
+
 executor / fixer 的 bash 命令受白名单约束:
 
 - ✅ 允许:文件查看/文本处理、git 只读操作、包管理与构建测试(`npm`/`pytest`/`tsc`/`cargo`/`go`/`make` 等)
@@ -84,13 +87,12 @@ executor / fixer 的 bash 命令受白名单约束:
 ```
 graph-workflow/
 ├── commands/          # /loop-task /graph-task /loop-review
-├── zcode/agents/      # 5 角色(ZCode 嵌套 permission frontmatter)
-├── codebuddy/agents/  # 5 角色(CodeBuddy flat permissionMode)
+├── agents/            # 5 角色(ZCode baseline frontmatter;其余平台安装时派生)
 ├── hooks/             # validate-state-write.js(PreToolUse,校验状态写入)
 └── scripts/
-    ├── loop-task.sh       # Loop 入口 + 外层循环(version=1)
-    ├── graph-run.sh       # Graph 入口 + 外层图遍历(version=2)
-    ├── loop-helpers.sh    # 共享硬约束 + VCS 抽象
+    ├── loop-task.sh       # Loop 入口 + 状态初始化(version=1)
+    ├── graph-run.sh       # Graph 入口 + 图状态初始化(version=2)
+    ├── loop-helpers.sh    # 共享参数校验 + VCS 抽象
     ├── loop-review.sh     # 复盘汇总
     ├── statectl.sh        # 状态读写助手(graph-next 边路由;写命令持文件锁+写前 enum 校验;create 默认拒绝覆盖既有 state,重建需 --force)
     └── state-schema.json  # 状态文件 schema

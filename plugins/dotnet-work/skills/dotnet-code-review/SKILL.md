@@ -14,7 +14,7 @@ when_to_use: |
 license: MIT
 metadata:
   author: master0071
-  version: 1.0.6
+  version: 1.0.7
   category: code-quality
 ---
 
@@ -475,14 +475,16 @@ Summary
 
 ## 8. 测试状态
 
-`tests/` 目录下 5 个 audit 测试持续断言本文件 + `references/*.md` + 跨 skill 不与活的分析层 drift：
+`tests/` 目录下 6 个测试文件持续断言本 skill 的分析层与报告契约：
 
-| 测试 | 断言 |
-|------|------|
-| `tests/test_count_rules.py` | SKILL 声明的规则数（AST 154 + 语义 24 + 测试/安全/专项 8 = 186）与代码实际发射数一致 |
-| `tests/test_dimensions_coverage.py` | dimensions-coverage.md 实际有 6 个维度 section + 序号连续 + SKILL 声明「6 维度」 |
-| `tests/test_owasp_mapping.py` | owasp-mapping.md 覆盖 A01-A10 完整 + 每条有规则覆盖 section |
-| `tests/test_cross_skill_consistency.py` | 与 dotnet-csharp-developer 的 5 条核心 C# 实践口径同向（async/可空/CancellationToken/EF 实体/DI） |
+| 测试数 | 文件 | 断言 |
+|--------|------|------|
+| 49（17 个类/函数） | `tests/test_analyzer_modules.py` | analyzer/ 子包（fetcher/triage/reporter）E2E + 模块重导入 + triage 分类与抑制 + glob 匹配 + 规则族识别 + 报告组装 + 复杂度 + 评分/integrity + baseline introduced/fixed 分类 + team 配置与 rule package + 扩展层（test quality/security/specialized/PR payload/trend）|
+| 1 | `tests/test_analyzer_runtime_integration.py` | 编译后 Semantic/Project/Build analyzer 契约（需 DLL） |
+| 1 | `tests/test_rule_cases.py` | `rule-cases.yml` 驱动的 AST 规则正反例回归（需 DLL） |
+| 1 | `tests/test_runtime_smoke.py` | 编译后 Roslyn AST analyzer 原始契约 + Python fetcher→CodeIssue 适配器（需 DLL） |
+| 3 | `tests/test_safety_contracts.py` | CVE 数据库 integrity（sidecar 不匹配不得判 clean）+ auto-fix 原子性（无 backup 不留 temp）+ apply_all 保留单份 backup |
+| 2 | `tests/test_solution_integration.py` | 跨项目 `.sln` Semantic 引用解析 + MSBuildWorkspace 条件编译/生成源/重定向输出（需 DLL） |
 
 运行：
 
@@ -491,12 +493,9 @@ cd plugins/dotnet-work/skills/dotnet-code-review
 python -m pytest tests/ -v
 ```
 
-当前状态：**51 passed, 0 xfailed**（无 .NET SDK 或未构建 analyzer 时，运行时测试会明确 skip）。测试覆盖 Python 模块/报告契约、规则正反例、跨项目 `.sln` Semantic 引用解析、MSBuild 条件/生成文件/重定向输出，以及编译后 Roslyn AST/Semantic/Project/Build DLL→fetcher 的运行链；CLI smoke review 和插件门禁由 CI workflow 执行。CI 在 Ubuntu 与 Windows runner 上执行。
+当前状态：**57 passed, 0 xfailed**。无 .NET SDK 或未构建 analyzer DLL 时，4 个运行时集成测试（`test_analyzer_runtime_integration` / `test_rule_cases` / `test_runtime_smoke` / `test_solution_integration`）会明确 skip；模块/报告契约类测试（`test_analyzer_modules` / `test_safety_contracts`）无需 SDK 即可跑。CLI smoke review 和插件门禁由 CI workflow 在 Ubuntu 与 Windows runner 上执行。
 
-**历史 drift（已全部修复）**：
-
-- ~~维度名分歧~~：SKILL.md description 已对齐 `dimensions-coverage.md` 的实际 6 维度（性能/可维护性/可测试性/安全/最佳实践·可靠性/架构）。
-- ~~可空盲区~~：`best-practices-catalog.md` §六 已补充可空引用类型章节（`SEM_NULLABLE_NULL_INIT` / `SEM_NULLFORGIVING`），与 `dotnet-csharp-developer` Constraints #2 对齐；`count_rules.py` 现同时统计语义与测试/安全/专项规则，规则总数 186。
+**规则数口径**：`python scripts/count_rules.py` 实测 186 条（AST LEGACY_* 154 + 语义 SEM/EF/ASP/P/RCS 24 + 测试/安全/专项 8），与 SKILL.md description 声明一致。`count_rules.py` 是规则数单一事实源——`scripts/review/rules.py` 的 `AUTO_FIXES` 映射不是执行规则口径。
 
 ---
 

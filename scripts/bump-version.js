@@ -6,6 +6,7 @@
 // truth. This script reads that version and propagates it to:
 //   - .zcode-plugin/plugin.json
 //   - all skills/*/SKILL.md (YAML frontmatter)
+//   - all skills/*/pyproject.toml (`version = "..."` under [project])
 //   - .codebuddy-plugin/marketplace.json (the root marketplace entry)
 //   - marketplace.json (root ZCode marketplace, `<plugin>-zcode` entry)
 //   - .qoder-plugin/marketplace.json (root Qoder marketplace, `<plugin>-qoder` entry)
@@ -154,6 +155,25 @@ function syncSkillMd(filePath, newVersion) {
 }
 
 /**
+ * Sync version into a pyproject.toml `version = "X.Y.Z"` line (under [project]).
+ * Replaces the first `^version = "..."` match in place. No-op if absent.
+ *
+ * @returns true if a write occurred.
+ */
+function syncPyprojectToml(filePath, newVersion) {
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const updated = content.replace(
+    /^(version\s*=\s*")([^"]+)(")/m,
+    `$1${newVersion}$3`
+  );
+  if (updated !== content) {
+    fs.writeFileSync(filePath, updated);
+    return true;
+  }
+  return false;
+}
+
+/**
  * Sync version into the root marketplace.json for a plugin's entry.
  */
 function syncMarketplace(pluginName, newVersion) {
@@ -236,6 +256,11 @@ function syncPlugin(pluginName, args) {
     } else if (site.pattern === 'yaml-frontmatter') {
       const abs = path.join(REPO_ROOT, site.file);
       if (syncSkillMd(abs, version)) {
+        console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
+      }
+    } else if (site.pattern === 'pyproject-toml') {
+      const abs = path.join(REPO_ROOT, site.file);
+      if (syncPyprojectToml(abs, version)) {
         console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
       }
     } else if (site.pattern === 'marketplace-entry') {

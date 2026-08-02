@@ -24,7 +24,7 @@ gen_task_id() {
   esac
 }
 
-wpath() { cygpath -m "$1" 2>/dev/null || echo "$1"; }
+wpath() { cygpath -u "$1" 2>/dev/null || echo "$1"; }
 pyrun() { bash "$CTL" "$(wpath "$STATE")" "$@"; }
 get()   { pyrun get   "$1"; }
 patch() { pyrun patch "$1"; }
@@ -74,6 +74,24 @@ record_rollback_point() {
 }
 
 VERIFY_TIMEOUT="${VERIFY_TIMEOUT:-300}"
+validate_loop_limits() {
+  local name value
+  for name in MAX_ITER BUDGET_S STALL_LIMIT; do
+    value="${!name:-}"
+    case "$value" in
+      ''|*[!0-9]*)
+        echo "错误: $name 必须是正整数 (当前: $value)" >&2
+        return 64
+        ;;
+    esac
+    if [ "$value" -le 0 ]; then
+      echo "错误: $name 必须大于 0 (当前: $value)" >&2
+      return 64
+    fi
+  done
+  return 0
+}
+
 validate_verify_config() {
   case "$VERIFY_TIMEOUT" in
     ''|*[!0-9]*)
@@ -91,18 +109,29 @@ validate_verify_config() {
   }
 
   # Verify commands come from the trusted launcher environment. Keep them to
-  # one repo-local executable plus arguments; do not interpret a shell program.
+  # one executable plus whitespace-separated arguments; do not interpret a
+  # shell program. run_verify executes the resulting argv directly.
   case "$VERIFY_CMD" in
     *$'\n'*|*$'\r'*|*';'*|*'|'*|*'&'*|*'>'*|*'<'*|*'`'*|*'$('*|*'${'*)
-      echo "  [verify] 错误: VERIFY_CMD 禁止换行、管道、重定向、命令替换和 shell 连接符" >&2
+      echo "  [verify] 错误: VERIFY_CMD 只允许直接执行一个命令及参数,禁止 shell 语法" >&2
       return 125
       ;;
   esac
-  local verify_bin="${VERIFY_CMD%%[[:space:]]*}"
+  local -a verify_args=()
+  read -r -a verify_args <<< "$VERIFY_CMD"
+  local verify_bin="${verify_args[0]:-}"
   [ -n "$verify_bin" ] || {
     echo "  [verify] 错误: VERIFY_CMD 不能为空白" >&2
     return 125
   }
+  local verify_bin_lc
+  verify_bin_lc="$(printf '%s' "$verify_bin" | tr '[:upper:]' '[:lower:]')"
+  case "$verify_bin_lc" in
+    bash|sh|dash|zsh|ksh|fish|cmd|cmd.exe|powershell|pwsh|node|node.exe|python|python3|python.exe|perl|ruby|rake|npx|npx.cmd|env|xargs)
+      echo "  [verify] 错误: VERIFY_CMD 禁止使用 shell/通用解释器或间接执行器: $verify_bin" >&2
+      return 125
+      ;;
+  esac
   # Reject absolute paths, backslash separators, and parent-dir traversal.
   # Relative repo-local paths (./scripts/x.sh, vendor/bin/phpunit) are allowed.
   case "$verify_bin" in
@@ -117,10 +146,12 @@ validate_verify_config() {
 run_verify() {
   [ -z "$VERIFY_CMD" ] && return 0
   validate_verify_config || return $?
+  local -a verify_args=()
+  read -r -a verify_args <<< "$VERIFY_CMD"
   if command -v timeout >/dev/null 2>&1; then
-    ( cd "$PROJECT_ROOT" && timeout "$VERIFY_TIMEOUT" bash -c "$VERIFY_CMD" ) >/dev/null 2>&1
+    ( cd "$PROJECT_ROOT" && timeout "$VERIFY_TIMEOUT" "${verify_args[@]}" ) >/dev/null 2>&1
   elif command -v gtimeout >/dev/null 2>&1; then
-    ( cd "$PROJECT_ROOT" && gtimeout "$VERIFY_TIMEOUT" bash -c "$VERIFY_CMD" ) >/dev/null 2>&1
+    ( cd "$PROJECT_ROOT" && gtimeout "$VERIFY_TIMEOUT" "${verify_args[@]}" ) >/dev/null 2>&1
   else
     echo "  [verify] 错误: 未找到 timeout/gtimeout，拒绝执行无超时 VERIFY_CMD" >&2
     return 125

@@ -11,8 +11,19 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 127
 fi
 
+if [ "$#" -lt 2 ] || [ -z "${1:-}" ]; then
+  echo "用法: statectl.sh <state.json> <get|set|patch|inc|lt|ensure|append|graph-next|create> [args]" >&2
+  exit 64
+fi
+
 STATE="$1"
 CMD="${2:-}"
+
+# Git Bash may receive Windows-style paths from the caller. Normalize once so
+# temp-file creation, locking, and atomic replacement use one path syntax.
+if command -v cygpath >/dev/null 2>&1; then
+  STATE="$(cygpath -u "$STATE" 2>/dev/null || printf '%s' "$STATE")"
+fi
 
 cleanup_tmp() {
   local f pid
@@ -88,7 +99,11 @@ save() {
   fi
   local tmp="${STATE}.tmp.$$"
   if printf '%s' "$data" | jq '.' > "$tmp" 2>/dev/null && [ -s "$tmp" ] && jq -e . "$tmp" >/dev/null 2>&1; then
-    mv "$tmp" "$STATE" || { rm -f "$tmp" 2>/dev/null || true; }
+    if ! mv "$tmp" "$STATE"; then
+      rm -f "$tmp" 2>/dev/null || true
+      echo "错误: 状态文件替换失败: $STATE" >&2
+      return 1
+    fi
   else
     rm -f "$tmp" 2>/dev/null || true
     return 1
@@ -145,7 +160,13 @@ case "$CMD" in
     KEY="${3:-}"
     VAL="${4:-null}"
     MAX_LEN="${5:-0}"
-    if [ "$MAX_LEN" -gt 0 ] 2>/dev/null; then
+    case "$MAX_LEN" in
+      ''|*[!0-9]*)
+        echo "错误: append 的 MAX_LEN 必须是非负整数: $MAX_LEN" >&2
+        exit 64
+        ;;
+    esac
+    if [ "$MAX_LEN" -gt 0 ]; then
       DATA="$(printf '%s' "$DATA" | jq -c --arg k "$KEY" --argjson v "$VAL" --argjson m "$MAX_LEN" \
         '.[$k] = (((.[$k] // []) + [$v]) | if length > $m then .[-$m:] else . end)')"
     else

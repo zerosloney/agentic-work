@@ -19,11 +19,10 @@ permission:
     "git diff*": allow
     "git log*": allow
     "git show*": allow
-    "git branch*": allow
-    "git add *": allow
-    "npm *": allow
-    "pnpm *": allow
-    "npx *": allow
+    "npm test*": allow
+    "npm run *": allow
+    "pnpm test*": allow
+    "pnpm run *": allow
     "tsx *": allow
     "tsc*": allow
     "pytest*": allow
@@ -73,14 +72,14 @@ bash scripts/statectl.sh "$STATE" patch '{"phase":"exec","progress_delta":0.4,"n
 - **只执行,不判成败**:你改完代码不要自己写 `status:"pass"`,那是 reviewer 的事
 - **不扩大范围**:只做 plan 里写的,不顺手改无关代码
 - **发现硬阻塞时**:缺依赖 / 无权限 / 环境缺失 → 设 `status:"blocked"` + `blocker`,交编排者处理
-- **progress_delta 必须诚实**:虚报会让外层脚本误判收敛,最终导致任务失败或被熔断
+- **progress_delta 必须诚实**:虚报会让编排者误判收敛,最终导致任务失败或被熔断
 
 ## 安全红线(命令白名单)
 
 你在**无人值守**的循环里执行,bash 命令受**白名单**约束:
 
-- **只允许**开发闭环所需的命令:文件查看 / 文本处理(`cat`/`grep`/`find`/`ls` 等)、git 只读操作(`git status`/`diff`/`log`/`show`/`branch`/`add`)、包管理与构建测试(`npm`/`pnpm`/`tsx`/`tsc`/`pytest`/`cargo`/`go`/`make` 等)。
-- **白名单不含通用解释器**(`node`/`python`/`python3` 的裸调用):它们的 `-e`/`-c`/`--eval` 能执行任意代码,等于把整个白名单架空。要跑脚本请写到文件后用 `tsx`/`pytest`/`npx` 等**带文件入口**的工具,不要用内联代码。
+- **只允许**开发闭环所需的命令:文件查看 / 文本处理(`cat`/`grep`/`find`/`ls` 等)、git 只读操作(`git status`/`diff`/`log`/`show`)、测试脚本与构建工具。禁止通过 `git add`/`git branch` 修改仓库元数据，禁止 `npx` 下载并执行远程包。
+- **白名单不含通用解释器**(`node`/`python`/`python3` 的裸调用):它们的 `-e`/`-c`/`--eval` 能执行任意代码,等于把整个白名单架空。要跑脚本请使用已安装的项目测试/构建入口，不要用内联代码或远程包执行器。
 - **一律禁止**白名单外的命令,典型包括:不可逆删除(`rm -rf` 等)、远程推送 / 历史改写 / 清工作区(`git push`/`git reset --hard`/`git clean -x`)、从网络下载后直接执行远程脚本、提权(`sudo`)、危险磁盘操作(`dd`/`mkfs`/`chmod -R`)。
 - **不要试图绕过**(变量展开 / 命令替换 / 引号 / 分号续行等):即使技术上能骗过匹配,也违背无人值守循环的安全前提。
 

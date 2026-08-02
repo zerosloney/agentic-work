@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Loop/Graph Task State",
-  "description": "任务状态文件 schema(档位 B / Loop + Graph 联合)。外层脚本与编排者通过此状态文件通信。version=1→loop-task.sh 单节点循环(向后兼容);version=2→graph-run.sh 图编排档位 B(本计划新增)。",
+  "description": "任务状态文件 schema(档位 B / Loop + Graph 联合)。初始化脚本与命令绑定的编排者通过此状态文件通信。version=1→loop-task.sh 单节点循环(向后兼容);version=2→graph-run.sh 图编排档位 B(本计划新增)。",
   "type": "object",
   "required": [
     "version",
@@ -48,7 +48,7 @@
     "iteration": {
       "type": "integer",
       "minimum": 0,
-      "description": "当前轮次(外层脚本每轮 +1)"
+      "description": "当前闭环轮次,每轮 +1"
     },
     "phase": {
       "type": "string",
@@ -66,12 +66,13 @@
         },
         "nodes": {
           "type": "array",
+          "minItems": 1,
           "description": "节点列表(每个节点 = 一个专门 agent 角色)",
           "items": {
             "type": "object",
             "required": ["id", "role"],
             "properties": {
-              "id": { "type": "string", "description": "节点唯一 id,在 edges 中被 from/to 引用" },
+              "id": { "type": "string", "minLength": 1, "description": "节点唯一 id,在 edges 中被 from/to 引用" },
               "role": {
                 "type": "string",
                 "enum": ["executor", "reviewer", "fixer"],
@@ -87,8 +88,8 @@
             "type": "object",
             "required": ["from", "to"],
             "properties": {
-              "from": { "type": "string" },
-              "to": { "type": "string", "description": "目标节点 id 或 __done__ / __abort__ 虚拟终点" },
+              "from": { "type": "string", "minLength": 1 },
+              "to": { "type": "string", "minLength": 1, "description": "目标节点 id 或 __done__ / __abort__ 虚拟终点" },
               "when": { "type": "string", "description": "匹配节点 result 的条件;缺省=无条件(顺序流程);常用值:approved / changes_requested / blocked / pass / fail;支持管道分隔多值:\"pass|approved\" = 任一匹配即走此边" }
             }
           }
@@ -96,8 +97,8 @@
       }
     },
     "current_node": {
-      "type": "string",
-      "description": "当前正在执行的节点 id(graph-orchestrator 写;loop-task 不用)"
+      "type": ["string", "null"],
+      "description": "当前正在执行的节点 id;触达 __done__/__abort__ 后可为 null(graph-orchestrator 写;loop-task 不用)"
     },
     "node_states": {
       "type": "object",
@@ -163,7 +164,7 @@
     },
     "history": {
       "type": "array",
-      "description": "跨轮上下文累积(orchestrator 每轮 append 一条),缓解每轮 spawn 新进程导致的上下文丢失",
+      "description": "跨轮上下文累积(orchestrator 每轮 append 一条),缓解跨轮上下文丢失",
       "items": {
         "type": "object",
         "description": "单轮摘要,建议含 iter/plan/files_touched/result/next 等字段"

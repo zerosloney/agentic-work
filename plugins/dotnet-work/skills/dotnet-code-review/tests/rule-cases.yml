@@ -1,0 +1,45 @@
+# Rule regression cases. Each case must prove both detection and non-detection.
+- id: LEGACY_async_void
+  positive: |
+    public sealed class Sample
+    {
+        public async void Broken() { await Task.Delay(1); }
+    }
+  negative: |
+    public sealed class Sample
+    {
+        public async Task Healthy() { await Task.Delay(1); }
+    }
+- id: LEGACY_BinaryFormatter
+  positive: |
+    public sealed class Sample
+    {
+        public object Read(Stream input) => new BinaryFormatter();
+    }
+  negative: |
+    public sealed class Sample
+    {
+        public object Read(Stream input) => new JsonSerializer();
+    }
+- id: LEGACY_SqlCommand_Concat
+  positive: |
+    public sealed class Sample
+    {
+        public object Query(string input) => new SqlCommand("select '" + input);
+    }
+  negative: |
+    public sealed class Sample
+    {
+        public object Query(string input) => new SqlCommand("select @value");
+    }
+- id: LEGACY_SEC025_ssrf
+  positive: |
+    public sealed class Sample
+    {
+        public Task Fetch(string userInput) => client.GetAsync(userInput);
+    }
+  negative: |
+    public sealed class Sample
+    {
+        public Task Fetch() => client.GetAsync("https://example.com");
+    }

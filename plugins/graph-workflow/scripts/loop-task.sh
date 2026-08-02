@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# loop-task.sh — Loop Engineering 任务入口 + 外层控制循环
+# loop-task.sh — Loop Engineering 任务入口 + 状态初始化（HANDBACK 模型）
+#
+# 脚本只负责:参数校验 → 初始化 state JSON → 打印 STATE 路径并 HANDBACK。
+# 命令绑定的编排 agent(graph-workflow-orchestrator)拿到 handback 后,
+# 在同一 agent 调用内驱动有界轮次(MAX_ITER/BUDGET_S/STALL_LIMIT 由 agent 自查,
+# 脚本启动时校验合法性作 fail-fast 兜底)。脚本不 spawn agent、不强制每轮兜底。
 # 适用于 ZCode 与 CodeBuddy 插件场景
 set -uo pipefail
 
@@ -19,6 +24,7 @@ mkdir -p "$STATE_DIR"
 CTL="$SCRIPT_DIR/statectl.sh"
 
 source "$SCRIPT_DIR/loop-helpers.sh"
+validate_loop_limits || exit $?
 
 DESC="${1:-未命名任务}"
 GOAL="${2:-目标由 reviewer 依据客观指标判定达成}"
@@ -67,99 +73,56 @@ echo "           目标 : $DESC"
 echo "           达成 : $GOAL"
 echo "           状态 : $STATE"
 
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-${PWD:-$SCRIPT_DIR/../..}}"
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" 2>/dev/null && pwd)" || {
+  echo "错误: PROJECT_ROOT 不存在或不可访问: $PROJECT_ROOT" >&2
+  exit 64
+}
 
 VCS="$(detect_vcs)"
 echo "  [safety] VCS=$VCS"
 record_rollback_point
 
-echo "▶ 启动 Loop Engineering 闭环 (MAX_ITER=$MAX_ITER, BUDGET_S=${BUDGET_S}s, STALL_LIMIT=$STALL_LIMIT) ..."
+echo "▶ Loop Engineering 状态就绪 (MAX_ITER=$MAX_ITER, BUDGET_S=${BUDGET_S}s, STALL_LIMIT=$STALL_LIMIT) — 由编排者自查执行"
 
-iter=0
-stall=0
-start=$(date +%s)
-final_reason=""
-prev_sig=""
-
-while [ "$iter" -lt "$MAX_ITER" ]; do
-  iter=$((iter+1))
-  inc iteration 1
+# ─── MOCK self-test：单次执行，验证 init→statectl 往返链路 ───
+# 生产路径(非 MOCK)不跑闭环;编排 agent 在自己的会话里驱动有界轮次。
+if [ "$MOCK" = "1" ]; then
   echo ""
-  echo "===== 迭代 $iter / $MAX_ITER ====="
-
-  mark_time
-
-  if [ "$MOCK" = "1" ]; then
-    if [ "${MOCK_STALL:-0}" = "1" ]; then
-      patch '{"phase":"exec","progress_delta":0,"status":"fail","goal_met":false,"review":"pending"}'
-    else
-      local_i=$(get iteration)
-      if [ "$local_i" -ge 2 ]; then
-        patch '{"phase":"review","progress_delta":0.4,"status":"pass","goal_met":true,"review":"approved","next_action":"done"}'
+  echo "===== MOCK self-test ====="
+  if [ "${MOCK_STALL:-0}" = "1" ]; then
+    patch '{"phase":"exec","progress_delta":0,"status":"fail","goal_met":false,"review":"pending"}'
+    final_reason="MOCK: 已写入 stall 状态(anti-lazy 由编排者自查)"
+  else
+    patch '{"phase":"exec","progress_delta":0.3,"status":"pass","goal_met":true,"review":"approved","next_action":"done"}'
+    # 仅 MOCK 自检时复用 VERIFY_CMD(若有),验证客观校验链路
+    if [ -n "$VERIFY_CMD" ]; then
+      if run_verify; then
+        patch '{"status":"done"}'
+        final_reason="MOCK: DONE 目标达成且 VERIFY_CMD 通过"
       else
-        patch '{"phase":"exec","progress_delta":0.3,"status":"fail","goal_met":false,"review":"pending","next_action":"orchestrate"}'
+        final_reason="MOCK: VERIFY_CMD 未过(生产路径由编排者自查)"
       fi
-    fi
-  else
-    echo "  [orchestrator] 等待编排者执行闭环..."
-    echo "  [orchestrator] 状态文件: $STATE"
-    echo "  [orchestrator] 请读取 $STATE 并按 orchestrator 职责执行"
-    final_reason="HANDBACK: 已初始化并交由编排者驱动(脚本不自动 spawn 编排者进程,需外部 agent 读 $STATE 执行)"
-    break
-  fi
-
-  cur_sig="$(state_sig)"
-  if [ "$(lt progress_delta 0.01)" = "true" ] && ! changed_since_mark && [ "$cur_sig" = "$prev_sig" ]; then
-    stall=$((stall+1))
-    echo "  [anti-lazy] 无进展+无改动+状态未变 ($stall/$STALL_LIMIT)"
-  else
-    stall=0
-  fi
-  prev_sig="$cur_sig"
-  if [ "$stall" -ge "$STALL_LIMIT" ]; then
-    final_reason="ABORT: 连续 $stall 轮无进展,停滞熔断"
-    break
-  fi
-
-  status_val=$(get status)
-  goal_met_val=$(get goal_met)
-  review_val=$(get review)
-  if [ "$goal_met_val" = "true" ] && [ "$review_val" = "approved" ]; then
-    if run_verify; then
-      final_reason="DONE: 目标达成且评审通过"
-      patch '{"status":"done"}'
-      break
     else
-      echo "  [verify] LLM 判达成但 VERIFY_CMD 校验未过 → 驳回,继续下一轮"
-      patch '{"goal_met":false,"review":"changes_requested","review_notes":"VERIFY_CMD 客观校验未通过,需继续修复"}'
+      patch '{"status":"done"}'
+      final_reason="MOCK: DONE 状态写入成功"
     fi
   fi
-
-  case "$status_val" in
-    blocked)
-      final_reason="ABORT: 编排者报告 blocked → $(get blocker),转人工"
-      break
-      ;;
-    *)
-      echo "  [decide] status=$status_val, goal_met=$goal_met_val, review=$review_val → 继续下一轮"
-      ;;
-  esac
-
-  elapsed=$(( $(date +%s) - start ))
-  if [ "$elapsed" -gt "$BUDGET_S" ]; then
-    final_reason="ABORT: 超出 BUDGET_S (${elapsed}s > ${BUDGET_S}s)"
-    break
+  echo ""
+  echo "──────── $final_reason ────────"
+  echo "---- 最终状态 ----"
+  wpath_state="$(wpath "$STATE")"
+  if [ -f "$STATE" ]; then
+    jq '.' "$wpath_state" 2>/dev/null || cat "$STATE"
   fi
-done
-
-if [ -z "$final_reason" ]; then
-  final_reason="ABORT: 达到 MAX_ITER ($MAX_ITER) 上限"
+  exit 0
 fi
 
+# ─── HANDBACK：交由命令绑定的编排 agent 续驱 ───
 echo ""
-echo "──────── $final_reason ────────"
-echo "---- 最终状态 ----"
-wpath_state="$(wpath "$STATE")"
-if [ -f "$STATE" ]; then
-  jq '.' "$wpath_state" 2>/dev/null || cat "$STATE"
-fi
+echo "  [orchestrator] 状态文件已就绪,等待命令编排 agent 接管"
+echo "  [orchestrator] STATE=$STATE"
+echo "  [orchestrator] 请读取 $STATE 并按 agents/orchestrator.md 职责驱动有界闭环"
+echo ""
+echo "──────── HANDBACK: 已初始化并交由编排者驱动 ────────"
+echo "    (脚本不 spawn agent;MAX_ITER/BUDGET_S/STALL_LIMIT 由编排者自查)"

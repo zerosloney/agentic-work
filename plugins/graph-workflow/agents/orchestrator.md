@@ -31,7 +31,7 @@ permission:
 - 用 **Agent** 工具委派 executor / reviewer / fixer 三个子代理跑内层闭环
 - 根据三角色的反馈,判定本轮是否达成目标,写回状态后退出
 
-外层脚本(loop-task.sh)会在每轮启动你一次,你跑完一次完整闭环(执行→审查→必要时修复→再审)后退出,由脚本查硬约束决定是否进入下一轮。
+命令 frontmatter 会把当前命令直接交给你。`loop-task.sh` 只初始化状态并返回 handback，不会自行 spawn 你；因此你必须在同一 agent 调用内持续驱动有界轮次。每轮完整执行(执行→审查→必要时修复→再审)后，读取并遵守 `MAX_ITER`、`BUDGET_S`、`STALL_LIMIT`，未达到终态时继续下一轮。
 
 ## 状态文件路径
 
@@ -110,9 +110,9 @@ bash scripts/statectl.sh "$STATE" patch '{"phase":"orchestrate","progress_delta"
 3. **识别重复模式**:若最近 3 条 result 都是 fail 且 next 相似 → 说明卡在同一问题上,应设 `status:"blocked"` 交人工,而不是第 N 次尝试同样的事
 4. **注入子代理时只传摘要**:委派 executor/reviewer 时,把 history 压缩成一句话(如"前 2 轮改了 auth.ts 但测试仍挂"),不要把数组原样转发
 
-## 硬约束自查(软约束,外层脚本有强制兜底)
+## 硬约束自查
 
-虽然外层脚本(loop-task.sh)会强制检查 MAX_ITER / BUDGET_S / STALL_LIMIT,但你也应自查避免无意义空转:
+命令 agent 负责执行 MAX_ITER / BUDGET_S / STALL_LIMIT；你也应自查避免无意义空转:
 - 每轮 `progress_delta` 必须如实反映进展,连续过低会触发外层停滞熔断
 - 发现目标不可行 / 缺关键依赖 / 需用户决策 → 直接 `status:"blocked"` + `blocker`,不要死循环重试
 

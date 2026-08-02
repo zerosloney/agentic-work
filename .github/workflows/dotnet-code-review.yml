@@ -1,0 +1,87 @@
+name: dotnet-code-review
+
+on:
+  push:
+    paths:
+      - "plugins/dotnet-work/skills/dotnet-code-review/**"
+      - "scripts/**"
+      - ".github/workflows/dotnet-code-review.yml"
+  pull_request:
+    paths:
+      - "plugins/dotnet-work/skills/dotnet-code-review/**"
+      - "scripts/**"
+      - ".github/workflows/dotnet-code-review.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python test dependencies
+        run: python -m pip install --upgrade pytest pyyaml
+
+      - name: Build Roslyn analyzers (Unix)
+        if: runner.os != 'Windows'
+        run: bash plugins/dotnet-work/skills/dotnet-code-review/scripts/build-analyzers.sh
+
+      - name: Build Roslyn analyzers (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./plugins/dotnet-work/skills/dotnet-code-review/scripts/build-analyzers.ps1
+
+      - name: Run unit and runtime tests
+        run: python -m pytest plugins/dotnet-work/skills/dotnet-code-review/tests -q
+
+      - name: Verify rule inventory
+        run: python plugins/dotnet-work/skills/dotnet-code-review/scripts/count_rules.py
+
+      - name: Run CLI smoke review
+        run: >-
+          python plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py
+          --files plugins/dotnet-work/skills/dotnet-code-review/tests/fixtures/RuntimeSmoke.cs
+          --skip-project --legacy-compat --format compact --output-mode summary
+          --fail-on none
+
+      - name: Verify SARIF and baseline gates
+        run: >-
+          python plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py
+          --files plugins/dotnet-work/skills/dotnet-code-review/tests/fixtures/BaselineGate.cs
+          --baseline-report plugins/dotnet-work/skills/dotnet-code-review/tests/fixtures/baseline-empty.json
+          --fail-on none --fail-on-introduced error --format sarif
+
+      - name: Validate plugin manifests and dependencies
+        run: |
+          node scripts/validate-manifest.js
+          node scripts/resolve-deps.js
+
+      - name: Validate installer dry-runs
+        run: |
+          node scripts/install-codebuddy.js --dry-run
+          node scripts/install-zcode.js --dry-run
+          node scripts/install-trae.js --dry-run
+          node scripts/install-qoder.js --dry-run
+          node scripts/install-qwencode.js --dry-run
+          node scripts/materialize-codebuddy.js --dry-run

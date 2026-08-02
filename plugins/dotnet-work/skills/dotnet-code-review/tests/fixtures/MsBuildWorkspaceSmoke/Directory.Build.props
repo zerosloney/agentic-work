@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts\obj\</BaseIntermediateOutputPath>
+    <GeneratedFile>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\Generated\WorkspaceGenerated.g.cs</GeneratedFile>
+  </PropertyGroup>
+</Project>

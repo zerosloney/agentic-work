@@ -39,24 +39,27 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 
 ## 选择哪个 workflow 插件
 
-仓库有两个编排插件，都做 execute→review→fix 循环，但**约束模型与适用场景不同**。按场景选：
+仓库有两个编排插件，都做 execute→review→fix 循环，**两者都由命令绑定的编排 agent 在单会话内驱动有界轮次**（脚本/HOOK 作辅助）。区别在**编排模型与状态结构**。按场景选：
 
 | 场景 | 选 | 原因 |
 |------|----|------|
-| 交互式编码，你在 loop 里盯着 | **agentic-workflow**（`/coding-pipeline`、`/ralph-pipeline`） | agent 自驱，单会话多轮，hook 门禁拦截危险写，你可中途介入 |
-| 无人值守长任务，挂机跑 | **graph-workflow**（`/loop-task`、`/graph-task`） | 外层 shell 脚本硬约束（MAX_ITER/BUDGET_S/STALL_LIMIT），每轮 spawn 新 agent，进程级隔离 |
-| 固定 exec→review→fix 流程 | graph-workflow `/loop-task` | 单节点自环，流程固定 |
-| 自定义节点拓扑（多分支/条件路由/串行多阶段） | graph-workflow `/graph-task` + `--graph` | 声明式图编排 |
+| 交互式编码，你在 loop 里盯着 | **agentic-workflow**（`/coding-pipeline`、`/ralph-pipeline`） | 轻量，单线 exec→review→fix，hook 门禁拦截危险写，你可中途介入 |
+| 无人值守长任务，需声明式状态机/图拓扑 | **graph-workflow**（`/loop-task`、`/graph-task`） | 结构化 state（node_states/history）+ 图拓扑编排 + `/loop-review` 复盘 |
+| 固定 exec→review→fix 流程 | 任一（graph-workflow `/loop-task` 默认图等价单线循环） | 两者默认都是单线闭环 |
+| 自定义节点拓扑（多分支/条件路由/串行多阶段） | graph-workflow `/graph-task` + `--graph` | 声明式图编排（version=2 多节点 DAG + 边路由） |
 
 **架构差异（决定选型）**：
 
 | 维度 | agentic-workflow | graph-workflow |
 |------|------------------|----------------|
-| 循环驱动 | agent 自驱（单会话内多轮委派） | 外层脚本（`loop-task.sh`/`graph-run.sh`）每轮 spawn |
-| 约束执行者 | agent 内 `MAX_CYCLES` + hook 门禁 | 外层脚本 `MAX_ITER`/`BUDGET_S`/`STALL_LIMIT`/`VERIFY_CMD` |
-| 状态路径 | `.loop-cli/state/*.json` | `scripts/loop-state/task-*.json` + `.loop-marker` |
-| 隔离粒度 | 会话内（共享上下文） | 进程级（每轮 fresh agent，状态全靠 state 文件） |
-| 入口 | command 直接委派 orchestrator agent | command 调 `bash scripts/*.sh`，脚本驱动 |
+| 循环驱动 | agent 自驱（单会话内多轮委派） | 命令 agent 单会话驱动有界轮次（脚本 init 后 HANDBACK，agent 续驱） |
+| 编排模型 | 单线 exec→review→fix | 图拓扑（version=2 多节点 DAG + 边路由 + node_states）或默认图（version=1 单节点自环） |
+| 约束执行者 | agent 内 `MAX_CYCLES` + hook 门禁 | 脚本启动校验（fail-fast）+ agent 自查 `MAX_ITER`/`BUDGET_S`/`STALL_LIMIT`/`VERIFY_CMD` |
+| 状态持久化 | `.loop-cli/state/*.json`（每轮覆写） | `scripts/loop-state/task-*.json`（结构化 + node_states + history + `.loop-marker`） |
+| 复盘 | 无独立命令 | `/loop-review` 扫 state 文件汇总 |
+| 入口 | command 直接委派 orchestrator agent | command（frontmatter `agent:` 绑定编排者）调脚本 init → HANDBACK → 编排者续驱 |
+
+**核心区别**：agentic-workflow 是轻量单线闭环；graph-workflow 是带结构化状态文件 + 可声明图拓扑 + 独立复盘命令的编排框架。两者隔离粒度相同（均会话内，无进程级 spawn），硬约束均靠 agent 自查 + 脚本/HOOK 辅助校验，不再有"外层脚本每轮强制兜底"的进程级隔离模型。
 
 **不要混用**：两者状态 schema 不兼容（version=1 各自定义，路径不同），同一任务不要交叉使用。需要复盘两者产物分别用各自的 state 目录。
 
@@ -133,7 +136,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
 
 ## graph-workflow
 
-- **Purpose**: Loop Engineering + Graph Engineering 双档位闭环 — 外层脚本硬约束(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD) + 内层三角色(executor/reviewer/fixer)协作,无人值守长任务。
+- **Purpose**: Loop Engineering + Graph Engineering 双档位闭环 — 命令编排 agent 有界循环(MAX_ITER/BUDGET_S/STALL_LIMIT/VERIFY_CMD 由 agent 自查,入口脚本启动时校验合法性作 fail-fast) + 内层三角色(executor/reviewer/fixer)协作,无人值守长任务。
 - **五平台已支持**: ZCode + CodeBuddy + Trae + Qoder + Qwen Code。三角色 agents 各平台 frontmatter 适配（ZCode/Trae 嵌套 `permission:`、CodeBuddy/Qoder flat `permissionMode`、Qwen Code `approvalMode` + `tools`），body 一致。install-trae/qoder/qwencode.js 的 PLUGINS 已登记 graph-workflow。
 - **两个入口命令**:`commands/loop-task.md`(Loop Engineering,固定 exec→review→fix 循环,状态 version=1)、`commands/graph-task.md`(Graph Engineering 档位 B,声明式图拓扑,默认图等价 loop-task,状态 version=2)。两档位跨版本不兼容(旧状态读到不匹配 version 拒绝续跑,防漂移)。
 - **三角色 agents**(ZCode/Trae 嵌套 `permission:` / CodeBuddy/Qoder flat `permissionMode` / Qwen Code `approvalMode` + `tools` 允许列表,body 一致仅 frontmatter 不同):
@@ -143,7 +146,7 @@ Fine-grained bash allow-lists cannot be expressed in `permissionMode`/`approvalM
   - `fixer`(`permissionMode: acceptEdits`) — 根因最小修复,修完回 orchestrator 重新委派 reviewer。
 - **Manifest 单一真源**:`.codebuddy-plugin/plugin.json` version 字段权威;`.zcode-plugin/plugin.json` / 根 `marketplace.json` 条目派生。
 - **Hooks**:
-  - `validate-state-write` — PreToolUse (Write|Edit):写 `scripts/loop-state/*.json` 前做廉价前置校验(JSON 可解析 + 必填字段 + enum + version ∈ {1,2})。Edit 片段 / 非 state 文件 / 内部错误 fail-open 退出 0。非完整 schema,写完后仍须跑独立校验脚本。
+  - `validate-state-write` — PreToolUse (Write|Edit):写 `scripts/loop-state/*.json` 前做廉价前置校验(JSON 可解析 + 必填字段 + enum + version ∈ {1,2} + version↔task_type 交叉)。Edit 操作会物化 old_string/new_string 后校验最终态;非 state 文件 / 内部错误 fail-open 退出 0。stdin 读 3s 超时防平台不关 stdin 挂死。非完整 schema,写完后仍须跑独立校验脚本。
 - **状态 schema**:`plugins/graph-workflow/scripts/state-schema.json` — version=1 单节点自环 / version=2 图编排。字段:task_id/task_type/objective/goal_criteria/iteration/phase/status/goal_met/progress_delta/review/graph/node_states/current_node/history 等。
 - **statectl 防护**:`scripts/statectl.sh` 写命令(create/ensure/set/patch/inc/append)持 mkdir 文件锁(死锁自愈、超时 exit 75)，写前做 enum/类型廉价校验(不合法拒写，非完整 schema，权威校验仍靠 `node scripts/validate-state.js`)；`create` 对既有非空 state 默认拒绝覆盖(exit 73)，重建需显式 `--force`，两入口脚本(loop-task.sh/graph-run.sh)对 create 失败即退。
 - **运行时产物**:`scripts/loop-state/task-*.json` + `.loop-marker` — 已被根 `.gitignore` 忽略(G-003 修复)。勿手动提交。
@@ -279,7 +282,7 @@ Orchestrator bodies reference these via `../_shared/` — 这个相对路径以*
 
 ## Versioning
 
-- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `.trae-plugin/plugin.json`, `.qoder-plugin/plugin.json`, `.qwen-plugin/qwen-extension.json`, `skills/*/SKILL.md` YAML frontmatter, root `.codebuddy-plugin/marketplace.json` entry, root `marketplace.json` `<plugin>-zcode` entry) are derived from it.
+- **Single source of truth**: each plugin's `.codebuddy-plugin/plugin.json` `version` field is the authoritative version. All other locations (`.zcode-plugin/plugin.json`, `.trae-plugin/plugin.json`, `.qoder-plugin/plugin.json`, `.qwen-plugin/qwen-extension.json`, `skills/*/SKILL.md` YAML frontmatter, `skills/*/pyproject.toml` literal `version = "..."` (files declaring `dynamic = ["version"]` are skipped — version sourced from module `__version__`), root `.codebuddy-plugin/marketplace.json` entry, root `marketplace.json` `<plugin>-zcode` entry) are derived from it.
 - **Bump with one command**: `node scripts/bump-version.js --plugin <name> --set <new-version>` updates the manifest and propagates to all sites. Without `--set`, the script syncs all sites to match the manifest (idempotent).
 - **Check in CI**: `node scripts/bump-version.js --all --check` exits non-zero on drift. Run before committing.
 - **Install scripts** (`install-zcode.js`, `install-codebuddy.js`, `install-trae.js`, `install-qoder.js`, `install-qwencode.js`) read the version from the manifest at runtime via `lib/plugin-version.js` — never hardcode `PLUGIN_VERSION`.

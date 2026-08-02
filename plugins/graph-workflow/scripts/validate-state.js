@@ -48,6 +48,11 @@ try {
   process.exit(1);
 }
 
+if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+  console.error(`错误: ${stateFile} 顶层必须是 JSON 对象`);
+  process.exit(1);
+}
+
 const errs = [];
 const warns = [];
 
@@ -98,6 +103,7 @@ if (json.review === 'changes_requested') {
 
 // ─── version 分支特有校验 ───
 if (json.version === 1) {
+  check(json.task_type === 'task', 'version=1 的 task_type 必须为 task');
   if ('graph' in json) {
     warns.push('version=1 通常不含 graph 字段(该字段为 version=2 图编排专用)');
   }
@@ -105,27 +111,72 @@ if (json.version === 1) {
 }
 
 if (json.version === 2) {
+  check(json.task_type === 'graph', 'version=2 的 task_type 必须为 graph');
   check('graph' in json, 'version=2 必须含 graph 字段(图拓扑)');
 
   if ('graph' in json) {
     const g = json.graph;
-    for (const gf of ['entry', 'nodes', 'edges']) {
-      check(g && typeof g === 'object' && gf in g, `graph 缺少必填字段: "${gf}"`);
-    }
-    if (Array.isArray(g.nodes)) {
-      const badNode = g.nodes.some(n => !n.id || !n.role);
-      check(!badNode, 'graph.nodes 存在缺少 id 或 role 的节点');
-      const badRole = g.nodes.some(n => !['executor', 'reviewer', 'fixer'].includes(n.role));
-      check(!badRole, 'graph.nodes[].role 只能为 executor/reviewer/fixer');
-    }
-    if (Array.isArray(g.edges)) {
-      const badEdge = g.edges.some(e => !e.from || !e.to);
-      check(!badEdge, 'graph.edges 存在缺少 from 或 to 的边');
+    const isGraphObject = g !== null && typeof g === 'object' && !Array.isArray(g);
+    check(isGraphObject, 'graph 必须为对象');
+    if (isGraphObject) {
+      check(typeof g.entry === 'string' && g.entry.length > 0, 'graph.entry 必须为非空字符串');
+      check(Array.isArray(g.nodes) && g.nodes.length > 0, 'graph.nodes 必须为非空数组');
+      check(Array.isArray(g.edges), 'graph.edges 必须为数组');
+
+      const nodes = Array.isArray(g.nodes) ? g.nodes : [];
+      const nodeIds = nodes.map(n => n && typeof n === 'object' && !Array.isArray(n) ? n.id : undefined);
+      check(nodes.every(n => n !== null && typeof n === 'object' && !Array.isArray(n)),
+        'graph.nodes[] 必须为对象');
+      check(nodes.every(n => n && typeof n.id === 'string' && n.id.length > 0),
+        'graph.nodes[].id 必须为非空字符串');
+      check(new Set(nodeIds).size === nodeIds.length, 'graph.nodes[].id 必须唯一');
+      check(nodes.every(n => n && ['executor', 'reviewer', 'fixer'].includes(n.role)),
+        'graph.nodes[].role 只能为 executor/reviewer/fixer');
+      if (typeof g.entry === 'string') {
+        check(nodeIds.includes(g.entry), 'graph.entry 必须引用 graph.nodes 中的节点');
+      }
+
+      const edges = Array.isArray(g.edges) ? g.edges : [];
+      check(edges.every(e => e !== null && typeof e === 'object' && !Array.isArray(e)),
+        'graph.edges[] 必须为对象');
+      check(edges.every(e => e && typeof e.from === 'string' && e.from.length > 0 &&
+        typeof e.to === 'string' && e.to.length > 0),
+        'graph.edges[].from/to 必须为非空字符串');
+      check(edges.every(e => e && (!Object.prototype.hasOwnProperty.call(e, 'when') || typeof e.when === 'string')),
+        'graph.edges[].when 必须为字符串');
+      check(edges.every(e => e && nodeIds.includes(e.from)),
+        'graph.edges[].from 必须引用 graph.nodes 中的节点');
+      check(edges.every(e => e && (e.to === '__done__' || e.to === '__abort__' || nodeIds.includes(e.to))),
+        'graph.edges[].to 必须引用已知节点或 __done__/__abort__');
+      check(edges.some(e => e && (e.to === '__done__' || e.to === '__abort__')),
+        'graph.edges 必须至少包含一个指向 __done__ 或 __abort__ 的终点边');
+
+      if (json.node_states && typeof json.node_states === 'object' && !Array.isArray(json.node_states)) {
+        const stateIds = Object.keys(json.node_states);
+        check(stateIds.every(id => nodeIds.includes(id)), 'node_states 只能包含 graph.nodes 中的节点');
+        for (const id of stateIds) {
+          const nodeState = json.node_states[id];
+          check(nodeState && typeof nodeState === 'object' && !Array.isArray(nodeState),
+            `node_states[${id}] 必须为对象`);
+          if (nodeState && typeof nodeState === 'object' && !Array.isArray(nodeState)) {
+            check(!('status' in nodeState) || ['pending', 'done', 'failed'].includes(nodeState.status),
+              `node_states[${id}].status 非法`);
+            check(!('result' in nodeState) || typeof nodeState.result === 'string',
+              `node_states[${id}].result 必须为字符串`);
+          }
+        }
+      }
+      if (typeof json.current_node === 'string') {
+        check(json.current_node === '__done__' || json.current_node === '__abort__' || nodeIds.includes(json.current_node),
+          'current_node 必须引用已知节点或终点');
+      }
     }
   }
 
   check(json.node_states && typeof json.node_states === 'object' && !Array.isArray(json.node_states),
     'version=2 的 node_states 必须为对象');
+  check(!Object.prototype.hasOwnProperty.call(json, 'current_node') || json.current_node === null || typeof json.current_node === 'string',
+    'current_node 必须为字符串或 null');
 }
 
 function summarize() {

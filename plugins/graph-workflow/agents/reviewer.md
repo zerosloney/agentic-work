@@ -15,10 +15,10 @@ permission:
     "git diff*": allow
     "git log*": allow
     "git show*": allow
-    "git branch*": allow
-    "npm *": allow
-    "pnpm *": allow
-    "npx *": allow
+    "npm test*": allow
+    "npm run *": allow
+    "pnpm test*": allow
+    "pnpm run *": allow
     "tsx *": allow
     "tsc*": allow
     "pytest*": allow
