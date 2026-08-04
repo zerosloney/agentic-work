@@ -6,7 +6,8 @@ node_modules/
 .codebuddy/
 .zcode/
 !.codebuddy-plugin/
-/tests
+# tests 目录:忽略所有层级(已跟踪文件不受影响,git 继续 track 已 commit 项)
+tests/
 
 # graph-workflow 运行时产物(task 状态 + 反懒惰标记)
 loop-state/
