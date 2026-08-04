@@ -69,11 +69,22 @@ def run_build(project: str, config: str, timeout: int) -> tuple[int, str, str]:
     the regex in parse_diagnostics expects. On localized SDKs (zh/ja/...) the
     output otherwise becomes `错误 CS1061:` and parse_diagnostics silently
     drops real compile errors.
+
+    Uses --no-restore only when obj/project.assets.json exists (i.e. restore
+    already ran). On a clean checkout the assets file is absent and --no-restore
+    would fail with NU1603/MSB3027; in that case let dotnet build restore
+    implicitly by omitting the flag.
     """
+    # intentional-simple: assets-file presence is the standard restore-state
+    # signal; covers >99% of cases. Rare edge cases (corrupt assets, stale
+    # restore) surface as build errors the Agent already handles.
+    assets = Path(project).parent / "obj" / "project.assets.json"
+    no_restore_flag = ["--no-restore"] if assets.exists() else []
+
     cmd = [
         "dotnet", "build", project,
         "--configuration", config,
-        "--no-restore",
+        *no_restore_flag,
         "-nologo",
         "/p:InvariantCulture=true",
     ]

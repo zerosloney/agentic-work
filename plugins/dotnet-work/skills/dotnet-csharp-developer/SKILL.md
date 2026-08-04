@@ -134,7 +134,7 @@ API (Endpoints/Controllers)  →  Application (Service/Handler)  →  Domain (En
 #### 4a. 结构化构建验证
 
 ```bash
-python skill://dotnet-csharp-developer/scripts/build_check.py \
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py \
   --project <项目根>.csproj \
   --config Debug \
   --changed-files <本次修改的文件列表>
@@ -150,7 +150,7 @@ python skill://dotnet-csharp-developer/scripts/build_check.py \
 构建通过后，调用 **review_orchestrator.py**（封装 dotnet-code-review skill）：
 
 ```bash
-python skill://dotnet-csharp-developer/scripts/review_orchestrator.py \
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchestrator.py \
   --target <项目根> \
   --mode quick
 ```

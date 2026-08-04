@@ -53,7 +53,7 @@ metadata:
 | 三层架构 + 命名规范 | `references/three-tier-mvp.md` |
 | 项目指纹扫描 | **权威**：`python scripts/scan_project.py --root "<项目根>"`（脚本内建 rg→pure-Python 降级）。**降级**：Python 不可用时报错让用户安装 Python 3.8+，不维护 PowerShell 平行命令 |
 | 失败案例排查 | `references/failure-modes.md` |
-| Entity/字段缺失，需连库查 schema | **首选** `python skill://database-explorer/scripts/db_tool.py explore --semantic <关键词> --format json-compact` 找表，再 `explore --object-type column --table <表名> --detail full` 拉列定义；DB 不可达 / 用户拒绝连库时回退到让用户粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
+| Entity/字段缺失，需连库查 schema | **首选** `python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py explore --semantic <关键词> --format json-compact` 找表，再 `explore --object-type column --table <表名> --detail full` 拉列定义；DB 不可达 / 用户拒绝连库时回退到让用户粘贴 `Entity.{实体类}` 字段定义或表 schema，不阻塞流程 |
 | 增量编辑现有窗体（加列/加按钮/修改 Designer） | `scripts/incremental_designer.py`（VisibleIndex 自动计算 + 代码生成） |
 | 全新窗体 InitializeComponent 草稿生成 | `scripts/designer_generator.py`（4 家族 × 3 场景模板引擎） |
 | MSBuild 编译验证命令模板 | `references/msbuild-commands.md` |
@@ -93,7 +93,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
 | 3 | **项目根 + 目标目录** | `.sln` 所在目录 + 业务模块目录 | 用户指定；无法推断时问 |
 | 4 | **构建入口** | `.sln` / `.csproj` + Configuration/Platform | 优先项目现有配置；多候选时问 |
 | 5 | **目标框架版本** | `.NET Framework 4.7.2`（本 skill 限定） | 读 `.csproj` `<TargetFrameworkVersion>`；非 4.7.2（如 4.8 / `net6.0-windows`）→ **停下来告知用户本 skill 针对 4.7.2 + DevExpress 21.2 验证，其他版本未覆盖，确认是否继续** |
-| 6 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，**首选 database-explorer**（`python skill://database-explorer/scripts/db_tool.py ...`）；DB 不可达 / 用户拒绝连库时回退到让用户直接粘贴字段定义，不阻塞 |
+| 6 | **数据库可连性** | 可连 / 不可连（连接串在 App.config） | 若 Entity/字段缺失，**首选 database-explorer**（`python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py ...`）；DB 不可达 / 用户拒绝连库时回退到让用户直接粘贴字段定义，不阻塞 |
 
 缺少 1/2/3 时先问用户；**缺少 4（构建入口）时阻断，不进入 Step 1**。无法确认 `.sln` / `.csproj` 路径及 Configuration/Platform，Step 5b MSBuild 验证无法执行，交付物不可验证。**第 5 项（目标框架版本）非 4.7.2 时必须停下确认**——用户同意才继续，不同意则交人工。
 
@@ -172,10 +172,10 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
    - **P1**：Entity 缺失但项目有可连 DB → 调用 **database-explorer** skill 查 schema：
      ```bash
      # 1. 找表（按业务关键词，自带列名预览 + complete 标记，省 token）
-     python skill://database-explorer/scripts/db_tool.py \
+     python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py \
        explore --semantic "<业务关键词>" --format json-compact
      # 2. 列定义（仅对单张目标表，detail full，按 token 节约硬规则）
-     python skill://database-explorer/scripts/db_tool.py \
+     python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py \
        explore --object-type column --table "<表名>" --detail full --format json-compact
      ```
      把结果整理成 字段名 / 类型 / NULL / 长度 / 默认值 清单
@@ -287,7 +287,7 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
   - .NET Framework 项目无法使用 code-review 的完整模式（Build/Format 层需要 SDK 风格项目 + .NET 6+ SDK），但 AST/语义/项目三级分析器通过 Roslyn DLL 直接分析源码，不需要构建目标项目；首次使用若 DLL 不存在会自动构建运行。
   - 使用 `--legacy-compat` 标志跳过 SDK 硬门槛 + 自动跳过 Build/Format 层：
     ```bash
-    python skill://dotnet-code-review/scripts/review.py \
+    python plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py \
       --target <项目根> \
       --legacy-compat \
       --format compact \
@@ -429,10 +429,10 @@ View (frm / ucl)  →  Presenter (协调器)  →  Ser (BLL: 内存缓存 + 业�
   1. **首选**：调用 **database-explorer** skill 连库查 schema：
      ```bash
      # a. 找表（关键词/表名都支持；优先 --semantic，省 token）
-     python skill://database-explorer/scripts/db_tool.py \
+     python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py \
        explore --semantic "<表名或业务关键词>" --format json-compact
      # b. 拉单表列定义（detail full 仅限即将写代码的目标表）
-     python skill://database-explorer/scripts/db_tool.py \
+     python plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py \
        explore --object-type column --table "<表名>" --detail full --format json-compact
      ```
   2. 回退：DB 不可达 / 用户拒绝连库 → 让用户提供 `Entity.{实体类}` 字段定义或表 schema（对应 **案例 3**）

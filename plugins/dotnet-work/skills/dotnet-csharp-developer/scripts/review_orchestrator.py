@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def find_review_script(target: str) -> str | None:
-    """Locate review.py relative to this script or via skill:// path resolution."""
+    """Locate review.py via __file__-relative path (sibling skill in same plugin)."""
     # This script lives in plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/
     # review.py lives in plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py
     this_dir = Path(__file__).resolve().parent
