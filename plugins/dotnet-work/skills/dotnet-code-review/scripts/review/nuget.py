@@ -472,6 +472,12 @@ def check_nuget_cves(
         "db_path": db_path or "",
         "db_present": db_present,
     }
+    # Integrity failure must be machine-readable. Callers gating on
+    # len(vulnerabilities)==0 would otherwise treat a corrupted/tampered DB
+    # as "clean". Distinguish from the plain "no DB" case below.
+    if integrity_warning and not db_present and db_path:
+        result["cve_scan_degraded"] = True
+        result["degraded_reason"] = "integrity_check_failed"
     if db_present:
         result["db_updated_at"] = updated_at
         result["db_age_days"] = age_days

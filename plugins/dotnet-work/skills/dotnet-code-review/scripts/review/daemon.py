@@ -86,7 +86,26 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Local dotnet-code-review daemon")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Allow binding to non-loopback addresses. The daemon has no auth and "
+             "exposes local file reads + subprocess execution via /review; binding "
+             "to 0.0.0.0 lets any host on the network trigger reviews.",
+    )
     args = parser.parse_args()
+
+    # Loopback guard: the daemon exposes run_review, which reads arbitrary local
+    # paths and spawns dotnet subprocesses. Without auth, a non-loopback bind is
+    # an SSRF/local-file-read surface. Require explicit opt-in.
+    loopback = {"127.0.0.1", "::1", "localhost", ""}
+    if args.host not in loopback and not args.allow_remote:
+        raise SystemExit(
+            f"Refusing to bind daemon to non-loopback host {args.host!r}: no auth, "
+            "exposes local file reads + subprocess execution. Use --allow-remote "
+            "to confirm you accept this risk."
+        )
+
     server = ThreadingHTTPServer((args.host, args.port), _Handler)
     print(json.dumps({"status": "listening", "url": f"http://{args.host}:{args.port}"}), flush=True)
     server.serve_forever()

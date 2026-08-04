@@ -37,11 +37,6 @@ def _dotnet_command_exists() -> bool:
         return False
 
 
-def _should_allow_analyzer_subprocess() -> bool:
-    """Check if subprocess invocation is allowed (no PLUGIN_FORBIDDEN_SCOPE, etc.)."""
-    return os.environ.get("PLUGIN_FORBIDDEN_SCOPE") is None
-
-
 def dotnet_available() -> bool:
     """Return True if a usable .NET SDK is present."""
     return _dotnet_command_exists()
@@ -186,8 +181,6 @@ def analyze_ast(files: list[str], project_root: str = "",
     """
     if not files:
         return []
-    if not _should_allow_analyzer_subprocess():
-        return []
 
     ast_dir = Path(__file__).resolve().parent.parent.parent / "csharp-ast-analyzer"
     if not (ast_dir / "csharp-ast-analyzer.csproj").exists():
@@ -289,8 +282,6 @@ def analyze_semantic(
     cache_stats and compilation_error_count.
     """
     if not files:
-        return [], {}
-    if not _should_allow_analyzer_subprocess():
         return [], {}
 
     sem_dir = Path(__file__).resolve().parent.parent.parent / "csharp-semantic-analyzer"
@@ -450,8 +441,6 @@ def _normalize_review_path(path: str, project_root: str) -> str:
 def analyze_project(files: list[str]) -> dict:
     """Run cross-file project analyzer. Returns raw project analysis dict."""
     if not files:
-        return {}
-    if not _should_allow_analyzer_subprocess():
         return {}
 
     proj_dir = Path(__file__).resolve().parent.parent.parent / "csharp-project-analyzer"

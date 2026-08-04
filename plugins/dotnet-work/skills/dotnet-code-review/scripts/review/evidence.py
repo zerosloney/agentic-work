@@ -271,6 +271,12 @@ def build_review_integrity(
         if cve_result.get("db_present"):
             integrity["cve_db_updated_at"] = cve_result.get("db_updated_at", "")
             integrity["cve_db_age_days"] = cve_result.get("db_age_days")
+        # Integrity failure (sidecar mismatch) sets db_present=False but carries
+        # a distinct machine-readable flag so callers don't confuse a corrupted
+        # DB with a plain missing one. See check_nuget_cves in nuget.py.
+        if cve_result.get("cve_scan_degraded"):
+            integrity["cve_scan_degraded"] = True
+            integrity["cve_degraded_reason"] = cve_result.get("degraded_reason", "unknown")
 
     return integrity
 
