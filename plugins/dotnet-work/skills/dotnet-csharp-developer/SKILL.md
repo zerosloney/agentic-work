@@ -135,6 +135,8 @@ API (Endpoints/Controllers)  →  Application (Service/Handler)  →  Domain (En
 └────────────────────────────────────────────────┘
 ```
 
+> **格式化（可选，非强制门）**：交付前可跑 `dotnet format --verify-no-changes` 检查格式一致性；有差异可 `dotnet format` 应用。不作为 Step 4 强制环节，避免每轮格式化拖慢循环。
+
 #### 4a. 结构化构建验证
 
 ```bash
@@ -218,7 +220,8 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchest
 | EF 更新数据库 | `dotnet ef database update` |
 | 发布 | `dotnet publish -c Release -o ./publish` |
 | 清理 | `dotnet clean` |
-| 格式化 | `dotnet format` |
+| 格式化（检查不改） | `dotnet format --verify-no-changes` |
+| 格式化（应用） | `dotnet format` |
 | 代码分析 | `dotnet build /p:TreatWarningsAsErrors=true` |
 
 ## References

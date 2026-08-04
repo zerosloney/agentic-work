@@ -183,6 +183,29 @@ public static class SeedData
 | 外键冲突 | 级联删除循环 | 设置 `DeleteBehavior.Restrict` |
 | 列已存在 | 重复迁移 | 检查迁移历史，可能需要回滚 |
 
+### Step 8: 验证（对应 SKILL.md Step 4a / 4a.5 / 4b）
+
+```bash
+# 4a 结构化构建验证（迁移改动不直接产生编译 error，但实体类改动会）
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py \
+  --project <项目根>.csproj \
+  --config Debug \
+  --changed-files Domain/Order.cs Domain/OrderItem.cs Data/AppDbContext.cs
+
+# 4a.5 无独立测试工程 → 跳过；有则 dotnet test --no-build
+
+# 迁移专项验证（非 SKILL.md 标准步骤，EF 迁移场景必做）
+dotnet ef migrations has-pending-model-changes   # 应返回无 pending
+dotnet ef migrations script -o review.sql        # 审查生成的 SQL
+
+# 4b 静态审查
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchestrator.py \
+  --target <项目根> --mode quick
+```
+
+- 迁移场景验证重点：`has-pending-model-changes` 无输出 + `script` SQL 审查列类型/外键/索引合理
+- 迁移不可逆（已 apply 到生产库），交付前务必 `migrations script -idempotent` 生成幂等 SQL 人工审
+
 ## 关键决策点
 
 | 决策 | 选择 | 理由 |

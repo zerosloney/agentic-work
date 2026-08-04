@@ -102,6 +102,70 @@ builder.OwnsOne(o => o.ShippingAddress, address =>
 });
 ```
 
+### DateOnly / TimeOnly（EF Core 8+ 原生映射）
+
+```csharp
+// .NET 6+ 引入 DateOnly/TimeOnly，EF Core 8+ 原生映射为 SQL Server date / time 列
+public class Schedule : BaseEntity
+{
+    public required string Name { get; set; }
+    public DateOnly StartDate { get; set; }      // → date（无时间）
+    public DateOnly? EndDate { get; set; }
+    public TimeOnly OpenTime { get; set; }        // → time（无日期）
+    public TimeOnly CloseTime { get; set; }
+}
+
+// 相比 DateTime 优势：语义明确，无时区歧义，无 "1900-01-01" 默认日期噪声
+// 查询：按日期范围
+var active = await _db.Schedules
+    .Where(s => s.StartDate <= DateOnly.FromDateTime(DateTime.Today)
+             && (s.EndDate == null || s.EndDate >= DateOnly.FromDateTime(DateTime.Today)))
+    .ToListAsync(ct);
+```
+
+### ComplexProperty（EF Core 8+ 值对象，替代 OwnsOne 的现代方案）
+
+```csharp
+// 值对象：无身份、不可变、语义上属实体一部分（如 Money、Address、GeoPoint）
+// ComplexProperty 比 OwnsOne 更贴合值对象语义：无导航属性、不可单独查询、强制随实体存取
+public readonly record struct Money(decimal Amount, string Currency);
+
+public class OrderLine : BaseEntity
+{
+    public required string ProductName { get; set; }
+    public Money UnitPrice { get; set; }  // 值对象作为复杂属性
+}
+
+// 配置（Fluent API）
+builder.ComplexProperty(o => o.UnitPrice, price =>
+{
+    price.Property(p => p.Amount).HasPrecision(18, 2);
+    price.Property(p => p.Currency).HasMaxLength(3).IsRequired();
+});
+
+// 何时用 ComplexProperty vs OwnsOne：
+// - ComplexProperty：纯值对象（Money/Address/坐标），无独立生命周期，C# 侧常用 readonly record struct
+// - OwnsOne/OwnsMany：需配置关系/索引/单独查询的聚合部分（如 Order → ShippingAddress 含独立验证逻辑）
+```
+
+### 原始集合（Primitive Collections，EF Core 7+）
+
+```csharp
+// List<int> / List<string> / int[] 等原始类型集合，EF Core 7+ 自动映射为 JSON 列（或每元素表）
+// 无需手写 ValueConverter
+public class Product : BaseEntity
+{
+    public required string Name { get; set; }
+    public List<string> Tags { get; set; } = [];        // → JSON 列（SQL Server）/ text[]
+    public List<int> CategoryIds { get; set; } = [];    // → JSON 列
+}
+
+// 查询：JSON 列内搜索（EF Core 8+ Translate 后支持）
+var tagged = await _db.Products
+    .Where(p => p.Tags.Contains(" electronics "))
+    .ToListAsync(ct);
+```
+
 ## 仓库模式
 
 ```csharp
@@ -407,3 +471,6 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 | 批量删除 | `.ExecuteDeleteAsync()` | .NET 7+ |
 | 编译查询 | `EF.CompileAsyncQuery()` | 可复用查询 |
 | 软删除 | 查询过滤器 | `HasQueryFilter()` |
+| 日期/时间类型 | `DateOnly` / `TimeOnly` | EF Core 8+ 原生映射，无时区歧义 |
+| 值对象映射 | `.ComplexProperty()` | EF Core 8+，替代 OwnsOne 的纯值对象方案 |
+| 原始集合 | `List<int>` / `List<string>` | EF Core 7+ 自动 JSON 列，无需 ValueConverter |

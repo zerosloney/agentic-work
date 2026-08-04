@@ -382,6 +382,28 @@ public class ProductServiceTests
 }
 ```
 
+### Step 10: 验证（对应 SKILL.md Step 4a / 4a.5 / 4b）
+
+```bash
+# 4a 结构化构建验证
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py \
+  --project ProductApi/ProductApi.csproj \
+  --config Debug \
+  --changed-files ProductApi/Controllers/ProductsController.cs ProductApi/Services/ProductService.cs ProductApi/Validators/ProductValidator.cs
+
+# 4a.5 测试（本项目有 ProductApi.Tests）
+dotnet test ProductApi.sln --no-build --configuration Debug
+
+# 4b 静态审查
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchestrator.py \
+  --target ProductApi \
+  --mode quick
+```
+
+- 三步全过（build `pass:true` + test 0 失败 + review `agent_next_action:deliver`）→ 可交付
+- review 报 SEC\* error → 必须修后再跑；非 SEC error → 修后重跑 4a+4a.5+4b
+- 格式问题可补跑 `dotnet format ProductApi.sln --verify-no-changes`（非强制门）
+
 ## 关键决策点
 
 | 决策 | 选择 | 理由 |

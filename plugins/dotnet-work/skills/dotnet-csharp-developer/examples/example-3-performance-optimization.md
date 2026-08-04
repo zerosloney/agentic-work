@@ -236,6 +236,28 @@ public async Task<List<ProductDto>> GetProductsOptimized()
 }
 ```
 
+### 验证（对应 SKILL.md Step 4a / 4a.5 / 4b）
+
+```bash
+# 4a 结构化构建验证
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py \
+  --project <项目根>.csproj \
+  --config Debug \
+  --changed-files Services/ProductService.cs
+
+# 4a.5 无独立测试工程 → 跳过；有则 dotnet test --no-build
+
+# 性能专项验证（非 SKILL.md 标准步骤，性能优化场景必做）
+dotnet run -c Release --project benchmarks/ProductBenchmarks.csproj  # BenchmarkDotNet
+
+# 4b 静态审查（注意：AsNoTracking / Select 投影 / Take 分页不应被 review 标为问题）
+python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchestrator.py \
+  --target <项目根> --mode quick
+```
+
+- 性能优化验证重点：BenchmarkDotNet 报告确认响应时间达标（本例目标 <200ms）+ build/review 全过
+- review 若对 AsNoTracking/投影报 warning 属误报（性能优化正当用法），评估后显式标注不修
+
 ## 优化前后对比
 
 | 指标 | 优化前 | 优化后 | 提升 |
