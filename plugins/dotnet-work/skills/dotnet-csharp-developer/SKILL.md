@@ -15,13 +15,15 @@ metadata:
 
 ## 核心理念
 
-**先确认框架，再写代码**：读 `.csproj` 的 `<TargetFramework>`，按项目实际版本决定可用 C# 特性（如 .NET 8 可用主构造函数、集合表达式、可空引用类型等）。专注高性能 Web API、云原生方案、整洁架构。不臆造版本，不假设 .NET 9 / C# 13。
+**先确认框架，再写代码**：读 `.csproj` 的 `<TargetFramework>` + `<LangVersion>`，按项目实际版本决定可用 C# 特性。专注高性能 Web API、云原生方案、整洁架构。不臆造版本，不默认任意版本——缺则问用户。
+
+> **.NET 版本支持现状（2026-08）**：.NET 10（LTS，2028-11 EOL）= 当前推荐基线；.NET 9（STS）/ .NET 8（LTS）均 2026-11-12 EOL，新项目勿起；.NET 6/7 已 EOL。C# 版本随 SDK：net10→C# 14，net9→C# 13，net8→C# 12。新建项目默认 net10.0；存量项目按其 `<TargetFramework>` 走，不擅自升级。
 
 ## Constraints（红线）
 
 越界即停，停下来问用户。
 
-1. **先确认目标框架**：读 `.csproj` 的 `<TargetFramework>`，按项目实际版本决定可用 C# 特性。不臆造版本，不默认 net8.0。
+1. **先确认目标框架**：读 `.csproj` 的 `<TargetFramework>` + `<LangVersion>`，按项目实际版本决定可用 C# 特性。不臆造版本；无 `.csproj` 时停下来问用户目标版本（新项目建议 net10.0 LTS）。
 2. **可空引用类型强制开启**：所有项目 `<Nullable>enable</Nullable>`。无正当理由（如迁移遗留代码）不关闭，关闭时显式标注范围与原因。
 3. **异步 I/O 不可阻塞**：所有 I/O 用 `async/await`，禁止 `.Result` / `.Wait()` / `GetAwaiter().GetResult()`。异步方法必须接受 `CancellationToken`。
 4. **分层不可越级**：`API → Application → Domain ← Infrastructure`。Domain 不依赖任何外层；API 不直调 Infrastructure；EF Core 实体不直接出现在 API 响应（用 DTO 映射）。
@@ -35,9 +37,9 @@ metadata:
 
 | 需要查 | 加载 |
 |--------|------|
-| Step 4a 结构化构建验证 | `python scripts/build_check.py --project <.csproj>` |
-| Step 4b 静态审查 + triage | `python scripts/review_orchestrator.py --target <项目根> --mode quick` |
-| C# 12 语法（record、模式匹配、主构造函数、集合表达式） | `references/modern-csharp.md` |
+| Step 4a 结构化构建验证 | `python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py --project <.csproj>` |
+| Step 4b 静态审查 + triage | `python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchestrator.py --target <项目根> --mode quick` |
+| C# 12-14 语法（record、模式匹配、主构造函数、集合表达式、field 关键字、extension members） | `references/modern-csharp.md` |
 | ASP.NET Core Minimal API / Controller / Program.cs / 中间件管道 | `references/aspnet-core.md` |
 | EF Core DbContext / 实体配置 / 迁移 / 查询模式 | `references/entity-framework.md` |
 | DI 生命周期 / 注册方式 / IOptions | `references/dependency-injection.md` |
@@ -87,7 +89,7 @@ API (Endpoints/Controllers)  →  Application (Service/Handler)  →  Domain (En
 |---|--------|----------|----------|
 | 1 | **业务功能** | "产品管理 CRUD API" / "订单查询服务" | 用户描述 |
 | 2 | **实体 / 字段来源** | 现有 Entity / 表 schema / 用户字段清单 | 现有代码、DB、用户提供 |
-| 3 | **目标框架** | net8.0 / net6.0（从 .csproj 读，不臆造） | 读 `.csproj` |
+| 3 | **目标框架** | net10.0 / net8.0 等（从 .csproj 读，不臆造；注意 EOL：net9/net8 2026-11 止，net6/7 已 EOL） | 读 `.csproj` |
 | 4 | **项目根 + 目标目录** | `.sln` / `.csproj` 所在目录 + 写入路径 | 用户指定；无法推断时问 |
 
 ### Step 1. 需求分析与设计
@@ -119,15 +121,17 @@ API (Endpoints/Controllers)  →  Application (Service/Handler)  →  Domain (En
 
 ```
 ┌─────────────── 内层：自审（自动）───────────────┐
-│  4a  build_check.py 构建验证（结构化输出）    │
+│  4a    build_check.py 构建验证（结构化输出）  │
 │   ↓                                            │
-│  4b  review_orchestrator.py 静态审查 + triage  │
+│  4a.5  dotnet test 测试执行（无测试则跳过）    │
 │   ↓                                            │
-│  4c  按 agent_next_action 决策 → 修复 → 重审      │
+│  4b    review_orchestrator.py 静态审查+triage │
+│   ↓                                            │
+│  4c    按 agent_next_action 决策 → 修复 → 重审  │
 └────────────────────────────────────────────────┘
                       ↓ 全过
 ┌─────────────── 外层：用户反馈 ──────────────────┐
-│  5   交付 → 用户反馈 → 回 Step 改 → 重跑 4a/4b   │
+│  5   交付 → 用户反馈 → 回 Step 改 → 重跑 4a/4a.5/4b │
 └────────────────────────────────────────────────┘
 ```
 
@@ -144,6 +148,18 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py
 - 必须零 error（`exit_code 0` 或 `2` 仅 warning 可接受）
 - `--changed-files` 启用新旧错误区分：只修复 `new_errors`；`pre_existing_errors` 交付时列出
 - 失败时只修复本次生成/修改导致的错误；预先存在的错误交付时明确列出
+
+#### 4a.5. 测试执行
+
+构建通过后、审查前，跑测试确认无回归（项目有测试工程时）：
+
+```bash
+dotnet test <项目根>.sln --no-build --configuration Debug
+```
+
+- 无测试工程（无 `*Test*.csproj` / `*Tests*.csproj`）→ 跳过此步，交付时在「未覆盖项」注明「无测试覆盖」
+- 测试失败 → 回 Step 2/3 修复 → 重跑 4a + 4a.5
+- `--no-build` 复用 4a 产物；若 4a 用 Release 而 4a.5 用 Debug 需去掉 `--no-build` 重编
 
 #### 4b. 静态审查 + triage 解读
 
@@ -170,20 +186,20 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchest
 
 | agent_next_action | Agent 行为 |
 |-------------------|-----------|
-| `fix_sec_errors` | 有 SEC\* error → Step 2/3 修安全问题 → 重跑 4a+4b |
-| `fix_errors` | 有非 SEC error → Step 2/3 修代码 → 重跑 4a+4b |
+| `fix_sec_errors` | 有 SEC\* error → Step 2/3 修安全问题 → 重跑 4a+4a.5+4b |
+| `fix_errors` | 有非 SEC error → Step 2/3 修代码 → 重跑 4a+4a.5+4b |
 | `fix_warnings` | 仅 warning → 评估后修或显式标注 → 可进 Step 5 |
 | `deliver` | 无 error → 进 Step 5 交付 |
 | `escalate` | review.py 不可用 → 跳过，交付时说明 |
 
 - 安全类（SEC\*）问题**强制修复**——交付前不可留 error 级 SEC
-- 修正后**重跑 4a + 4b**，避免引入新问题
+- 修正后**重跑 4a + 4a.5 + 4b**，避免引入新问题
 
 ### Step 5. 用户反馈循环
 
-- **5a** 自审 + review 全过后交付：文件清单 + 关键架构决策 + build/review 命令 + 未覆盖项
-- **5b** 用户反馈 → 识别影响环节 → 回对应 Step 改 → 重跑 4a/4b → 再次交付
-- **终止** ✅ build 通过 + review 无 error + 用户确认；⏸ 用户说「先这样」
+- **5a** 自审 + review 全过后交付：文件清单 + 关键架构决策 + build/test/review 命令 + 未覆盖项
+- **5b** 用户反馈 → 识别影响环节 → 回对应 Step 改 → 重跑 4a/4a.5/4b → 再次交付
+- **终止** ✅ build 通过 + 测试通过（或无测试）+ review 无 error + 用户确认；⏸ 用户说「先这样」
 
 ## dotnet CLI 速查
 
@@ -261,7 +277,7 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchest
 | `build_check.py` exit 2（build error） | 按 `errors` 列表修复；`new_errors` 必须修，`pre_existing_errors` 交付时列出 |
 | `review_orchestrator.py` exit 3 | review.py 不可用，跳过 Step 4b，交付时说明 |
 | `review_orchestrator.py` exit 1 + `sec_errors_present: true` | 必须修复 SEC\* error（见 Step 4c），不可跳过 |
-| `review_orchestrator.py` exit 1（其他 error） | 按 `must_fix` 列表修复 → 重跑 4a+4b |
+| `review_orchestrator.py` exit 1（其他 error） | 按 `must_fix` 列表修复 → 重跑 4a+4a.5+4b |
 | "Unable to resolve project" / "No project was found" | 问用户项目根路径，cd 到含 `.csproj` 的目录 |
 | "The project file could not be loaded" | 检查 `.csproj` XML 语法；列出错误行 |
 | "There are no frameworks specified" | 在 `.csproj` 添加 `<TargetFramework>`（版本问用户） |
@@ -269,7 +285,8 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchest
 | EF Core "No migrations configuration" | 运行 `dotnet ef migrations add Initial`；确认已引用 `Microsoft.EntityFrameworkCore.Design` |
 | "Unable to create an object of type" | DbContext 缺无参构造或 `IDesignTimeDbContextFactory`；添加工厂 |
 | Build warning as error | 修复警告，或经用户同意后 `<TreatWarningsAsErrors>false</TreatWarningsAsErrors>` |
-| 用户未指定 TargetFramework 且无 .csproj | **停下来问**，不默认 net8.0；裸脚本/工具代码用 `console` 模板 |
+| `dotnet test` 失败 | 按失败测试名定位 → Step 2/3 修代码或修测试 → 重跑 4a.5；无测试工程时跳过（见 4a.5） |
+| 用户未指定 TargetFramework 且无 .csproj | **停下来问**，不默认版本；建议 net10.0 LTS；裸脚本/工具代码用 `console` 模板 |
 | 需要 NuGet 包但项目未引用 | **停下来问**用户是否授权 `dotnet add package`（Constraint #7） |
 
 ## 不要用于
