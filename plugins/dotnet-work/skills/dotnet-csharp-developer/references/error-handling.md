@@ -19,9 +19,9 @@ public async Task<Result<Order>> GetOrderAsync(int id)
 {
     var order = await _repository.GetByIdAsync(id);
     if (order == null)
-        return Result.Failure<Order>( $"Order {id} not found");
-    
-    return Result.Success(order);
+        return Result<Order>.Failure($"Order {id} not found");
+
+    return Result<Order>.Success(order);
 }
 
 // 调用方
