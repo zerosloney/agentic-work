@@ -28,12 +28,14 @@ public record Product(int Id, string Name, decimal Price)
 // 不可变 Record
 public record Customer(int Id, string Name, string Email);
 
-// 带验证的 Record
+// 带验证的 Record：用静态工厂 + 校验，避免与主构造函数（secondary ctor）冲突
 public record OrderRequest(int ProductId, int Quantity)
 {
-    public OrderRequest : this(ProductId, Quantity)
+    public static OrderRequest Create(int productId, int quantity)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(Quantity);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(productId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(quantity);
+        return new OrderRequest(productId, quantity);
     }
 }
 
@@ -211,8 +213,11 @@ var json = JsonSerializer.Serialize(product, AppJsonContext.Default.Product);
 
 ## 用 Record 实现可区分联合
 
+> 注意：以下为 **discriminated union（可区分联合）风格**的另一种 `Result<T>` 实现，与 `error-handling.md` 中作为权威定义的属性式 `record Result<T>`（`Success(T)` / `Failure(string)` 静态工厂 + `IsSuccess` / `Value` / `Error` 属性）是**两套不同的 API**。
+> 二者不可混用：调用方需与定义方对齐。若只需标准 Result 模式，请以 `error-handling.md` 的属性式定义为准。
+
 ```csharp
-// Result 模式基类 Record
+// Result 模式（可区分联合风格）
 public abstract record Result<T>
 {
     public record Success(T Value) : Result<T>;

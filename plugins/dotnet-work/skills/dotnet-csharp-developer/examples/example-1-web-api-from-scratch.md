@@ -104,9 +104,20 @@ using FluentValidation;
 
 namespace ProductApi.Validators;
 
-public class CreateProductValidator : AbstractValidator<CreateProductRequest>
+// Create 与 Update 的字段（Name/Price/StockQuantity）校验逻辑一致，共用同一组规则
+public class ProductValidator : AbstractValidator<CreateProductRequest>
 {
-    public CreateProductValidator()
+    public ProductValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Price).GreaterThan(0);
+        RuleFor(x => x.StockQuantity).GreaterThanOrEqualTo(0);
+    }
+}
+
+public class UpdateProductValidator : AbstractValidator<UpdateProductRequest>
+{
+    public UpdateProductValidator()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Price).GreaterThan(0);
@@ -206,6 +217,7 @@ public class ProductService : IProductService
 
 ```csharp
 // Controllers/ProductsController.cs
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ProductApi.Controllers;
@@ -215,16 +227,27 @@ namespace ProductApi.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductService _service;
+    private readonly IValidator<CreateProductRequest> _createValidator;
+    private readonly IValidator<UpdateProductRequest> _updateValidator;
 
-    public ProductsController(IProductService service)
+    public ProductsController(
+        IProductService service,
+        IValidator<CreateProductRequest> createValidator,
+        IValidator<UpdateProductRequest> updateValidator)
     {
         _service = service;
+        _createValidator = createValidator;
+        _updateValidator = updateValidator;
     }
 
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(
         CreateProductRequest request, CancellationToken ct)
     {
+        var validation = await _createValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors);
+
         var result = await _service.CreateAsync(request, ct);
         return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
     }
@@ -246,6 +269,10 @@ public class ProductsController : ControllerBase
     public async Task<ActionResult<ProductResponse>> Update(
         int id, UpdateProductRequest request, CancellationToken ct)
     {
+        var validation = await _updateValidator.ValidateAsync(request, ct);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors);
+
         var result = await _service.UpdateAsync(id, request, ct);
         return result == null ? NotFound() : Ok(result);
     }
@@ -286,7 +313,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // DI
 builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddValidatorsFromAssemblyContaining<CreateProductValidator>();
+builder.Services.AddValidatorsFromAssemblyContaining<ProductValidator>();
 
 var app = builder.Build();
 

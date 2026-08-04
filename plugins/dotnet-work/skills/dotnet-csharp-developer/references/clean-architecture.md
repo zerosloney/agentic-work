@@ -114,7 +114,7 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Result<Gui
 
         await _repository.AddAsync(order, ct);
         await _unitOfWork.SaveChangesAsync(ct);
-        return Result.Success(order.Id);
+        return Result<Guid>.Success(order.Id);
     }
 }
 
