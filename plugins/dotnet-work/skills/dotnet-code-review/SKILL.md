@@ -28,7 +28,7 @@ metadata:
 4. **读取 review_integrity。** 每次运行检查 `layers_skipped` / `cve_conclusion_valid` / `coverage_conclusion_valid`，在报告中说明边界。
 5. **修复建议基于 CLI 结果 + 代码上下文生成。** 不是调用外部 LLM，而是当前模型基于 issue 列表 + 源码 ±3 行直接生成 diff。
 
-脚本路径：`skill://dotnet-code-review/scripts/review.py`
+脚本路径：`plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py`
 
 ---
 

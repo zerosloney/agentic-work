@@ -6,7 +6,7 @@ description: |
   数据库探索工具，支持 SQL Server/MySQL/PostgreSQL/KingbaseES(人大金仓)/SQLite 五种数据库的连接、查询、结构探索、CRUD 生成、CSV 导出。
   典型需求："连一下这个数据库" / "看看有哪些表" / "查一下XX表的数据" / "搜一下跟XX相关的表" / "导出XX查询结果" / "生成XX表的增删改查SQL"。
   安全机制：写操作（INSERT/UPDATE/DELETE/DROP/TRUNCATE）自动触发用户确认，密码通过 keyring 操作系统密钥链存储（Windows Credential Locker / macOS Keychain / Linux SecretService），多语句 SQL 注入自动拦截，错误信息自动脱敏。
-  使用方式：Agent 通过 subprocess 调用 skill://database-explorer/scripts/db_tool.py 子命令，用户不直接接触 CLI。
+  使用方式：Agent 通过 subprocess 调用 plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py 子命令，用户不直接接触 CLI。
 ---
 
 # Database Explorer — Agent 指令集
@@ -28,14 +28,14 @@ description: |
 
 （schema-first 铁律见 §0，token 节约硬规则见 §2.2。）
 
-脚本路径：`skill://database-explorer/scripts/db_tool.py`
+脚本路径：`plugins/dotnet-work/skills/database-explorer/scripts/db_tool.py`
 
 ---
 ## 1. 安装
 
 **权威安装方式（包含全部硬依赖 + 可选加速，见 §7 requirements.txt）：**
 ```bash
-pip install -r "skill://database-explorer/requirements.txt"
+pip install -r "plugins/dotnet-work/skills/database-explorer/requirements.txt"
 ```
 
 **或逐条按需安装：**
