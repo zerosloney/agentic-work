@@ -41,6 +41,19 @@
       ]
     }
   ],
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/prompt-submit.js\" --platform qwencode",
+          "name": "skill-radar-prompt-submit",
+          "description": "Append a JSONL trace for user prompt submission (prompt size + redacted excerpt); never stores full prompt",
+          "timeout": 3000
+        }
+      ]
+    }
+  ],
   "Stop": [
     {
       "hooks": [

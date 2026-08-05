@@ -55,6 +55,19 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "process",
+            "command": "node",
+            "args": ["${ZCODE_PLUGIN_ROOT}/hooks/prompt-submit.js"],
+            "timeoutMs": 3000,
+            "statusMessage": "Skill Radar: prompt submitted…"
+          }
+        ]
+      }
     ]
   }
 }

@@ -47,6 +47,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${QODER_PLUGIN_ROOT}/hooks/prompt-submit.js\" --platform qoder",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   }
 }

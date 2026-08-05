@@ -48,6 +48,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${TRAE_PLUGIN_ROOT}/hooks/prompt-submit.js\" --platform trae",
+            "timeout": 3
+          }
+        ]
+      }
     ]
   }
 }

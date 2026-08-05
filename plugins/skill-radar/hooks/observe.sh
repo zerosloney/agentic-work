@@ -6,6 +6,7 @@
 #   - session-start          → session-start.js
 #   - post-tool-use          → log-invocation.js (PostToolUse)
 #   - post-tool-use-failure  → log-invocation.js (PostToolUseFailure)
+#   - user-prompt-submit     → prompt-submit.js (UserPromptSubmit)
 #   - stop                   → stop-signal.js
 #
 # Usage: observe.sh <event-name>
@@ -21,6 +22,9 @@ case "${EVENT_NAME}" in
     ;;
   post-tool-use|post-tool-use-failure)
     exec node "${SCRIPT_DIR}/log-invocation.js" --event "${EVENT_NAME}" --platform codebuddy
+    ;;
+  user-prompt-submit)
+    exec node "${SCRIPT_DIR}/prompt-submit.js" --platform codebuddy
     ;;
   stop)
     exec node "${SCRIPT_DIR}/stop-signal.js" --platform codebuddy
