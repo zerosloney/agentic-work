@@ -104,7 +104,7 @@ using FluentValidation;
 
 namespace ProductApi.Validators;
 
-// Create 与 Update 的字段（Name/Price/StockQuantity）校验逻辑一致，共用同一组规则
+// Create 与 Update 的字段（Name/Price/StockQuantity）一致，分别定义 validator 对应各自 Request 类型
 public class ProductValidator : AbstractValidator<CreateProductRequest>
 {
     public ProductValidator()
