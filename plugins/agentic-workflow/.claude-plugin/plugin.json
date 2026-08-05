@@ -1,0 +1,29 @@
+{
+  "name": "agentic-workflow",
+  "version": "0.2.0",
+  "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/zerosloney"
+  },
+  "homepage": "https://github.com/zerosloney/agentic-work",
+  "repository": "https://github.com/zerosloney/agentic-work",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "loop",
+    "ralph",
+    "coding"
+  ],
+  "category": "workflow",
+  "commands": "./commands",
+  "agents": "./agents",
+  "hooks": "./hooks/hooks.json"
+}

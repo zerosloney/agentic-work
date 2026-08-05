@@ -1,0 +1,26 @@
+{
+  "name": "skill-radar",
+  "version": "0.3.0",
+  "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "hooks",
+    "env-access"
+  ],
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/zerosloney"
+  },
+  "homepage": "https://github.com/zerosloney/agentic-work",
+  "repository": "https://github.com/zerosloney/agentic-work",
+  "license": "MIT",
+  "keywords": [
+    "observability",
+    "tracing",
+    "skill",
+    "telemetry"
+  ],
+  "category": "observability",
+  "hooks": "./hooks/hooks.json"
+}

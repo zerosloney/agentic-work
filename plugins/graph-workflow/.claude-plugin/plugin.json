@@ -1,0 +1,29 @@
+{
+  "name": "graph-workflow",
+  "version": "0.2.0",
+  "description": "Loop Engineering + Graph Engineering 双档位闭环 (loop-task 单节点自环 / graph-task 声明式图编排 + 三角色 Task 协作).",
+  "capabilities": [
+    "file-read",
+    "file-write",
+    "bash-exec",
+    "hooks",
+    "agents"
+  ],
+  "author": {
+    "name": "master0071",
+    "url": "https://github.com/zerosloney"
+  },
+  "homepage": "https://github.com/zerosloney/agentic-work",
+  "repository": "https://github.com/zerosloney/agentic-work",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "loop",
+    "graph",
+    "orchestration"
+  ],
+  "category": "workflow",
+  "commands": "./commands",
+  "agents": "./agents",
+  "hooks": "./hooks/hooks.json"
+}
