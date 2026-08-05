@@ -233,6 +233,70 @@ function validateHooksFileShape(rep, site, pluginRoot, manifest, platform) {
   }
 }
 
+// Extract the set of event keys from a hooks config file. Qwen Code uses
+// top-level event keys ({ SessionStart: [...] }); other platforms wrap them
+// under a "hooks" object ({ hooks: { SessionStart: [...] } }).
+function readHookEvents(absHooksPath, platform) {
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(absHooksPath, 'utf-8'));
+  } catch {
+    return null; // JSON error already reported per-manifest
+  }
+  if (platform === 'qwen') {
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return new Set(Object.keys(data));
+    }
+    return new Set();
+  }
+  if (data && typeof data.hooks === 'object' && data.hooks !== null && !Array.isArray(data.hooks)) {
+    return new Set(Object.keys(data.hooks));
+  }
+  return new Set();
+}
+
+// Cross-platform hook event consistency. If a plugin declares hooks for two or
+// more platforms, all platforms MUST register the same set of events. Drift
+// is an error (not a warning) — silent event drift is the most common
+// "改一处忘三处" footgun for multi-platform plugins.
+function validateHookEventConsistency(rep, pluginName) {
+  // platform → set of event keys. Only includes platforms whose manifest
+  // declares a hooks path AND whose source file exists.
+  const platformEvents = new Map();
+  for (const site of MANIFEST_SITES) {
+    const manifestPath = path.join(PLUGINS_DIR, pluginName, site.rel);
+    if (!fs.existsSync(manifestPath)) continue;
+    let manifest;
+    try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); }
+    catch { continue; } // JSON error already reported per-manifest
+    if (typeof manifest.hooks !== 'string') continue; // platform doesn't use hooks
+    const platDir = site.platform === 'qwen' ? 'qwencode' : site.platform;
+    const abs = path.join(PLUGINS_DIR, pluginName, 'hooks', platDir, 'hooks.json');
+    if (!fs.existsSync(abs)) continue; // missing file already reported
+    const events = readHookEvents(abs, site.platform);
+    if (events === null) continue;
+    platformEvents.set(site.platform, events);
+  }
+  if (platformEvents.size < 2) return; // need 2+ platforms to compare
+  // Union of all event keys across platforms.
+  const union = new Set();
+  for (const s of platformEvents.values()) for (const e of s) union.add(e);
+  // For each platform, report any event from the union it's missing.
+  const drift = [];
+  for (const [platform, events] of platformEvents) {
+    const missing = [...union].filter((e) => !events.has(e));
+    if (missing.length > 0) drift.push({ platform, missing });
+  }
+  if (drift.length === 0) {
+    const evList = [...union].sort().join(', ');
+    rep.ok(pluginName, `hook events consistent across ${platformEvents.size} platforms: { ${evList} }`);
+    return;
+  }
+  for (const { platform, missing } of drift) {
+    rep.error(pluginName, `hook event drift on '${platform}': missing ${missing.map((e) => `'${e}'`).join(', ')} (present on other platforms)`);
+  }
+}
+
 function validateManifest(rep, pluginName, platform, manifestPath) {
   const site = `${pluginName}/${platform}`;
   const pluginRoot = path.join(PLUGINS_DIR, pluginName);
@@ -305,7 +369,10 @@ function main() {
       validateManifest(rep, name, site.platform, manifestPath);
     }
     if (found === 0) rep.warn(name, 'no platform manifests found');
-    else validateVersionConsistency(rep, name);
+    else {
+      validateVersionConsistency(rep, name);
+      validateHookEventConsistency(rep, name);
+    }
   }
 
   console.log(`\n${'='.repeat(50)}`);
