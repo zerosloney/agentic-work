@@ -363,7 +363,8 @@ public class ProductServiceTests
     [Fact]
     public async Task CreateAsync_ValidProduct_ReturnsProduct()
     {
-        // Arrange
+        // Arrange — InMemory 用于单元测试 ProductService 业务逻辑（无真实 DB 开销）
+        // 注意：集成测试（测仓储层 SQL 翻译/约束）勿用 InMemory，改用 SQLite in-memory 或 Testcontainers
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
@@ -412,4 +413,4 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/review_orchest
 | 验证 | FluentValidation | 与 ASP.NET Core 集成好 |
 | 日志 | Serilog | 结构化日志，支持多输出 |
 | ORM | EF Core | 标准选择，迁移支持好 |
-| 测试 | xUnit + InMemory | 轻量，无需真实数据库 |
+| 测试 | xUnit + InMemory（单元）/ Testcontainers（集成） | 单元测业务逻辑用 InMemory 轻量；集成测 SQL 翻译用 Testcontainers 真实数据库 |

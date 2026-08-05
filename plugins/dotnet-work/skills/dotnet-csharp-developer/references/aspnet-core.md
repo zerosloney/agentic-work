@@ -100,6 +100,25 @@ public static class ProductEndpoints
 }
 ```
 
+### CancellationToken 绑定
+
+Minimal API 和 Controller 的 `CancellationToken ct` 参数**自动绑定** `HttpContext.RequestAborted`——客户端断开连接时触发。无需手动从 HttpContext 取。
+
+```csharp
+// Minimal API：参数直接声明即绑定
+app.MapGet("/api/products/{id}", async (int id, ProductService svc, CancellationToken ct) =>
+    await svc.GetByIdAsync(id, ct) is { } p ? Results.Ok(p) : Results.NotFound());
+
+// Controller：同上，参数声明即绑定
+[HttpGet("{id}")]
+public async Task<ActionResult<Product>> Get(int id, CancellationToken ct)
+    => await _svc.GetByIdAsync(id, ct) is { } p ? Ok(p) : NotFound();
+```
+
+- **必须透传**：拿到 ct 后传给所有下游 async 调用（EF Core、HttpClient、Stream），否则客户端断开后服务端仍跑完
+- **不要吞**：捕获 `OperationCanceledException` 时记录日志后 `throw`（重新抛），让管道正常短路；不要静默 return 假数据
+- 后台服务（`BackgroundService`）用 `stoppingToken` 参数，非 RequestAborted
+
 ## 端点过滤器
 
 ```csharp
@@ -258,6 +277,39 @@ public static class MiddlewareExtensions
 app.UseRequestLogging();
 ```
 
+## 关联 ID（CorrelationId）
+
+跨请求/服务追踪：每请求生成或透传唯一 ID，写入日志上下文 + 响应头，便于串联一次调用链。
+
+```csharp
+// 中间件：复用入站 X-Correlation-Id，无则生成
+public class CorrelationIdMiddleware(RequestDelegate next)
+{
+    private const string HeaderName = "X-Correlation-Id";
+
+    public async Task InvokeAsync(HttpContext context, ILogger<CorrelationIdMiddleware> logger)
+    {
+        var correlationId = context.Request.Headers[HeaderName].ToString();
+        if (string.IsNullOrWhiteSpace(correlationId))
+            correlationId = Guid.NewGuid().ToString("N");
+
+        context.Response.Headers[HeaderName] = correlationId;
+        // 写入日志 scope，使后续日志自动带 correlationId 字段
+        using (logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlationId }))
+        {
+            await next(context);
+        }
+    }
+}
+
+// Program.cs：注册在管道最前（早于其他中间件，确保全链路日志带 ID）
+app.UseMiddleware<CorrelationIdMiddleware>();
+```
+
+- 客户端可传 `X-Correlation-Id` 透传上游 ID；不传则服务端生成
+- 配合 Serilog 的 `CorrelationId` enricher（`Serilog.Enrichers.CorrelationId`）或 OpenTelemetry `traceparent` 自动注入
+- 日志查询时按 correlationId 过滤 = 一次请求的完整链路
+
 ## 认证和授权
 
 ```csharp
@@ -346,6 +398,33 @@ app.UseOutputCache();
 app.MapGet("/api/products", GetProducts)
     .CacheOutput("Products");
 ```
+
+## HybridCache（.NET 9+）
+
+`HybridCache` 弥补 OutputCache（HTTP 层）的不足：**应用层缓存**，支持 stampede 防护、L1（进程内）+ L2（分布式 `IDistributedCache`/Redis）、序列化抽象。比手写 `IMemoryCache` + lock 更安全。
+
+```csharp
+builder.Services.AddHybridCache(options =>
+{
+    options.DefaultEntryOptions = new HybridCacheEntryOptions
+    {
+        LocalCacheExpiration = TimeSpan.FromMinutes(5),   // L1 进程内
+        Expiration = TimeSpan.FromMinutes(30)              // L2 分布式
+    };
+});
+// 如需 L2，注册 IDistributedCache（Redis/Sqlite 等）
+builder.Services.AddStackExchangeRedisCache(o => o.Configuration = "...");
+
+// 使用：GetOrSetAsync 自动防 stampede（并发同 key 只回源一次）
+app.MapGet("/api/products/{id}", async (int id, HybridCache cache, ProductService svc, CancellationToken ct) =>
+{
+    return await cache.GetOrCreateAsync($"product:{id}", async token =>
+        await svc.GetByIdAsync(id, token), cancellationToken: ct);
+});
+```
+
+- **OutputCache vs HybridCache**：OutputCache 缓存 HTTP 响应（按 URL/VaryByQuery）；HybridCache 缓存应用层数据（按 key），可跨端点复用、支持后台刷新
+- **何时用**：热数据读多写少、回源昂贵（聚合查询/远程调用）、需防 cache stampede
 
 ## 速率限制（.NET 7+）
 

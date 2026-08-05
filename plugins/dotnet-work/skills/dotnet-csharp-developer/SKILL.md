@@ -27,7 +27,7 @@ metadata:
 2. **可空引用类型强制开启**：所有项目 `<Nullable>enable</Nullable>`。无正当理由（如迁移遗留代码）不关闭，关闭时显式标注范围与原因。
 3. **异步 I/O 不可阻塞**：所有 I/O 用 `async/await`，禁止 `.Result` / `.Wait()` / `GetAwaiter().GetResult()`。异步方法必须接受 `CancellationToken`。
 4. **分层不可越级**：`API → Application → Domain ← Infrastructure`。Domain 不依赖任何外层；API 不直调 Infrastructure；EF Core 实体不直接出现在 API 响应（用 DTO 映射）。
-5. **错误处理用 Result 模式**：业务错误用 `Result<T>` / `OneOf<T>`，不用异常做控制流。全局异常中间件兜底未处理异常。
+5. **错误处理分层**：**业务错误**（验证失败、业务规则违反、领域不变量、跨层编排失败）用 `Result<T>` / `OneOf<T>`，不用异常做控制流。**HTTP 语义错误**（资源不存在 NotFound、参数格式错 BadRequest）可用 `null` + 状态码简化（简单 CRUD 场景）。全局异常中间件兜底未处理异常。
 6. **依赖注入不可 new**：所有服务经 DI 容器获取，构造函数注入。配置用 `IOptions<T>` 强类型，不用字符串 key。
 7. **不臆造依赖**：所需 NuGet 包/项目引用不存在时停下来问用户，不自动 `dotnet add package`（除非用户明确授权）。.csproj 引用变更需用户确认。
 
@@ -91,6 +91,12 @@ API (Endpoints/Controllers)  →  Application (Service/Handler)  →  Domain (En
 | 2 | **实体 / 字段来源** | 现有 Entity / 表 schema / 用户字段清单 | 现有代码、DB、用户提供 |
 | 3 | **目标框架** | net10.0 / net8.0 等（从 .csproj 读，不臆造；注意 EOL：net9/net8 2026-11 止，net6/7 已 EOL） | 读 `.csproj` |
 | 4 | **项目根 + 目标目录** | `.sln` / `.csproj` 所在目录 + 写入路径 | 用户指定；无法推断时问 |
+
+> **多 csproj 选择**：项目含多个 `.csproj`（如 Clean Architecture 分层）时，按改动目标选：
+> - 优先 `.sln`（`dotnet build/test <name>.sln` 覆盖全部项目，能发现跨项目破坏）
+> - 改动局限于单项目（如只动 Domain 层）→ 指向该 `.csproj`（`build_check.py --project <name>.csproj`）更快
+> - 无法判断影响范围 → 先 `.sln` 全构建，确认无破坏后再缩到单 `.csproj` 迭代
+> - build_check.py 的 `--project` 接受 `.sln` 或 `.csproj`；review_orchestrator 的 `--target` 接受目录（含 `.sln` 的根目录）
 
 ### Step 1. 需求分析与设计
 
