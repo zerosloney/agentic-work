@@ -7,10 +7,10 @@
   },
   "plugins": [
     {
-      "name": "dotnet-work-zcode",
+      "name": "dotnet-work",
       "source": "./plugins/dotnet-work",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for ZCode.",
-      "version": "1.0.7",
+      "version": "1.1.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "development",
@@ -23,10 +23,10 @@
       "strict": true
     },
     {
-      "name": "agentic-workflow-zcode",
+      "name": "agentic-workflow",
       "source": "./plugins/agentic-workflow",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for ZCode.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "workflow",
@@ -39,10 +39,10 @@
       "strict": true
     },
     {
-      "name": "graph-workflow-zcode",
+      "name": "graph-workflow",
       "source": "./plugins/graph-workflow",
       "description": "Loop Engineering + Graph Engineering 闭环(外层脚本硬约束 + 内层三角色 Task 协作,双档位:loop-task 单节点自环 / graph-task 声明式图编排) for ZCode.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "workflow",
@@ -55,10 +55,10 @@
       "strict": true
     },
     {
-      "name": "skill-radar-zcode",
+      "name": "skill-radar",
       "source": "./plugins/skill-radar",
       "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals for ZCode.",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "homepage": "https://github.com/zerosloney/agentic-work",
       "license": "MIT",
       "category": "observability",

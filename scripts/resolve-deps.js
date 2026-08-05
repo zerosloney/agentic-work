@@ -142,8 +142,8 @@ function readPluginManifest(pluginName) {
   return null;
 }
 
-// Strip platform suffix from marketplace entry name → repo plugin dir name.
-// e.g. "graph-workflow-zcode" → "graph-workflow"
+// Resolve a marketplace entry name to its repo plugin dir name via the entry's
+// `source` field (falls back to stripping a `-<platform>` suffix if not found).
 function repoNameOf(entryName, markets) {
   for (const [, m] of markets) {
     const info = m.plugins.get(entryName);

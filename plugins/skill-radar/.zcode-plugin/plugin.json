@@ -1,8 +1,19 @@
 {
-  "name": "skill-radar-zcode",
-  "version": "0.2.2",
+  "name": "skill-radar",
+  "version": "0.3.0",
   "description": "Skill observability for ZCode — tool invocation tracing, session tracking, and evolution signals.",
-  "tool_selection": { "use_when": ["automatic tool tracing", "session correlation", "skill failure aggregation"], "avoid_when": ["direct task execution", "blocking validation", "application logging replacement"] },
+  "tool_selection": {
+    "use_when": [
+      "automatic tool tracing",
+      "session correlation",
+      "skill failure aggregation"
+    ],
+    "avoid_when": [
+      "direct task execution",
+      "blocking validation",
+      "application logging replacement"
+    ]
+  },
   "capabilities": [
     "file-read",
     "file-write",

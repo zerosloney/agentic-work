@@ -1,6 +1,6 @@
 {
-  "name": "dotnet-work-trae",
-  "version": "1.0.7",
+  "name": "dotnet-work",
+  "version": "1.1.0",
   "description": ".NET development skills for Trae (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow).",
   "tool_selection": {
     "use_when": [

@@ -15,7 +15,7 @@
   "engines": { "node": ">=18" },
   "bin": {
     "agentic-work-codebuddy": "scripts/install-codebuddy.js",
-    "agentic-work-zcode": "scripts/install-zcode.js"
+    "agentic-work": "scripts/install-zcode.js"
   },
   "scripts": {
     "install:codebuddy": "node ./scripts/install-codebuddy.js",

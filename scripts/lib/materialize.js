@@ -14,7 +14,7 @@
 // single-copy.
 //
 // Assembly rules per plugin:
-//   1. wipe <destRoot>/<name>-codebuddy/                (idempotent)
+//   1. wipe <destRoot>/<name>/                          (idempotent)
 //   2. copy plugins/<name>/ → dest, skipping platform manifest/agent subdirs
 //      (brings in shared skills/, commands/, agents/ baseline, scripts/ + .codebuddy-plugin/)
 //   3. copy plugins/<name>/.codebuddy-plugin/plugin.json → dest/.codebuddy-plugin/
@@ -75,16 +75,16 @@ function copyHooksCodebuddy(pluginRoot, dest, dryRun) {
 }
 
 /**
- * Assemble a single plugin's CodeBuddy tree under <destRoot>/<name>-codebuddy/.
+ * Assemble a single plugin's CodeBuddy tree under <destRoot>/<name>/.
  *
  * @param {string} pluginName  e.g. 'dotnet-work' | 'agentic-workflow'
- * @param {string} destRoot    absolute path; plugin goes into <destRoot>/<name>-codebuddy/
+ * @param {string} destRoot    absolute path; plugin goes into <destRoot>/<name>/
  * @param {object} [opts]
  * @param {boolean} [opts.dryRun=false]  if true, log actions but write nothing
  */
 function materializePlugin(pluginName, destRoot, opts = {}) {
   const dryRun = !!opts.dryRun;
-  const installName = `${pluginName}-codebuddy`;
+  const installName = pluginName;
   const dest = path.join(destRoot, installName);
   const pluginRoot = path.join(REPO_ROOT, 'plugins', pluginName);
   const manifestSrc = path.join(pluginRoot, '.codebuddy-plugin', 'plugin.json');

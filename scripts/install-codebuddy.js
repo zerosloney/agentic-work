@@ -10,7 +10,7 @@
 //
 // Copies plugins/<name>/* (skills, agents, commands, scripts) excluding
 // the codebuddy/ platform subdir to
-// %USERPROFILE%/.codebuddy/plugins/<name>-codebuddy/
+// %USERPROFILE%/.codebuddy/plugins/<name>/
 // and registers via 'codebuddy plugin' CLI.
 //
 // CodeBuddy-specific overrides:
@@ -93,10 +93,10 @@ function ensureMarketplaceManifest(plugins, dryRun) {
   for (const pluginName of plugins) {
     const PLUGIN_VERSION = getPluginVersion(pluginName);
     const entry = {
-      name: `${pluginName}-codebuddy`,
+      name: pluginName,
       description: readCodebuddyDescription(pluginName),
       version: PLUGIN_VERSION,
-      source: `./${pluginName}-codebuddy`,
+      source: `./${pluginName}`,
       category: ({ 'dotnet-work': 'development', 'skill-radar': 'observability' })[pluginName] || 'workflow',
       author: { name: 'master0071', url: 'https://github.com/zerosloney' },
       homepage: 'https://github.com/zerosloney/agentic-work',
@@ -145,7 +145,7 @@ function install(args) {
   runCB(`plugin marketplace update ${MARKETPLACE_NAME}`, args.dryRun);
 
   for (const pluginName of plugins) {
-    const pluginId = `${pluginName}-codebuddy@${MARKETPLACE_NAME}`;
+    const pluginId = `${pluginName}@${MARKETPLACE_NAME}`;
     console.log(`\n→ Installing plugin: ${pluginId}`);
     try { runCB(`plugin uninstall ${pluginId}`, args.dryRun); } catch (_) {}
     runCB(`plugin install ${pluginId}`, args.dryRun);
@@ -157,7 +157,7 @@ function uninstall(args) {
   console.log('Uninstalling agentic-work from CodeBuddy...\n');
   const plugins = selectPlugins(args);
   for (const pluginName of plugins) {
-    const installName = `${pluginName}-codebuddy`;
+    const installName = pluginName;
     const pluginId = `${installName}@${MARKETPLACE_NAME}`;
     console.log(`→ Uninstalling: ${pluginId}`);
     try { runCB(`plugin uninstall ${pluginId}`, args.dryRun); } catch (_) {}

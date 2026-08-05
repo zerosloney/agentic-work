@@ -9,7 +9,7 @@
 //   node scripts/install-zcode.js --dry-run
 //
 // Copies plugins/<name>/* (skills, agents, commands, scripts) to
-// %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>-zcode/<version>/
+// %USERPROFILE%/.zcode/cli/plugins/cache/master0071/<name>/<version>/
 // and registers in marketplace. Manifest is read from .zcode-plugin/plugin.json
 // at the plugin root.
 //
@@ -81,7 +81,7 @@ function copyHooks(src, destDir, platform, args) {
 
 function installPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-zcode`;
+  const installName = pluginName;
   const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
   const manifestSrc = path.join(src, '.zcode-plugin', 'plugin.json');
@@ -160,7 +160,7 @@ function installPlugin(pluginName, args) {
 
 function uninstallPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-zcode`;
+  const installName = pluginName;
   const destDir = path.join(PLUGIN_DIR, 'cache', MARKETPLACE_NAME, installName, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);
 

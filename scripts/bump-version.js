@@ -8,7 +8,7 @@
 //   - all skills/*/SKILL.md (YAML frontmatter)
 //   - all skills/*/pyproject.toml (`version = "..."` under [project])
 //   - .codebuddy-plugin/marketplace.json (the root marketplace entry)
-//   - marketplace.json (root ZCode marketplace, `<plugin>-zcode` entry)
+//   - marketplace.json (root ZCode marketplace, `<plugin>` entry)
 //   - .qoder-plugin/marketplace.json (root Qoder marketplace, `<plugin>-qoder` entry)
 //
 // Usage:
@@ -180,7 +180,7 @@ function syncMarketplace(pluginName, newVersion) {
   const marketplaceFile = path.join(REPO_ROOT, '.codebuddy-plugin', 'marketplace.json');
   if (!fs.existsSync(marketplaceFile)) return false;
   const data = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
-  const entry = (data.plugins || []).find(p => p.name === `${pluginName}-codebuddy`);
+  const entry = (data.plugins || []).find(p => p.name === pluginName);
   if (!entry || entry.version === newVersion) return false;
   entry.version = newVersion;
   fs.writeFileSync(marketplaceFile, JSON.stringify(data, null, 2) + '\n');
@@ -188,13 +188,13 @@ function syncMarketplace(pluginName, newVersion) {
 }
 
 /**
- * Sync version into the root ZCode marketplace.json (`<plugin>-zcode` entry).
+ * Sync version into the root ZCode marketplace.json (`<plugin>` entry).
  */
 function syncMarketplaceZcode(pluginName, newVersion) {
   const marketplaceFile = path.join(REPO_ROOT, 'marketplace.json');
   if (!fs.existsSync(marketplaceFile)) return false;
   const data = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
-  const entry = (data.plugins || []).find(p => p.name === `${pluginName}-zcode`);
+  const entry = (data.plugins || []).find(p => p.name === pluginName);
   if (!entry || entry.version === newVersion) return false;
   entry.version = newVersion;
   fs.writeFileSync(marketplaceFile, JSON.stringify(data, null, 2) + '\n');
@@ -202,13 +202,13 @@ function syncMarketplaceZcode(pluginName, newVersion) {
 }
 
 /**
- * Sync version into the root .qoder-plugin/marketplace.json (`<plugin>-qoder` entry).
+ * Sync version into the root .qoder-plugin/marketplace.json (`<plugin>` entry).
  */
 function syncMarketplaceQoder(pluginName, newVersion) {
   const marketplaceFile = path.join(REPO_ROOT, '.qoder-plugin', 'marketplace.json');
   if (!fs.existsSync(marketplaceFile)) return false;
   const data = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
-  const entry = (data.plugins || []).find(p => p.name === `${pluginName}-qoder`);
+  const entry = (data.plugins || []).find(p => p.name === pluginName);
   if (!entry || entry.version === newVersion) return false;
   entry.version = newVersion;
   fs.writeFileSync(marketplaceFile, JSON.stringify(data, null, 2) + '\n');

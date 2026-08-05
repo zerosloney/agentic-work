@@ -7,7 +7,7 @@
 //   node scripts/materialize-codebuddy.js --plugin dotnet-work
 //   node scripts/materialize-codebuddy.js --dry-run
 //
-// Produces dist/codebuddy/<name>-codebuddy/ — a self-contained plugin tree
+// Produces dist/codebuddy/<name>/ — a self-contained plugin tree
 // (manifest + skills/commands/agents with codebuddy overrides applied) that
 // can be referenced verbatim by .codebuddy-plugin/marketplace.json `source`.
 //

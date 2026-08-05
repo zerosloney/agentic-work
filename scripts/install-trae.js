@@ -9,14 +9,14 @@
 //   node scripts/install-trae.js --dry-run
 //
 // Copies plugins/<name>/* (skills, agents-trae, commands, scripts) to
-// %USERPROFILE%/.trae/plugins/<name>-trae/
+// %USERPROFILE%/.trae/plugins/<name>/
 // Manifest is read from .trae-plugin/plugin.json at the plugin root.
 //
 // Hooks: Trae has no plugin-level hooks — only global (~/.trae-cn/hooks.json) or
 // project (.trae/hooks.json) configs, with no plugin-root variable. So when a plugin
 // ships hooks/hooks.trae.json (a template), install renders ${TRAE_PLUGIN_ROOT} to the
 // installed plugin dir and merges the result into a hooks.json; entries are
-// marked by the '<name>-trae' path substring for idempotent re-install and uninstall.
+// marked by the '<name>' path substring for idempotent re-install and uninstall.
 //
 // Scope selection (P1-4 — project-first, global only on explicit request):
 //   --project-only   merge into <cwd>/.trae/hooks.json (errors if no project root found)
@@ -146,7 +146,7 @@ function stripOwnHooks(config, marker) {
 function installHooks(pluginName, destDir, args, hooksTarget) {
   const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'trae', 'hooks.json');
   if (!fs.existsSync(templatePath)) return;
-  const marker = `${pluginName}-trae`;
+  const marker = pluginName;
   const template = JSON.parse(fs.readFileSync(templatePath, 'utf-8'));
   const rendered = JSON.parse(
     JSON.stringify(template.hooks).split('${TRAE_PLUGIN_ROOT}').join(toPosix(destDir))
@@ -165,7 +165,7 @@ function installHooks(pluginName, destDir, args, hooksTarget) {
 }
 
 function uninstallHooks(pluginName, args, hooksTarget) {
-  const marker = `${pluginName}-trae`;
+  const marker = pluginName;
   const templatePath = path.join(__dirname, '..', 'plugins', pluginName, 'hooks', 'trae', 'hooks.json');
   if (!fs.existsSync(templatePath) || !fs.existsSync(hooksTarget.file)) return;
   if (args.dryRun) {
@@ -179,7 +179,7 @@ function uninstallHooks(pluginName, args, hooksTarget) {
 
 function installPlugin(pluginName, args, hooksTarget) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-trae`;
+  const installName = pluginName;
   const destDir = path.join(PLUGIN_DIR, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
   const manifestSrc = path.join(src, '.trae-plugin', 'plugin.json');
@@ -241,7 +241,7 @@ function installPlugin(pluginName, args, hooksTarget) {
 
 function uninstallPlugin(pluginName, args, hooksTarget) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-trae`;
+  const installName = pluginName;
   const destDir = path.join(PLUGIN_DIR, installName, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);
 

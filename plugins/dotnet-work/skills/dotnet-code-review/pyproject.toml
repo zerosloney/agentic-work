@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dotnet-review"
-version = "1.0.7"
+version = "1.1.0"
 description = "C#/.NET code review CLI — Roslyn-based static analysis with 186+ rules"
 requires-python = ">=3.10"
 license = {text = "MIT"}

@@ -7,9 +7,9 @@
   },
   "plugins": [
     {
-      "name": "dotnet-work-qoder",
+      "name": "dotnet-work",
       "description": ".NET development skills (database-explorer, dotnet-code-review, dotnet-csharp-developer, winforms-dev-flow) for Qoder.",
-      "version": "1.0.7",
+      "version": "1.1.0",
       "source": "./plugins/dotnet-work",
       "category": "development",
       "author": {
@@ -25,9 +25,9 @@
       ]
     },
     {
-      "name": "agentic-workflow-qoder",
+      "name": "agentic-workflow",
       "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph) for Qoder.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "source": "./plugins/agentic-workflow",
       "category": "workflow",
       "author": {
@@ -44,9 +44,9 @@
       ]
     },
     {
-      "name": "skill-radar-qoder",
+      "name": "skill-radar",
       "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
-      "version": "0.2.2",
+      "version": "0.3.0",
       "source": "./plugins/skill-radar",
       "category": "observability",
       "author": {
@@ -63,9 +63,9 @@
       ]
     },
     {
-      "name": "graph-workflow-qoder",
+      "name": "graph-workflow",
       "description": "Loop Engineering + Graph Engineering 闭环(外层脚本硬约束 + 内层三角色 Task 协作,双档位:loop-task 单节点自环 / graph-task 声明式图编排) for Qoder.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "source": "./plugins/graph-workflow",
       "category": "workflow",
       "author": {

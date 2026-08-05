@@ -1,8 +1,19 @@
 {
-  "name": "agentic-workflow-zcode",
-  "version": "0.1.0",
+  "name": "agentic-workflow",
+  "version": "0.2.0",
   "description": "Orchestrated execute-review pipeline (Coding-Pipeline + Ralph-Pipeline/Ralph-Graph).",
-  "tool_selection": { "use_when": ["multi-step coding task", "execute-review-fix loop", "task decomposition"], "avoid_when": ["single-step edit", "read-only explanation", "graph-specific unattended workflow"] },
+  "tool_selection": {
+    "use_when": [
+      "multi-step coding task",
+      "execute-review-fix loop",
+      "task decomposition"
+    ],
+    "avoid_when": [
+      "single-step edit",
+      "read-only explanation",
+      "graph-specific unattended workflow"
+    ]
+  },
   "capabilities": [
     "file-read",
     "file-write",

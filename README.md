@@ -54,10 +54,10 @@ node scripts/install-zcode.js --uninstall
 npm install -g @master0071/agentic-work
 
 agentic-work-codebuddy     # installs for CodeBuddy
-agentic-work-zcode         # installs for ZCode
+agentic-work               # installs for ZCode
 ```
 
-(`agentic-work-codebuddy`, `agentic-work-zcode` are provided via `package.json` `bin`. Trae/Qoder/Qwen still need a direct `node scripts/install-<platform>.js` call.)
+(`agentic-work-codebuddy`, `agentic-work` are provided via `package.json` `bin`. Trae/Qoder/Qwen still need a direct `node scripts/install-<platform>.js` call.)
 
 ## Verification
 

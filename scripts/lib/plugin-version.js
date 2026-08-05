@@ -164,7 +164,7 @@ function collectVersionSites(pluginName) {
   const marketplaceFile = path.join(REPO_ROOT, '.codebuddy-plugin', 'marketplace.json');
   if (fs.existsSync(marketplaceFile)) {
     const marketplace = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
-    const entry = (marketplace.plugins || []).find(p => p.name === `${pluginName}-codebuddy`);
+    const entry = (marketplace.plugins || []).find(p => p.name === pluginName);
     if (entry) {
       sites.push({
         file: '.codebuddy-plugin/marketplace.json',
@@ -175,11 +175,11 @@ function collectVersionSites(pluginName) {
     }
   }
 
-  // 8. Root marketplace.json (ZCode marketplace, `<plugin>-zcode` entries)
+  // 8. Root marketplace.json (ZCode marketplace, `<plugin>` entries)
   const zcodeMarketplaceFile = path.join(REPO_ROOT, 'marketplace.json');
   if (fs.existsSync(zcodeMarketplaceFile)) {
     const marketplace = JSON.parse(fs.readFileSync(zcodeMarketplaceFile, 'utf-8'));
-    const entry = (marketplace.plugins || []).find(p => p.name === `${pluginName}-zcode`);
+    const entry = (marketplace.plugins || []).find(p => p.name === pluginName);
     if (entry) {
       sites.push({
         file: 'marketplace.json',
@@ -190,11 +190,11 @@ function collectVersionSites(pluginName) {
     }
   }
 
-  // 9. Root .qoder-plugin/marketplace.json (`<plugin>-qoder` entries)
+  // 9. Root .qoder-plugin/marketplace.json (`<plugin>` entries)
   const qoderMarketplaceFile = path.join(REPO_ROOT, '.qoder-plugin', 'marketplace.json');
   if (fs.existsSync(qoderMarketplaceFile)) {
     const marketplace = JSON.parse(fs.readFileSync(qoderMarketplaceFile, 'utf-8'));
-    const entry = (marketplace.plugins || []).find(p => p.name === `${pluginName}-qoder`);
+    const entry = (marketplace.plugins || []).find(p => p.name === pluginName);
     if (entry) {
       sites.push({
         file: '.qoder-plugin/marketplace.json',

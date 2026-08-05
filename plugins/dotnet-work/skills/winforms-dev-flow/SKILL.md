@@ -17,7 +17,7 @@ when_to_use: |
 license: MIT
 metadata:
   author: master0071
-  version: 1.0.7
+  version: 1.1.0
   category: code-generation
 ---
 

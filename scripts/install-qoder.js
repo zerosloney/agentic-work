@@ -12,7 +12,7 @@
 // ~/.qoder/plugins/installed_plugins_v2.json, so this script probes for the
 // qodercli binary (PATH, then ~/.qoder/bin/qodercli/) and, when found, runs
 // `qodercli plugins install <repo-plugin-dir>` against the repo source dir.
-// The staged copy to %USERPROFILE%/.qoder/plugins/<name>-qoder/ is kept as a
+// The staged copy to %USERPROFILE%/.qoder/plugins/<name>/ is kept as a
 // fallback for machines without qodercli (manual registration required).
 // Manifest is read from .qoder-plugin/plugin.json at the plugin root.
 
@@ -111,7 +111,7 @@ function readManifest(pluginName) {
 
 function installPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-qoder`;
+  const installName = pluginName;
   const destDir = path.join(PLUGIN_DIR, installName, PLUGIN_VERSION);
   const src = path.join(__dirname, '..', 'plugins', pluginName);
   const manifestSrc = path.join(src, '.qoder-plugin', 'plugin.json');
@@ -179,7 +179,7 @@ function installPlugin(pluginName, args) {
 
 function uninstallPlugin(pluginName, args) {
   const PLUGIN_VERSION = getPluginVersion(pluginName);
-  const installName = `${pluginName}-qoder`;
+  const installName = pluginName;
   const parentDir = path.join(PLUGIN_DIR, installName);
   const destDir = path.join(parentDir, PLUGIN_VERSION);
   console.log(`\n→ Removing ${installName}`);
@@ -188,7 +188,7 @@ function uninstallPlugin(pluginName, args) {
     if (!args.dryRun) removeDir(destDir);
     console.log(`  ${args.dryRun ? 'would remove' : 'removed'}: ${destDir}`);
   }
-  // Drop the now-empty <name>-qoder/ shell too — uninstall must remove
+  // Drop the now-empty <name>/ shell too — uninstall must remove
   // everything install created.
   if (!args.dryRun && fs.existsSync(parentDir) && fs.readdirSync(parentDir).length === 0) {
     fs.rmdirSync(parentDir);
