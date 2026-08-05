@@ -34,20 +34,6 @@
    "keywords": ["workflow", "loop", "ralph", "coding"]
  },
  {
-   "name": "skill-radar",
-   "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
-   "version": "0.3.0",
-   "source": "./plugins/skill-radar",
-   "category": "observability",
-   "author": {
-     "name": "master0071",
-     "url": "https://github.com/zerosloney"
-   },
-   "homepage": "https://github.com/zerosloney/agentic-work",
-   "license": "MIT",
-   "keywords": ["observability", "tracing", "skill", "telemetry"]
- },
- {
    "name": "graph-workflow",
    "description": "Loop Engineering + Graph Engineering 闭环 (loop-task 单节点自环 / graph-task 声明式图编排 + 三角色 Task 协作).",
    "version": "0.2.0",
