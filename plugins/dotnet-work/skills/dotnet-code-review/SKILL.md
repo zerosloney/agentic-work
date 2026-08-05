@@ -3,7 +3,7 @@ name: dotnet-code-review
 description: |
   C#/.NET 代码审查，基于 Roslyn（AST + Semantic + Project）+ dotnet build/format + 离线 CVE 库。
   6 维度覆盖：安全（OWASP Top 10 / CWE 映射）、性能、可维护性、可测试性、最佳实践/可靠性、架构（与 `references/dimensions-coverage.md` 对齐）。
-  186 条自研规则（AST 154 + 语义 24 + 测试/安全/专项 8）+ NetAnalyzers CAxxxx（~500 条）动态注入。
+  186 条自研规则（AST 154 + 语义 24 + 测试/安全/专项 8）；另有 NetAnalyzers CAxxxx 规则集在审查时动态注入，不并入这 186 条。
   两阶段 Triage→Verify 协议 + Agent 误报反馈闭环（.dotnet-review/agent-verdicts.json）+
   SARIF 输出（GitHub Code Scanning）+ 自动修复（9 条规则）。
   Agent 通过 subprocess 调用 scripts/review.py，用户不接触 CLI。
@@ -29,6 +29,14 @@ metadata:
 5. **修复建议基于 CLI 结果 + 代码上下文生成。** 不是调用外部 LLM，而是当前模型基于 issue 列表 + 源码 ±3 行直接生成 diff。
 
 脚本路径：`plugins/dotnet-work/skills/dotnet-code-review/scripts/review.py`
+
+调用方式：通过子进程在 skill 根目录执行，例如：
+- Windows：`powershell -NoProfile -Command "Set-Location '<skill_root>'; python scripts/review.py ..."`
+- Linux/macOS：`cd '<skill_root>' && python scripts/review.py ...`
+
+该脚本依赖 `review/` 包相对导入，因此必须在 skill 根目录或等效 `PYTHONPATH` 下运行。避免在非 skill 根目录直接调用。
+
+若指定 `--files`，`build/format` 层会由 CLI 自动跳过（无 csproj 上下文），此时只能依赖 AST/语义/项目规则；未启用的层会写入 `review_integrity.layers_skipped`。
 
 ---
 
@@ -76,6 +84,7 @@ dotnet --version
 }
 ```
 
+`disabled_rules`、`severity_overrides`、`exclude_paths` 为当前实现支持的字段；若实现未识别某字段，应在 `review_integrity` 中说明。
 规则包使用 `{"rules": [...]}` 或规则数组格式；每条规则至少包含 `id`、`pattern`，可选 `severity`、`category`、`suggestion`、`cwe`、`owasp`、`enabled`。规则包中的正则规则会与内置规则一起参与审查，团队配置只影响当前项目。
 
 ### 0.5 PR 评论、趋势与常驻服务
@@ -114,7 +123,7 @@ dotnet --version
 
 | 场景 | 命令组合 | token | 理由 |
 |------|---------|-------|------|
-| 快速评分/摘要 | `--format compact --output-mode summary` | ~50-100 | 最小 token，仅分数+统计 |
+| 快速评分/摘要 | `--format compact --output-mode summary` | 较小 | 最小信息量，仅分数+统计；实际 token 随项目规模变化 |
 | 看最严重问题 | `--format compact --output-mode top --max-issues 10` | ~200-500 | 首次审查，先看 top 10 |
 | 按规则分组 | `--format json --output-mode by-rule` | ~500-2000 | 省去重复 issue 详情 |
 | 全部 issue 详情 | `--format json`（默认） | ~2000-10000 | 完整结构化数据，生成修复建议 |
@@ -323,19 +332,33 @@ Agent 确认某条 issue 为误报后，可写入 .dotnet-review/agent-verdicts.
 | D | ≥ 60 | 差，需改进 |
 | F | < 60 | 不合格，必须修复 |
 
-| 类别 | 权重 | 每条 error 扣分 |
-|------|------|----------------|
-| security | 20% | 10 |
-| best-practice | 20% | 10 |
-| semantic | 10% | 10 |
-| complexity | 10% | 10 |
-| code-smell | 10% | 10 |
-| style | 5% | 10 |
-| test | 5% | 10 |
-| performance | 5% | 10 |
-| naming | 5% | 10 |
-| reliability | 5% | 10 |
-| security-hotspot | 5% | 10 |
+| 类别 | 权重 |
+|------|------|
+| security | 20% |
+| best-practice | 20% |
+| semantic | 10% |
+| complexity | 10% |
+| code-smell | 10% |
+| style | 5% |
+| test | 5% |
+| performance | 5% |
+| naming | 5% |
+| reliability | 5% |
+| security-hotspot | 5% |
+
+> **security 与 best-practice 各占 20%**，是权重最高的两类——同类 issue 多发会快速拉低总分。
+
+### 3.2 严重度扣分
+
+所有类别共用同一组严重度扣分：
+
+| 严重度 | 每条扣分 |
+|--------|----------|
+| error | **10** |
+| warning | **5** |
+| info | **1** |
+
+单类扣到 0 即止（`max(0, …)`），不会负分累加到其他类。
 
 ---
 
@@ -407,7 +430,19 @@ Summary
   "layers_executed": ["ast", "semantic"],
   "layers_skipped": [{"layer": "build", "reason": "no .csproj/.sln found"}],
   "cve_conclusion_valid": false,
-  "coverage_conclusion_valid": false
+  "coverage_conclusion_valid": false,
+  "netanalyzers": {
+    "injected_for_projects": 1,
+    "skipped_projects": [],
+    "disabled_by_user": false
+  },
+  "semantic_workspace": {
+    "used": "msbuild" | "adhoc" | "none",
+    "fallback": true | false,
+    "projects": 0,
+    "evaluated_compile_items": 0,
+    "generated_compile_items": 0
+  }
 }
 ```
 
@@ -417,7 +452,8 @@ Summary
 | `cve_conclusion_valid == false` | **不得**报告"无已知漏洞" |
 | `coverage_conclusion_valid == false` | **不得**报告"覆盖率达标" |
 | `netanalyzers.injected_for_projects == 0` 且 `disabled_by_user == false` | 说明"CAxxxx 规则集（约 500 条）未参与检测" |
-| `semantic_degraded == true` | 说明"语义分析层降级，SEM_* 规则不可靠" |
+| `semantic_workspace.used == "adhoc"` | 说明"语义分析使用 AdhocWorkspace fallback，跨程序集/条件编译能力受限" |
+| `semantic_workspace.used == "none"` | 说明"未加载语义工作区，SEM_* 规则可能缺失" |
 
 ### 5.2 降级场景
 
@@ -475,7 +511,7 @@ Summary
 
 ## 8. 测试状态
 
-`tests/` 目录下 6 个测试文件持续断言本 skill 的分析层与报告契约：
+`tests/` 目录下 8 个测试文件持续断言本 skill 的分析层与报告契约：
 
 | 测试数 | 文件 | 断言 |
 |--------|------|------|

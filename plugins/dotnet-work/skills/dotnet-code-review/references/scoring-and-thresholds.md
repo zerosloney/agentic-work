@@ -1,7 +1,7 @@
 # Scoring & Thresholds（评分与阈值）
 
 > 加载时机：解读 score/grade、解读某类扣分、解读技术债务分钟数、解读圈/认知复杂度是否超标。
-> 数据来源：`scripts/review/scoring.py` + `scripts/review/complexity.py` + `scripts/review/engine.py`。
+> 数据来源：`scripts/review/scoring.py` + `scripts/review/engine.py`。
 
 ## 一、总分计算（`calculate_score`）
 
@@ -77,7 +77,7 @@ category_score = max(0, 100 − Σ SEVERITY_PENALTY[该类下所有 issue])
 
 > 未命中表的 (severity, category) 默认按 **5 分钟**计。
 
-## 五、复杂度阈值（Layer 2，`analyze_complexity`）
+## 五、复杂度阈值（Layer 2，圈复杂度规则）
 
 | 规则 | error 阈值 | warning 阈值 | 维度 |
 |------|-----------|-------------|------|
