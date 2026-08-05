@@ -5,20 +5,21 @@ Wraps `dotnet build` and emits JSON with error/warning classification.
 The Agent reads structured output instead of parsing raw MSBuild text.
 
 Usage:
-    python scripts/build_check.py --project <.csproj> [--config Debug] [--json]
+    python scripts/build_check.py --project <.csproj> [--config Debug]
     python scripts/build_check.py --project <.csproj> --changed-files a.cs b.cs
 
 Output (JSON):
     {
-      "pass": true,
+      "pass": true,                        // rc == 0 AND zero parsed errors
       "error_count": 0,
       "warning_count": 3,
       "errors": [{"file": "...", "line": 42, "code": "CS1061", "message": "..."}],
       "warnings": [{"file": "...", "line": 18, "code": "CS0168", "message": "..."}],
-      "new_errors": ["CS1061"],           // errors in changed files (heuristic)
-      "pre_existing_errors": [],          // errors in unchanged files
+      "new_errors": ["CS1061"],            // list(set(...)) of error CODES in changed files; per-location detail in errors[]
+      "pre_existing_errors": [],           // list(set(...)) of error CODES in unchanged files; per-location detail in errors[]
       "dotnet_version": "8.0.101",
-      "exit_code": 0
+      "dotnet_return_code": 0,             // dotnet build's raw exit code (preserved even when parser misses diagnostics)
+      "exit_code": 0                       // rc if rc != 0, else 2 (errors) / 1 (warnings only) / 0 (clean)
     }
 
 Exit codes:
@@ -70,16 +71,23 @@ def run_build(project: str, config: str, timeout: int) -> tuple[int, str, str]:
     output otherwise becomes `错误 CS1061:` and parse_diagnostics silently
     drops real compile errors.
 
-    Uses --no-restore only when obj/project.assets.json exists (i.e. restore
-    already ran). On a clean checkout the assets file is absent and --no-restore
-    would fail with NU1603/MSB3027; in that case let dotnet build restore
-    implicitly by omitting the flag.
+    Uses --no-restore only for .csproj when obj/project.assets.json exists.
+    On a clean checkout the assets file is absent and --no-restore would fail
+    with NU1603/MSB3027; in that case let dotnet build restore implicitly.
+    For .sln inputs there is no single obj/ directory (each project has its
+    own), so --no-restore is omitted to avoid false-negative detection.
     """
     # intentional-simple: assets-file presence is the standard restore-state
     # signal; covers >99% of cases. Rare edge cases (corrupt assets, stale
     # restore) surface as build errors the Agent already handles.
-    assets = Path(project).parent / "obj" / "project.assets.json"
-    no_restore_flag = ["--no-restore"] if assets.exists() else []
+    project_path = Path(project)
+    if project_path.suffix.lower() == ".sln":
+        # .sln has no single obj/; each csproj owns its own. Skip the
+        # optimization entirely — let dotnet build handle restore per-project.
+        no_restore_flag = []
+    else:
+        assets = project_path.parent / "obj" / "project.assets.json"
+        no_restore_flag = ["--no-restore"] if assets.exists() else []
 
     cmd = [
         "dotnet", "build", project,
@@ -201,8 +209,21 @@ def main() -> int:
     errors, warnings = parse_diagnostics(combined)
     new_codes, pre_codes = classify_errors(errors, args.changed_files)
 
+    # rc is dotnet build's actual exit code. Pass and exit_code must reflect it:
+    # the regex in parse_diagnostics can miss non-standard diagnostics (third-party
+    # MSBuild tasks, format drift) — if rc != 0 we must surface that even when
+    # the parser found nothing. Exit code 0 only when dotnet itself reported success.
+    if rc != 0:
+        script_exit = rc
+    elif errors:
+        script_exit = 2
+    elif warnings:
+        script_exit = 1
+    else:
+        script_exit = 0
+
     result = {
-        "pass": len(errors) == 0,
+        "pass": rc == 0 and len(errors) == 0,
         "error_count": len(errors),
         "warning_count": len(warnings),
         "errors": errors,
@@ -210,7 +231,8 @@ def main() -> int:
         "new_errors": list(set(new_codes)),
         "pre_existing_errors": list(set(pre_codes)),
         "dotnet_version": get_dotnet_version(),
-        "exit_code": 2 if errors else (1 if warnings else 0),
+        "dotnet_return_code": rc,
+        "exit_code": script_exit,
     }
 
     print(json.dumps(result, ensure_ascii=False, indent=2))

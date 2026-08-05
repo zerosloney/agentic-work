@@ -6,7 +6,7 @@ that drives the Agent's Step 4c decision. The Agent reads structured output
 with a clear `agent_next_action` instead of interpreting raw review JSON.
 
 Usage:
-    python scripts/review_orchestrator.py --target <project_root> [--mode quick|full] [--json]
+    python scripts/review_orchestrator.py --target <project_root> [--mode quick|full]
 
 Modes:
     quick (default) — compact + top 10, ~200-500 token equivalent
@@ -71,13 +71,15 @@ def find_review_script(target: str) -> str | None:
 
 def build_review_cmd(review_script: str, target: str, mode: str, max_issues: int | None) -> list[str]:
     """Construct the review.py command with csharp-developer defaults."""
+    default_max = 10 if mode == "quick" else 20
+    effective_max = default_max if max_issues is None else max_issues
     if mode == "quick":
         cmd = [
             sys.executable, review_script,
             "--target", target,
             "--format", "compact",
             "--output-mode", "top",
-            "--max-issues", str(max_issues or 10),
+            "--max-issues", str(effective_max),
         ]
     else:
         cmd = [
@@ -85,7 +87,7 @@ def build_review_cmd(review_script: str, target: str, mode: str, max_issues: int
             "--target", target,
             "--format", "json",
             "--output-mode", "top",
-            "--max-issues", str(max_issues or 20),
+            "--max-issues", str(effective_max),
             "--context-bundles",
         ]
     return cmd
@@ -94,9 +96,13 @@ def build_review_cmd(review_script: str, target: str, mode: str, max_issues: int
 def run_review(cmd: list[str]) -> tuple[int, dict | None, str]:
     """Run review.py and parse JSON output. Returns (exit_code, parsed_json, raw_output)."""
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-        output = result.stdout
-        # review.py may emit warnings before JSON; find the first '{'
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=180,
+            encoding="utf-8", errors="replace",
+        )
+        # review.py may emit warnings before JSON, and may route JSON to either
+        # stdout or stderr depending on the host. Combine both to find the first '{'.
+        output = result.stdout + "\n" + result.stderr
         json_start = output.find("{")
         if json_start < 0:
             return result.returncode or 3, None, output

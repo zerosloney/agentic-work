@@ -1,6 +1,6 @@
-﻿---
+---
 name: dotnet-csharp-developer
-description: "用 .NET 8+、ASP.NET Core API、Blazor、Entity Framework Core 编写现代 C#。Clean Architecture 分层、gRPC/SignalR 实时通信、微服务 (Dapr/Orleans/Service Fabric)。优化 .NET 应用，实现企业级模式，确保全面测试。在构建 C# 应用、重构、性能优化或复杂 .NET 解决方案时使用。"
+description: "用 .NET 10（推荐 LTS）、ASP.NET Core API、Blazor、Entity Framework Core 编写现代 C#。Clean Architecture 分层、gRPC/SignalR 实时通信、微服务 (Dapr/Orleans/Service Fabric)。优化 .NET 应用，实现企业级模式，确保全面测试。在构建 C# 应用、重构、性能优化或复杂 .NET 解决方案时使用。"
 when_to_use: |
   用户需要构建 ASP.NET Core API、实现 EF Core 数据访问、创建 Blazor 应用、性能优化、C# 重构时使用。
   触发词："C#"、".NET"、"ASP.NET"、"Blazor"、"EF Core"、"Web API"、"实体框架"、"性能优化"。
@@ -153,7 +153,7 @@ python plugins/dotnet-work/skills/dotnet-csharp-developer/scripts/build_check.py
 ```
 
 - 输出 JSON：`pass`, `errors`, `warnings`, `new_errors`, `pre_existing_errors`
-- 必须零 error（`exit_code 0` 或 `2` 仅 warning 可接受）
+- 必须零 error（`exit_code 0` 零 error/warning，或 `exit_code 1` 仅 warning 可接受）
 - `--changed-files` 启用新旧错误区分：只修复 `new_errors`；`pre_existing_errors` 交付时列出
 - 失败时只修复本次生成/修改导致的错误；预先存在的错误交付时明确列出
 
