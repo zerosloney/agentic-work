@@ -15,13 +15,15 @@
   "engines": { "node": ">=18" },
   "bin": {
     "agentic-work-codebuddy": "scripts/install-codebuddy.js",
-    "agentic-work": "scripts/install-zcode.js"
+    "agentic-work": "scripts/install-zcode.js",
+    "agentic-work-claude": "scripts/install-claude.js"
   },
   "scripts": {
     "install:codebuddy": "node ./scripts/install-codebuddy.js",
     "install:zcode": "node ./scripts/install-zcode.js",
-    "install:all": "node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js",
-    "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run",
+    "install:claude": "node ./scripts/install-claude.js",
+    "install:all": "node ./scripts/install-codebuddy.js && node ./scripts/install-zcode.js && node ./scripts/install-claude.js",
+    "verify": "node ./scripts/install-codebuddy.js --dry-run && node ./scripts/install-zcode.js --dry-run && node ./scripts/install-claude.js --dry-run",
     "validate-state": "node ./scripts/validate-state.js",
     "test:agentic-workflow": "node ./scripts/test-agentic-workflow.js"
   },

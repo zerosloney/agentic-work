@@ -119,6 +119,19 @@ function collectVersionSites(pluginName) {
     });
   }
 
+  // 5b. .claude-plugin/plugin.json (should match) — added when the
+  //     Claude Code platform support landed.
+  const claudeManifest = path.join(REPO_ROOT, 'plugins', pluginName, '.claude-plugin', 'plugin.json');
+  if (fs.existsSync(claudeManifest)) {
+    const v = JSON.parse(fs.readFileSync(claudeManifest, 'utf-8')).version;
+    sites.push({
+      file: path.join('plugins', pluginName, '.claude-plugin', 'plugin.json'),
+      current: v,
+      pattern: 'json-manifest',
+      isSource: false,
+    });
+  }
+
   // 6. SKILL.md files (YAML frontmatter `version: X.Y.Z`)
   const skillsDir = path.join(REPO_ROOT, 'plugins', pluginName, 'skills');
   if (fs.existsSync(skillsDir)) {
@@ -200,6 +213,21 @@ function collectVersionSites(pluginName) {
         file: '.qoder-plugin/marketplace.json',
         current: entry.version,
         pattern: 'marketplace-entry-qoder',
+        isSource: false,
+      });
+    }
+  }
+
+  // 10. Root .claude-plugin/marketplace.json (`<plugin>` entries)
+  const claudeMarketplaceFile = path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json');
+  if (fs.existsSync(claudeMarketplaceFile)) {
+    const marketplace = JSON.parse(fs.readFileSync(claudeMarketplaceFile, 'utf-8'));
+    const entry = (marketplace.plugins || []).find(p => p.name === pluginName);
+    if (entry) {
+      sites.push({
+        file: '.claude-plugin/marketplace.json',
+        current: entry.version,
+        pattern: 'marketplace-entry-claude',
         isSource: false,
       });
     }

@@ -177,6 +177,7 @@ plugins/<name>/hooks/
   trae/hooks.json
   qoder/hooks.json
   qwencode/hooks.json
+  hooks.json                 ← (Claude Code 例外) 单一源,不展平
 ```
 
 **平台覆盖**：agentic-workflow 的 hooks 已支持 **ZCode + CodeBuddy + Qwen Code + Trae + Qoder** 全部五平台，同一组 Node 脚本、五份平台配置：
@@ -185,7 +186,8 @@ plugins/<name>/hooks/
 - CodeBuddy：`hooks/codebuddy/hooks.json`（`type: "command"` + `node "${CODEBUDDY_PLUGIN_ROOT}/hooks/X.js"`），`.codebuddy-plugin/plugin.json` 声明。CodeBuddy 在 Windows 强制用 Git Bash 执行 command hook，Node 脚本直调即可无需 wrapper；退出码 2 + stderr 即阻断（PreToolUse 拦工具 / Stop 拦停止），与脚本既有契约一致。
 - Qwen Code：`hooks/qwencode/hooks.json`（**顶层事件键**，无 `hooks` 包裹层；`type: "command"` + `node "${CLAUDE_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 毫秒），`.qwen-plugin/qwen-extension.json` 声明 `"hooks": "hooks/hooks.json"`。要点：file-based hook 文件里**只有 `${CLAUDE_PLUGIN_ROOT}`** 会被替换（`${extensionPath}` 等不生效）；PreToolUse matcher 用 Qwen 工具名 `WriteFile|Edit`；退出码 2 + stderr 阻断，契约同上。`install-qwencode.js` 选择性拷贝（仅 `*.js` + `qwencode/hooks.json`→`hooks.json`），避免其他平台配置落入 Qwen 自动发现路径。
 - Trae：`hooks/trae/hooks.json`（**模板**，非直接加载）—— Trae 没有插件级 hooks，只认全局 `~/.trae-cn/hooks.json` / 项目 `.trae/hooks.json`，且命令里无 PLUGIN_ROOT 变量。`install-trae.js` 安装时把模板的 `${TRAE_PLUGIN_ROOT}` 替换为实际安装目录后**幂等合并**进目标 hooks.json（自有条目按 `<name>-trae` 路径标记识别，重装先剔除再追加，卸载同标记移除）。Trae 在 Windows 默认用 PowerShell 跑 command hook，Node 直调可用；timeout 单位秒；工具名就是 `Write|Edit`；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），Stop 额外有 `loop_limit`（默认5）防无限阻断循环。注意：项目级 hook 仅对当前工作区生效，全局则对本机所有工作区；脚本对非 pipeline 项目 fail-open（无 `.loop-cli/state/` 即退 0），不干扰其他项目。
-- Qoder：`hooks/qoder/hooks.json`（**包裹格式** `{ "hooks": ... }` + `node "${QODER_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 秒），`.qoder-plugin/plugin.json` 声明 `"hooks": "./hooks/hooks.json"`，`install-qoder.js` 展平拷贝。**激活前提**：Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，须 `qodercli plugins install <staged-dir>` 注册（install-qoder.js 注册的是 **staged 目录**而非 repo 源——源 agents 是 zcode baseline frontmatter，Qoder 不认，staged 目录已派生为 Qoder 格式）。工具名就是 `Write|Edit`；`${QODER_PLUGIN_ROOT}` 在 bash 下由 shell 运行时展开、PowerShell 下由 CLI 预替换；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），契约同上。至此**五平台 hook 强制全覆盖**。
+- Qoder：`hooks/qoder/hooks.json`（**包裹格式** `{ "hooks": ... }` + `node "${QODER_PLUGIN_ROOT}/hooks/X.js"` + `timeout` 秒），`.qoder-plugin/plugin.json` 声明 `"hooks": "./hooks/hooks.json"`，`install-qoder.js` 展平拷贝。**激活前提**：Qoder 只加载注册在 `~/.qoder/plugins/installed_plugins_v2.json` 的插件，须 `qodercli plugins install <staged-dir>` 注册（install-qoder.js 注册的是 **staged 目录**而非 repo 源——源 agents 是 zcode baseline frontmatter，Qoder 不认，staged 目录已派生为 Qoder 格式）。工具名就是 `Write|Edit`；`${QODER_PLUGIN_ROOT}` 在 bash 下由 shell 运行时展开、PowerShell 下由 CLI 预替换；退出码 2 + stderr 阻断（PreToolUse deny / Stop block），契约同上。
+- Claude Code：`hooks/hooks.json`（**唯一例外——不展平**，源文件直接是 Claude 格式，`.claude-plugin/plugin.json` 引用 `./hooks/hooks.json` 直指源；`type: "command"` + `node "${CLAUDE_PLUGIN_ROOT}/hooks/X.js" --platform claude` + `timeout` 秒），`install-claude.js` 直接拷贝共享 `*.js` + 源 `hooks.json` 到 `<dest>/hooks/hooks.json`。要点：Claude Code 接受 flat `{}` 输出（与 ZCode 兼容），无需 `hookSpecificOutput` 包装；trace 数据靠 `--platform claude` 参数正确归属；命令变量只有 `${CLAUDE_PLUGIN_ROOT}` 会被替换。Install 到 `~/.claude/plugins/<name>/`。至此**六平台 hook 强制全覆盖**。
 
 当前 agentic-workflow 的 hooks：
 
@@ -232,6 +234,7 @@ node scripts/install-zcode.js --dry-run
 node scripts/install-trae.js --dry-run
 node scripts/install-qoder.js --dry-run
 node scripts/install-qwencode.js --dry-run
+node scripts/install-claude.js --dry-run
 node scripts/materialize-codebuddy.js --dry-run
 ```
 

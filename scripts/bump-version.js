@@ -80,6 +80,7 @@ function setManifestVersion(pluginName, newVersion) {
     path.join('plugins', pluginName, '.trae-plugin', 'plugin.json'),
     path.join('plugins', pluginName, '.qoder-plugin', 'plugin.json'),
     path.join('plugins', pluginName, '.qwen-plugin', 'qwen-extension.json'),
+    path.join('plugins', pluginName, '.claude-plugin', 'plugin.json'),
   ];
   for (const rel of files) {
     const abs = path.join(REPO_ROOT, rel);
@@ -215,6 +216,20 @@ function syncMarketplaceQoder(pluginName, newVersion) {
   return true;
 }
 
+/**
+ * Sync version into the root .claude-plugin/marketplace.json (`<plugin>` entry).
+ */
+function syncMarketplaceClaude(pluginName, newVersion) {
+  const marketplaceFile = path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json');
+  if (!fs.existsSync(marketplaceFile)) return false;
+  const data = JSON.parse(fs.readFileSync(marketplaceFile, 'utf-8'));
+  const entry = (data.plugins || []).find(p => p.name === pluginName);
+  if (!entry || entry.version === newVersion) return false;
+  entry.version = newVersion;
+  fs.writeFileSync(marketplaceFile, JSON.stringify(data, null, 2) + '\n');
+  return true;
+}
+
 function syncPlugin(pluginName, args) {
   console.log(`\n📦 ${pluginName}`);
 
@@ -273,6 +288,10 @@ function syncPlugin(pluginName, args) {
       }
     } else if (site.pattern === 'marketplace-entry-qoder') {
       if (syncMarketplaceQoder(pluginName, version)) {
+        console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
+      }
+    } else if (site.pattern === 'marketplace-entry-claude') {
+      if (syncMarketplaceClaude(pluginName, version)) {
         console.log(`   🔄 ${site.file}: ${site.current} → ${version}`);
       }
     }

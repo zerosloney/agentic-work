@@ -46,6 +46,20 @@
    "homepage": "https://github.com/zerosloney/agentic-work",
    "license": "MIT",
    "keywords": ["workflow", "loop", "graph", "orchestration"]
+ },
+ {
+   "name": "skill-radar",
+   "description": "Skill observability — tool invocation tracing, session tracking, and evolution signals.",
+   "version": "0.3.0",
+   "source": "./plugins/skill-radar",
+   "category": "observability",
+   "author": {
+     "name": "master0071",
+     "url": "https://github.com/zerosloney"
+   },
+   "homepage": "https://github.com/zerosloney/agentic-work",
+   "license": "MIT",
+   "keywords": ["observability", "tracing", "skill", "telemetry"]
  }
   ]
 }

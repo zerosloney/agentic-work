@@ -27,6 +27,7 @@ const PLUGINS_DIR = path.join(ROOT, 'plugins');
 const MARKETPLACE_FILES = [
   path.join(ROOT, 'marketplace.json'),
   path.join(ROOT, '.codebuddy-plugin', 'marketplace.json'),
+  path.join(ROOT, '.claude-plugin', 'marketplace.json'),
 ];
 
 const MANIFEST_SITES = [
@@ -153,7 +154,7 @@ function repoNameOf(entryName, markets) {
       if (mm) return mm[1];
     }
   }
-  return entryName.replace(/-(zcode|codebuddy|trae|qoder|qwen)$/, '');
+  return entryName.replace(/-(zcode|codebuddy|trae|qoder|qwen|claude)$/, '');
 }
 
 // ─── resolution ─────────────────────────────────────────────────

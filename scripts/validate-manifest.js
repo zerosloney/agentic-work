@@ -47,6 +47,7 @@ const MANIFEST_SITES = [
   { platform: 'trae', rel: '.trae-plugin/plugin.json' },
   { platform: 'qoder', rel: '.qoder-plugin/plugin.json' },
   { platform: 'qwen', rel: '.qwen-plugin/qwen-extension.json' },
+  { platform: 'claude', rel: '.claude-plugin/plugin.json' },
 ];
 
 // Component fields whose values reference paths inside the plugin.
@@ -161,9 +162,12 @@ function validateComponentField(rep, site, pluginRoot, manifest, field, kind, pl
   // Hooks path: manifest declares the INSTALL shape (hooks/hooks.json), but the
   // source holds per-platform configs at hooks/<platform>/hooks.json (flattened by
   // install scripts). Validate the source platform subdir instead of the literal path.
+  // EXCEPTION: Claude Code's source IS the root hooks/hooks.json (no per-platform
+  // subdir, no flatten at install time). See AGENTS.md "Hooks" → source layout.
   if (field === 'hooks' && typeof v === 'string') {
     const platDir = platform === 'qwen' ? 'qwencode' : platform;
-    checkPathRef(rep, site, pluginRoot, field, `hooks/${platDir}/hooks.json`);
+    const sourcePath = platform === 'claude' ? 'hooks/hooks.json' : `hooks/${platDir}/hooks.json`;
+    checkPathRef(rep, site, pluginRoot, field, sourcePath);
     return;
   }
   if (kind === 'path') {
@@ -215,8 +219,12 @@ function validateHooksFileShape(rep, site, pluginRoot, manifest, platform) {
   if (typeof hooksRef !== 'string') return;
   // Source hooks live at hooks/<platform>/hooks.json; manifest declares the install
   // shape (hooks/hooks.json). Validate the source platform file's JSON shape.
+  // EXCEPTION: Claude Code's source is the root hooks/hooks.json (no subdir, no
+  // flatten). See AGENTS.md "Hooks" → source layout.
   const platDir = platform === 'qwen' ? 'qwencode' : platform;
-  const abs = path.join(pluginRoot, 'hooks', platDir, 'hooks.json');
+  const abs = platform === 'claude'
+    ? path.join(pluginRoot, 'hooks', 'hooks.json')
+    : path.join(pluginRoot, 'hooks', platDir, 'hooks.json');
   if (!fs.existsSync(abs)) return; // already reported by checkPathRef
   try {
     const data = JSON.parse(fs.readFileSync(abs, 'utf-8'));
@@ -226,10 +234,12 @@ function validateHooksFileShape(rep, site, pluginRoot, manifest, platform) {
       return;
     }
     if (!data.hooks || typeof data.hooks !== 'object') {
-      rep.error(site, `hooks file (hooks/${platDir}/hooks.json): expected a top-level "hooks" object (${platform} format)`);
+      const fileLabel = platform === 'claude' ? 'hooks/hooks.json' : `hooks/${platDir}/hooks.json`;
+      rep.error(site, `hooks file (${fileLabel}): expected a top-level "hooks" object (${platform} format)`);
     }
   } catch (e) {
-    rep.error(site, `hooks file (hooks/${platDir}/hooks.json): invalid JSON — ${e.message}`);
+    const fileLabel = platform === 'claude' ? 'hooks/hooks.json' : `hooks/${platDir}/hooks.json`;
+    rep.error(site, `hooks file (${fileLabel}): invalid JSON — ${e.message}`);
   }
 }
 
@@ -270,8 +280,12 @@ function validateHookEventConsistency(rep, pluginName) {
     try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')); }
     catch { continue; } // JSON error already reported per-manifest
     if (typeof manifest.hooks !== 'string') continue; // platform doesn't use hooks
+    // Claude Code's hooks source is the root hooks/hooks.json (no subdir).
+    // See AGENTS.md "Hooks" → source layout exception.
     const platDir = site.platform === 'qwen' ? 'qwencode' : site.platform;
-    const abs = path.join(PLUGINS_DIR, pluginName, 'hooks', platDir, 'hooks.json');
+    const abs = site.platform === 'claude'
+      ? path.join(PLUGINS_DIR, pluginName, 'hooks', 'hooks.json')
+      : path.join(PLUGINS_DIR, pluginName, 'hooks', platDir, 'hooks.json');
     if (!fs.existsSync(abs)) continue; // missing file already reported
     const events = readHookEvents(abs, site.platform);
     if (events === null) continue;
